@@ -1,8 +1,9 @@
 [build]
 builder = "nixpacks"
+buildCommand = "npx prisma generate && npm run build"
 
 [deploy]
-startCommand = "npx prisma generate && next start"
+startCommand = "next start"
 healthcheckPath = "/"
 healthcheckTimeout = 60
 restartPolicyType = "on_failure"
