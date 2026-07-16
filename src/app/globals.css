@@ -1,26 +1,309 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* ── Netflix / Dark Industrial ────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --n-bg:       #252525;
+  --n-surface:  #2E2E2E;
+  --n-card:     #383838;
+  --n-card-hv:  #404040;
+  --n-red:      #E50914;
+  --n-red-hv:   #F40612;
+  --n-yellow:   #FFD100;
+  --n-border:   rgba(255,255,255,0.08);
+  --n-text:     #FFFFFF;
+  --n-text-mid: #B3B3B3;
+  --n-text-lt:  #777777;
+  --n-shadow:   0 4px 20px rgba(0,0,0,0.5);
 }
 
 @theme inline {
+  --color-n-bg:      var(--n-bg);
+  --color-n-surface: var(--n-surface);
+  --color-n-card:    var(--n-card);
+  --color-n-red:     var(--n-red);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: #252525;
+  --foreground: #FFFFFF;
+  --card: #2A2A2A;
+  --card-foreground: #FFFFFF;
+  --popover: #1F1F1F;
+  --popover-foreground: #FFFFFF;
+  --primary: #E50914;
+  --primary-foreground: #FFFFFF;
+  --secondary: #2A2A2A;
+  --secondary-foreground: #FFFFFF;
+  --muted: #1F1F1F;
+  --muted-foreground: #B3B3B3;
+  --accent: #2A2A2A;
+  --accent-foreground: #FFFFFF;
+  --destructive: #E50914;
+  --border: rgba(255,255,255,0.08);
+  --input: rgba(255,255,255,0.08);
+  --ring: #E50914;
+  --chart-1: #E50914;
+  --chart-2: #FF6B6B;
+  --chart-3: #FF9F43;
+  --chart-4: #54A0FF;
+  --chart-5: #5F27CD;
+  --radius: 0.375rem;
+  --sidebar: #1F1F1F;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #E50914;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #2A2A2A;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: #E50914;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-size: 20px;
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.015em;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.n-row-hover:hover { background-color: var(--n-card) !important; }
+.n-module-card:hover { background-color: var(--n-card) !important; }
+.n-module-card-accent:hover { filter: brightness(1.1); }
+
+/* Dark form controls */
+.n-input {
+  width: 100%;
+  background-color: var(--n-bg);
+  border: 1px solid var(--n-border);
+  border-radius: 0.375rem;
+  padding: 0.6rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.n-input:focus { border-color: var(--n-yellow); }
+.n-input::placeholder { color: var(--n-text-lt); }
+.n-input option { background-color: var(--n-card); color: white; }
+
+.n-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--n-text-lt);
+  margin-bottom: 0.375rem;
+}
+
+.n-btn-primary {
+  background-color: var(--n-red);
+  color: white;
+  font-weight: 700;
+  border-radius: 0.375rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  transition: opacity 0.15s;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.n-btn-primary:hover { opacity: 0.9; }
+.n-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.n-btn-ghost {
+  background-color: transparent;
+  color: var(--n-text-mid);
+  font-weight: 600;
+  border-radius: 0.375rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--n-border);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.n-btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: white; }
+.n-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.n-card {
+  background-color: var(--n-surface);
+  border: 1px solid var(--n-border);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+/* ── Vista de impresión OT ─────────────────────────── */
+@media print {
+  /* Bitácora solo cuando se imprime con modo "full" */
+  body:not([data-print="full"]) .print-bitacora { display: none !important; }
+
+  /* Ocultar navegación e interactividad */
+  .no-print,
+  nav,
+  header,
+  [data-topbar] { display: none !important; }
+
+  /* Resetear fondo y colores a blanco/negro */
+  html, body {
+    background: white !important;
+    color: black !important;
+    font-size: 12px !important;
+  }
+
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Cards con borde simple en vez de oscuro */
+  [style*="--n-surface"],
+  [style*="--n-bg"],
+  [style*="--n-card"] {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  /* Bordes visibles en papel */
+  [style*="--n-border"] {
+    border-color: #ccc !important;
+  }
+
+  /* Textos que usan tokens de color */
+  * {
+    color: black !important;
+    border-color: #ddd !important;
+  }
+
+  /* Excepciones: mantener colores de badges de estado */
+  .print-badge { color: inherit !important; }
+
+  /* Saltos de página controlados */
+  .print-break-before { page-break-before: always; }
+  .print-avoid-break { page-break-inside: avoid; }
+
+  /* Ocultar formularios de ingreso y botones de acción */
+  form,
+  button,
+  [role="button"] { display: none !important; }
+
+  /* Encabezado de impresión */
+  .print-header {
+    display: block !important;
+    border-bottom: 2px solid black;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+  }
+
+  /* Forzar layout de una sola columna */
+  .grid {
+    display: block !important;
+  }
+
+  /* Evitar corte dentro de filas pero permitir que la tabla rompa entre páginas */
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+
+  /* ── Tabla imprimible de equipos ── */
+  @page { size: portrait; margin: 1.5cm; }
+  .print-equipos-table { border-collapse: collapse; width: 100%; }
+  .print-equipos-table th,
+  .print-equipos-table td { border: 1px solid #aaa; padding: 4px 6px; text-align: left; vertical-align: top; font-size: 9pt; }
+  .print-equipos-table th { font-size: 8pt; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; color: #000 !important; border-bottom: 2px solid #000; }
+  .print-equipos-table tr.grupo-header td { border-top: 2px solid #000; border-bottom: 1px solid #555; font-weight: 900; font-size: 9pt; letter-spacing: .06em; text-transform: uppercase; color: #000 !important; padding-top: 8px; }
+  .print-equipos-table tr.sub-header td { font-weight: 700; font-size: 8.5pt; color: #333 !important; border-bottom: 1px solid #aaa; }
+  .print-equipos-table .estado-op  { color: #1a7a40 !important; font-weight: 700; }
+  .print-equipos-table .estado-fs  { color: #8B0000 !important; font-weight: 700; }
+  .print-equipos-table .estado-tal { color: #7a5a00 !important; font-weight: 700; }
+  .print-equipos-table .estado-det { color: #8B0000 !important; font-weight: 700; }
 }
