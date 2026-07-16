@@ -136,8 +136,8 @@ export default function OTListaClient({ ots }: { ots: OT[] }) {
               </thead>
               <tbody>
                 {filtradas.map((ot) => {
-                  const ec = ESTADO_OT_CONFIG[ot.estado]
-                  const pc = PRIORIDAD_CONFIG[ot.prioridad]
+                  const ec = ESTADO_OT_CONFIG[ot.estado as keyof typeof ESTADO_OT_CONFIG]
+                  const pc = PRIORIDAD_CONFIG[ot.prioridad as keyof typeof PRIORIDAD_CONFIG]
                   return (
                     <tr key={ot.id} className="n-row-hover" style={{ borderBottom: '1px solid var(--n-border)' }}>
                       <td className="px-5 py-3.5 font-mono text-sm font-bold" style={{ color: 'var(--n-text-lt)' }}>

@@ -38,7 +38,7 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
 
   if (!equipo) notFound()
 
-  const ec = ESTADO_EQUIPO_CONFIG[equipo.estado]
+  const ec = ESTADO_EQUIPO_CONFIG[equipo.estado as keyof typeof ESTADO_EQUIPO_CONFIG]
 
   // KPIs hoja de vida
   const otsCerradas = equipo.ots.filter(o => o.estado === 'CERRADA')
@@ -162,8 +162,8 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
                 </p>
               )}
               {otsRecientes.map((ot) => {
-                const otEc = ESTADO_OT_CONFIG[ot.estado]
-                const otPc = PRIORIDAD_CONFIG[ot.prioridad]
+                const otEc = ESTADO_OT_CONFIG[ot.estado as keyof typeof ESTADO_OT_CONFIG]
+                const otPc = PRIORIDAD_CONFIG[ot.prioridad as keyof typeof PRIORIDAD_CONFIG]
                 return (
                   <Link key={ot.id} href={`/ot/${ot.id}`} className="n-row-hover flex items-center gap-4 px-5 py-3.5" style={{ borderBottom: '1px solid var(--n-border)' }}>
                     <span className="font-mono text-xs shrink-0" style={{ color: 'var(--n-text-lt)' }}>#{ot.numeroOt}</span>

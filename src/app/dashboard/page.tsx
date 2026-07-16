@@ -339,8 +339,8 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid lg:grid-cols-2">
             {otsActivas.map((ot) => {
-              const ec = ESTADO_OT_CONFIG[ot.estado]
-              const pc = PRIORIDAD_CONFIG[ot.prioridad]
+              const ec = ESTADO_OT_CONFIG[ot.estado as keyof typeof ESTADO_OT_CONFIG]
+              const pc = PRIORIDAD_CONFIG[ot.prioridad as keyof typeof PRIORIDAD_CONFIG]
               return (
                 <Link key={ot.id} href={`/ot/${ot.id}`} className="n-row-hover flex items-center gap-4 px-5 py-3" style={{ borderBottom: '1px solid var(--n-border)' }}>
                   <div className="flex-1 min-w-0">

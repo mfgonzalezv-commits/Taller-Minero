@@ -114,7 +114,7 @@ function FilaEquipos({ lista }: { lista: Equipo[] }) {
     >
       <div className="flex gap-2.5" style={{ width: 'max-content', paddingLeft: 2 }}>
         {lista.map(equipo => {
-          const ec = ESTADO_EQUIPO_CONFIG[equipo.estado]
+          const ec = ESTADO_EQUIPO_CONFIG[equipo.estado as keyof typeof ESTADO_EQUIPO_CONFIG]
           const otsActivas = equipo.ots.length
           const tieneCrit = equipo.ots.some(o => o.prioridad === 'CRITICA')
           return (
