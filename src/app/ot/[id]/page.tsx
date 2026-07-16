@@ -345,7 +345,31 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
         )
       })()}
 
-      {/* ── SECCIÓN PRINT: Bitácora (solo modo full) ── */}
+      {/* ── SECCIÓN PRINT: Resumen costos ── */}
+      <div className="hidden print:block mb-5 border rounded p-4">
+        <p className="text-xs font-bold uppercase tracking-widest mb-3">Resumen de costos</p>
+        <table className="w-full text-sm">
+          <tbody>
+            {[
+              { label: `Detención (${horasDetencion} h)`, value: fmt(costoDetenccion) },
+              { label: 'Materiales y repuestos', value: fmt(totalRepuestos) },
+              { label: 'Mano de obra', value: fmt(costoManoObra) },
+              { label: 'Overhead', value: fmt(costoOverhead) },
+            ].map(row => (
+              <tr key={row.label} className="border-b">
+                <td className="py-1">{row.label}</td>
+                <td className="py-1 text-right">{row.value}</td>
+              </tr>
+            ))}
+            <tr>
+              <td className="pt-2 font-black text-base">TOTAL OT</td>
+              <td className="pt-2 font-black text-base text-right">{fmt(costoTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── SECCIÓN PRINT: Bitácora (solo modo full — página nueva) ── */}
       {bitacoraSerial.length > 0 && (
         <div className="print-bitacora hidden print:block mb-5 border rounded p-4 print-break-before">
           <p className="text-xs font-bold uppercase tracking-widest mb-3">Bitácora de intervenciones</p>
@@ -380,30 +404,6 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
           </div>
         </div>
       )}
-
-      {/* ── SECCIÓN PRINT: Resumen costos ── */}
-      <div className="hidden print:block mb-5 border rounded p-4">
-        <p className="text-xs font-bold uppercase tracking-widest mb-3">Resumen de costos</p>
-        <table className="w-full text-sm">
-          <tbody>
-            {[
-              { label: `Detención (${horasDetencion} h)`, value: fmt(costoDetenccion) },
-              { label: 'Materiales y repuestos', value: fmt(totalRepuestos) },
-              { label: 'Mano de obra', value: fmt(costoManoObra) },
-              { label: 'Overhead', value: fmt(costoOverhead) },
-            ].map(row => (
-              <tr key={row.label} className="border-b">
-                <td className="py-1">{row.label}</td>
-                <td className="py-1 text-right">{row.value}</td>
-              </tr>
-            ))}
-            <tr>
-              <td className="pt-2 font-black text-base">TOTAL OT</td>
-              <td className="pt-2 font-black text-base text-right">{fmt(costoTotal)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
 
       {/* ══════════════════════════════════════════════════════
           LAYOUT PANTALLA (oculto en impresión)
