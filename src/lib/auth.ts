@@ -13,6 +13,7 @@ declare module "next-auth/jwt" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
