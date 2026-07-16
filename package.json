@@ -2,6 +2,9 @@
   "name": "erp-faena-minera",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build",
