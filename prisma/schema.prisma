@@ -40,6 +40,8 @@ model Faena {
   trasladosDestino     TrasladoTrabajador[]    @relation("TrasladoDestino")
   reportesFalla        ReporteFalla[]
   estadosPago          EstadoPago[]
+  compromisos          Compromiso[]
+  destinatariosInforme DestinatarioInforme[]
 
   @@map("faenas")
 }
@@ -82,6 +84,8 @@ model Usuario {
   estadosPagoPreparados         EstadoPago[]             @relation("EstadoPagoPreparado")
   estadosPagoAprobados          EstadoPago[]             @relation("EstadoPagoAprobado")
   ajustesEstadoPago             AjusteEstadoPagoLinea[]
+  compromisosResponsable        Compromiso[]             @relation("CompromisoResponsable")
+  compromisosCreados            Compromiso[]             @relation("CompromisoCreador")
 
   @@map("usuarios")
 }
@@ -1147,4 +1151,47 @@ model AjusteEstadoPagoLinea {
   usuario Usuario?        @relation(fields: [usuarioId], references: [id])
 
   @@map("ajustes_estado_pago_linea")
+}
+
+// ─── Informes de gestión y compromisos (Fase 10) ────────────────────────────
+
+enum EstadoCompromiso {
+  PENDIENTE
+  CUMPLIDO
+  ATRASADO
+
+  @@map("estado_compromiso")
+}
+
+model Compromiso {
+  id            String           @id @default(uuid())
+  faenaId       String           @map("faena_id")
+  descripcion   String
+  responsableId String?          @map("responsable_id")
+  fechaLimite   DateTime         @map("fecha_limite")
+  estado        EstadoCompromiso @default(PENDIENTE)
+  origenReunion String?          @map("origen_reunion")
+  creadoPorId   String?          @map("creado_por_id")
+  fechaCumplido DateTime?        @map("fecha_cumplido")
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  faena       Faena    @relation(fields: [faenaId], references: [id])
+  responsable Usuario? @relation("CompromisoResponsable", fields: [responsableId], references: [id])
+  creadoPor   Usuario? @relation("CompromisoCreador", fields: [creadoPorId], references: [id])
+
+  @@map("compromisos")
+}
+
+// Destinatarios configurables por faena (o null = configuración central,
+// para destinatarios gerenciales).
+model DestinatarioInforme {
+  id      String  @id @default(uuid())
+  faenaId String? @map("faena_id")
+  tipo    String // DIARIO | ENTREGA_TURNO | SEMANAL | MENSUAL | ESTADO_PAGO | ALERTAS
+  email   String
+  activo  Boolean @default(true)
+
+  faena Faena? @relation(fields: [faenaId], references: [id])
+
+  @@map("destinatarios_informe")
 }
