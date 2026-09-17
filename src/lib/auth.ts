@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import { compare } from "bcryptjs"
 import { prisma } from "./prisma"
 import { JWT } from "next-auth/jwt"
+import { authConfig } from "./auth.config"
 
 declare module "next-auth/jwt" {
   interface JWT {
@@ -13,7 +14,7 @@ declare module "next-auth/jwt" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -52,28 +53,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  pages: {
-    signIn: "/login",
-  },
-  callbacks: {
-    jwt: async ({ token, user }) => {
-      if (user) {
-        token.id = user.id
-        token.role = (user as any).rol
-        token.faenaId = (user as any).faenaId
-      }
-      return token
-    },
-    session: async ({ session, token }) => {
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: token.id,
-          rol: token.role,
-          faenaId: token.faenaId,
-        },
-      }
-    },
-  },
 })

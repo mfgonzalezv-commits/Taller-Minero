@@ -1,6 +1,9 @@
-import { auth } from '@/lib/auth'
+import NextAuth from 'next-auth'
 import { NextResponse } from 'next/server'
+import { authConfig } from '@/lib/auth.config'
 import { puedeAcceder } from '@/lib/roles'
+
+const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
   const { nextUrl, auth: session } = req
