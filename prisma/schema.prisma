@@ -38,6 +38,7 @@ model Faena {
   asignacionesEquipo   AsignacionEquipoFaena[]
   trasladosOrigen      TrasladoTrabajador[]    @relation("TrasladoOrigen")
   trasladosDestino     TrasladoTrabajador[]    @relation("TrasladoDestino")
+  reportesFalla        ReporteFalla[]
 
   @@map("faenas")
 }
@@ -72,6 +73,7 @@ model Usuario {
   historialSR                   HistorialSR[]
   asignacionesEquipoResponsable AsignacionEquipoFaena[]
   trasladosTrabajador           TrasladoTrabajador[]
+  reportesFallaReportados       ReporteFalla[]
 
   @@map("usuarios")
 }
@@ -128,6 +130,7 @@ model Equipo {
   pautaId              String?                 @map("pauta_id")
   pauta                PautaMantenimiento?     @relation(fields: [pautaId], references: [id])
   asignaciones         AsignacionEquipoFaena[]
+  reportesFalla        ReporteFalla[]
 
   @@unique([faenaId, codigo])
   @@map("equipos")
@@ -204,6 +207,7 @@ model OrdenTrabajo {
   manoObra            ManoObraOT[]
   checklist           ChecklistItemOT[]
   solicitudesRepuesto SolicitudRepuesto[]
+  reportesFalla       ReporteFalla[]
 
   @@map("ordenes_trabajo")
 }
@@ -599,8 +603,11 @@ enum TipoEquipo {
 
 enum EstadoEquipo {
   OPERATIVO
+  OPERATIVO_CON_OBSERVACION
+  DETENIDO_PENDIENTE_VALIDACION
   DETENIDO
   TALLER
+  EN_MANTENIMIENTO
   FUERA_DE_SERVICIO
 
   @@map("estado_equipo")
@@ -891,4 +898,48 @@ model TrasladoTrabajador {
   usuario      Usuario?   @relation(fields: [usuarioId], references: [id])
 
   @@map("traslados_trabajador")
+}
+
+// ─── Reporte de falla (previo a la OT) ──────────────────────────────────────
+
+enum EstadoReporteFalla {
+  PENDIENTE
+  EVALUADO
+  CONVERTIDO_OT
+  CERRADO_SIN_OT
+
+  @@map("estado_reporte_falla")
+}
+
+model ReporteFalla {
+  id                           String             @id @default(uuid())
+  faenaId                      String             @map("faena_id")
+  equipoId                     String             @map("equipo_id")
+  reportadoPorId               String             @map("reportado_por_id")
+  funcion                      String?
+  ubicacion                    String?
+  descripcion                  String
+  fotos                        String[]           @default([])
+  impactoProductivo            String?            @map("impacto_productivo")
+  riesgoSeguridad              Boolean            @default(false) @map("riesgo_seguridad")
+  prioridadSugerida            PrioridadOT        @map("prioridad_sugerida")
+  prioridad                    PrioridadOT
+  justificacionCambioPrioridad String?            @map("justificacion_cambio_prioridad")
+  estado                       EstadoReporteFalla @default(PENDIENTE)
+  detencionSolicitada          Boolean            @default(false) @map("detencion_solicitada")
+  detencionConfirmada          Boolean?           @map("detencion_confirmada")
+  motivoRechazoDetencion       String?            @map("motivo_rechazo_detencion")
+  motivoCierre                 String?            @map("motivo_cierre")
+  otId                         String?            @map("ot_id")
+  fecha                        DateTime           @default(now())
+  createdAt                    DateTime           @default(now()) @map("created_at")
+  updatedAt                    DateTime           @updatedAt @map("updated_at")
+
+  faena        Faena         @relation(fields: [faenaId], references: [id])
+  equipo       Equipo        @relation(fields: [equipoId], references: [id])
+  reportadoPor Usuario       @relation(fields: [reportadoPorId], references: [id])
+  ot           OrdenTrabajo? @relation(fields: [otId], references: [id])
+
+  @@index([faenaId, estado])
+  @@map("reportes_falla")
 }

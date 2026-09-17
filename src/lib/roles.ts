@@ -44,6 +44,7 @@ export function requireRol(rol: string | undefined, roles: Rol[]) {
 export const NAV_ITEMS: { label: string; href: string; roles: Rol[] | null }[] = [
   { label: 'Dashboard',  href: '/dashboard',         roles: null },
   { label: 'OTs',        href: '/ot',                roles: null },
+  { label: 'Fallas',     href: '/fallas',            roles: null },
   { label: 'Equipos',    href: '/equipos',           roles: null },
   { label: 'Mantención', href: '/mantenimiento',     roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO'] },
   { label: 'Horómetros', href: '/terreno/horometro', roles: null },
