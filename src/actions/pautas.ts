@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
+import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
 
 export type EstadoPM = 'VENCIDA' | 'PROXIMA' | 'OT_ACTIVA' | 'OK'
 
@@ -120,8 +121,9 @@ export async function vincularPautaEquipo(equipoId: string, pautaId: string | nu
 }
 
 export async function getPautaEquipo(equipoId: string) {
+  const sesion = await requireSesion()
   const equipo = await prisma.equipo.findUnique({
-    where: { id: equipoId },
+    where: { id: equipoId, faenaId: sesion.faenaId },
     include: {
       pauta: {
         include: {
@@ -134,6 +136,10 @@ export async function getPautaEquipo(equipoId: string) {
 }
 
 export async function crearChecklistDesdePauta(otId: string, pautaId: string, ciclo: number) {
+  const sesion = await requireSesion()
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
+
   const pauta = await prisma.pautaMantenimiento.findUnique({
     where: { id: pautaId },
     include: { items: { orderBy: [{ categoria: 'asc' }, { orden: 'asc' }] } },

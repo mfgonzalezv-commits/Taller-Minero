@@ -72,9 +72,18 @@ export async function prepararEstadoPago(faenaId: string, fechaBase?: string) {
       montoBruto = a.modalidadArriendo === 'MES' ? tarifa * (diasVigentes / 30) : tarifa * diasVigentes
     }
 
-    // Horas de detención reales en el periodo (de OT del equipo).
+    // Horas de detención reales EN ESTE PERIODO (de OT del equipo cuya
+    // ventana de detención se solapa con [inicio, termino]). Antes esto
+    // sumaba tiempoDetenidoMin de TODA OT histórica del equipo sin acotar
+    // por periodo, inflando el descuento acumulativamente mes a mes — bug
+    // corregido en el control final antes de desplegar.
     const ots = await prisma.ordenTrabajo.findMany({
-      where: { equipoId: a.equipoId, fechaCreacion: { lte: termino }, estado: { not: 'ANULADA' } },
+      where: {
+        equipoId: a.equipoId,
+        estado: { not: 'ANULADA' },
+        fechaCreacion: { lte: termino },
+        OR: [{ fechaTerminoTrabajo: null }, { fechaTerminoTrabajo: { gte: inicio } }],
+      },
       select: { tiempoDetenidoMin: true },
     })
     const horasDetencion = ots.reduce((acc, o) => acc + o.tiempoDetenidoMin, 0) / 60

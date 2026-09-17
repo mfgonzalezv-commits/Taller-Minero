@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { TipoTrabajador } from '@prisma/client'
-import { requireSesion, requireRolPermitido, auditar } from '@/lib/authz'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 
 export async function getTrabajadores() {
   const session = await auth()
@@ -139,6 +139,9 @@ export async function getHistorialTraslados(trabajadorId: string) {
  * Retorna $/hora de overhead
  */
 export async function calcularTasaOverhead(faenaId: string): Promise<number> {
+  const sesion = await requireSesion()
+  requireAlcanceFaena(sesion, faenaId)
+
   const trabajadores = await prisma.trabajador.findMany({
     where: { faenaId, activo: true },
     select: { tipo: true, sueldoBruto: true, horasMensuales: true, tasaLeyesSociales: true },
