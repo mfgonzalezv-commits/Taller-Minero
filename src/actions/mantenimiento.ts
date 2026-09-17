@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 
 // ─── Ciclos ──────────────────────────────────────────────────────────────────
 
@@ -236,6 +238,36 @@ export async function programarParada(planId: string, fechaProgramada: string) {
   revalidatePath('/mantenimiento')
 }
 
+// Postergar una mantención ya programada requiere justificación y solo lo
+// pueden hacer Jefe de Taller Central, Planificador Central o Jefe de Taller
+// de la faena — no es una reprogramación libre.
+export async function postergarPlan(planId: string, nuevaFecha: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER'])
+  if (!motivo?.trim()) throw new Error('Debe justificar la postergación')
+
+  const plan = await prisma.planMantenimiento.findUniqueOrThrow({ where: { id: planId } })
+  requireAlcanceFaena(sesion, plan.faenaId)
+
+  await prisma.planMantenimiento.update({
+    where: { id: planId },
+    data: { fechaProgramada: new Date(nuevaFecha) },
+  })
+
+  await auditar({
+    faenaId: plan.faenaId,
+    entidad: 'PlanMantenimiento',
+    entidadId: planId,
+    accion: 'POSTERGAR',
+    usuarioId: sesion.userId,
+    valorAnterior: { fechaProgramada: plan.fechaProgramada },
+    valorNuevo: { fechaProgramada: nuevaFecha },
+    motivo: motivo.trim(),
+  })
+
+  revalidatePath('/mantenimiento')
+}
+
 export async function generarOT(planId: string) {
   const session = await auth()
   if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
@@ -250,6 +282,9 @@ export async function generarOT(planId: string) {
   if (plan.faenaId !== session.user.faenaId) throw new Error('Sin permisos: el plan pertenece a otra faena')
 
   if (plan.otActivaId) throw new Error('Ya existe una OT activa para este plan')
+  if (await hayOTPreventivaActiva(plan.equipoId)) {
+    throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
+  }
 
   const ot = await prisma.ordenTrabajo.create({
     data: {

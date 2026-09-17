@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
 
 export type EstadoPM = 'VENCIDA' | 'PROXIMA' | 'OT_ACTIVA' | 'OK'
 
@@ -193,6 +194,9 @@ export async function programarPM(data: {
     select: { costoHoraDetencion: true, codigo: true },
   })
   if (!equipo) throw new Error('Equipo no encontrado en esta faena')
+  if (await hayOTPreventivaActiva(data.equipoId)) {
+    throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
+  }
 
   const unidad = await prisma.pautaMantenimiento.findUnique({
     where: { id: data.pautaId },

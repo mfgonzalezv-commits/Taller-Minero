@@ -8,6 +8,7 @@ import { TRANSICIONES_OT } from '@/lib/constants'
 import { calcularTasaOverhead } from './trabajadores'
 import { crearChecklistDesdePauta } from './pautas'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
 // TRANSICIONES_OT se mantiene solo para los botones rápidos del header — la bitácora no tiene restricciones
 
 export async function getOTs(filtros?: { estado?: EstadoOT; equipoId?: string }) {
@@ -65,6 +66,10 @@ export async function crearOT(data: {
     where: { id: data.equipoId, faenaId: sesion.faenaId },
     select: { costoHoraDetencion: true, horometroActual: true },
   })
+
+  if ((data.tipoMantenimiento ?? 'CORRECTIVO') === 'PREVENTIVO' && (await hayOTPreventivaActiva(data.equipoId))) {
+    throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
+  }
 
   // Reincidencia: ¿hubo otra OT cerrada del mismo equipo en los últimos 30
   // días o dentro de las últimas 250 horas de horómetro? Queda sugerida
