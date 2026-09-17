@@ -3,7 +3,9 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { EstadoSR } from '@prisma/client'
-import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar } from '@/lib/authz'
+import { consumirFIFO } from '@/lib/fifo'
+import { encolarCorreo } from '@/lib/correo'
 
 export async function crearSR(otId: string, data: {
   items: { descripcion: string; cantidad: number; unidad: string; itemBodegaId?: string; precioEstimado?: number }[]
@@ -98,7 +100,7 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
             data: { stockActual: stockDespues },
           })
 
-          await tx.movimientoBodega.create({
+          const movSalida = await tx.movimientoBodega.create({
             data: {
               itemId: item.itemBodegaId,
               faenaId: sr.faenaId,
@@ -111,6 +113,12 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
               observacion: `SR-${String(sr.numeroSr).padStart(4, '0')} entregada`,
             },
           })
+          const consumos = await consumirFIFO(tx, item.itemBodegaId, Number(item.cantidad))
+          for (const c of consumos) {
+            await tx.consumoLoteBodega.create({
+              data: { loteId: c.loteId, movimientoId: movSalida.id, cantidad: c.cantidad, costoUnitario: c.costoUnitario },
+            })
+          }
 
           await tx.repuestoOT.create({
             data: {
@@ -179,8 +187,82 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
     }
   })
 
+  // Correo formal a Bodega Central / Adquisiciones — quedan por ahora en
+  // bandeja de salida (sin proveedor de correo configurado).
+  if (nuevoEstado === 'EN_BODEGA_CENTRAL' || nuevoEstado === 'EN_ADQUISICIONES') {
+    const srNumero = `SR-${String(sr.numeroSr).padStart(4, '0')}`
+    const destino = nuevoEstado === 'EN_BODEGA_CENTRAL' ? 'Bodega Central' : 'Adquisiciones Central'
+    const itemsDesc = sr.items.map(i => `- ${i.descripcion} × ${i.cantidad} ${i.unidad}`).join('\n')
+    await encolarCorreo({
+      faenaId: sr.faenaId,
+      tipo: 'SOLICITUD_REPUESTO',
+      entidadId: srId,
+      destinatarios: [],
+      asunto: `${srNumero} — Solicitud de repuesto${sr.urgente ? ' (URGENTE)' : ''}`,
+      cuerpo: `Solicitud ${srNumero} para ${destino}.\n\nÍtems:\n${itemsDesc}\n\n${sr.observacion ?? ''}`,
+    })
+  }
+
   revalidatePath(`/ot/${sr.otId}`)
   revalidatePath('/solicitudes-repuesto')
+}
+
+// Compra directa/urgente autorizada por el jefe de taller, fuera del flujo
+// normal — debe regularizarse después (Compras completa cotizaciones/orden).
+export async function marcarCompraDirecta(srId: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  if (!motivo?.trim()) throw new Error('Debe justificar la compra directa')
+
+  const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
+  requireAlcanceFaena(sesion, sr.faenaId)
+
+  await prisma.solicitudRepuesto.update({
+    where: { id: srId },
+    data: { esCompraDirecta: true, motivoCompraDirecta: motivo.trim() },
+  })
+
+  await auditar({
+    faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId,
+    accion: 'MARCAR_COMPRA_DIRECTA', usuarioId: sesion.userId, motivo: motivo.trim(),
+  })
+
+  revalidatePath('/solicitudes-repuesto')
+}
+
+export async function regularizarCompraDirecta(srId: string, cotizaciones: string[]) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'COMPRAS'])
+
+  const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
+  requireAlcanceFaena(sesion, sr.faenaId)
+  if (!sr.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
+
+  await prisma.solicitudRepuesto.update({
+    where: { id: srId },
+    data: { regularizada: true, regularizadaPorId: sesion.userId, fechaRegularizacion: new Date(), cotizaciones },
+  })
+
+  await auditar({
+    faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId,
+    accion: 'REGULARIZAR_COMPRA_DIRECTA', usuarioId: sesion.userId,
+  })
+
+  revalidatePath('/solicitudes-repuesto')
+}
+
+// Indicador mensual de compras fuera del flujo normal.
+export async function getComprasDirectasDelMes() {
+  const sesion = await requireSesion()
+  const inicioMes = new Date()
+  inicioMes.setDate(1)
+  inicioMes.setHours(0, 0, 0, 0)
+
+  return prisma.solicitudRepuesto.findMany({
+    where: { faenaId: sesion.faenaId, esCompraDirecta: true, createdAt: { gte: inicioMes } },
+    include: { ot: { select: { numeroOt: true } }, creadoPor: { select: { nombre: true } } },
+    orderBy: { createdAt: 'desc' },
+  })
 }
 
 export async function getSRsByOT(otId: string) {

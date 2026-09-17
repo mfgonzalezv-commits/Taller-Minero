@@ -76,6 +76,8 @@ model Usuario {
   asignacionesEquipoResponsable AsignacionEquipoFaena[]
   trasladosTrabajador           TrasladoTrabajador[]
   reportesFallaReportados       ReporteFalla[]
+  srsRegularizadas              SolicitudRepuesto[]      @relation("SRRegularizadoPor")
+  transferenciasBodega          TransferenciaBodega[]
 
   @@map("usuarios")
 }
@@ -229,27 +231,73 @@ model OrdenTrabajo {
   @@map("ordenes_trabajo")
 }
 
+enum CriticidadItemBodega {
+  BAJA
+  MEDIA
+  ALTA
+
+  @@map("criticidad_item_bodega")
+}
+
 model ItemBodega {
-  id          String   @id @default(uuid())
-  faenaId     String   @map("faena_id")
+  id          String               @id @default(uuid())
+  faenaId     String               @map("faena_id")
   codigo      String
   descripcion String
-  unidad      String   @default("un")
-  stockActual Decimal  @default(0) @map("stock_actual") @db.Decimal(10, 2)
-  stockMinimo Decimal  @default(0) @map("stock_minimo") @db.Decimal(10, 2)
-  precioRef   Decimal  @default(0) @map("precio_ref") @db.Decimal(14, 2)
+  unidad      String               @default("un")
+  stockActual Decimal              @default(0) @map("stock_actual") @db.Decimal(10, 2)
+  stockMinimo Decimal              @default(0) @map("stock_minimo") @db.Decimal(10, 2)
+  stockMaximo Decimal?             @map("stock_maximo") @db.Decimal(10, 2)
+  criticidad  CriticidadItemBodega @default(MEDIA)
+  precioRef   Decimal              @default(0) @map("precio_ref") @db.Decimal(14, 2)
   categoria   String?
-  activo      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  activo      Boolean              @default(true)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
 
-  faena       Faena                   @relation(fields: [faenaId], references: [id])
-  movimientos MovimientoBodega[]
-  repuestos   RepuestoOT[]
-  itemsSR     ItemSolicitudRepuesto[]
+  faena                 Faena                   @relation(fields: [faenaId], references: [id])
+  movimientos           MovimientoBodega[]
+  repuestos             RepuestoOT[]
+  itemsSR               ItemSolicitudRepuesto[]
+  lotes                 LoteBodega[]
+  transferenciasOrigen  TransferenciaBodega[]   @relation("TransferenciaItemOrigen")
+  transferenciasDestino TransferenciaBodega[]   @relation("TransferenciaItemDestino")
 
   @@unique([faenaId, codigo])
   @@map("items_bodega")
+}
+
+// Lote de recepción — base del costeo FIFO. Las salidas consumen primero
+// los lotes más antiguos con saldo disponible.
+model LoteBodega {
+  id             String   @id @default(uuid())
+  itemId         String   @map("item_id")
+  cantidad       Decimal  @db.Decimal(10, 2)
+  cantidadSaldo  Decimal  @map("cantidad_saldo") @db.Decimal(10, 2)
+  costoUnitario  Decimal  @map("costo_unitario") @db.Decimal(14, 2)
+  fechaRecepcion DateTime @default(now()) @map("fecha_recepcion")
+  documento      String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  item     ItemBodega          @relation(fields: [itemId], references: [id])
+  consumos ConsumoLoteBodega[]
+
+  @@index([itemId, fechaRecepcion])
+  @@map("lotes_bodega")
+}
+
+// Qué lote(s) consumió cada movimiento de salida — trazabilidad FIFO.
+model ConsumoLoteBodega {
+  id            String  @id @default(uuid())
+  loteId        String  @map("lote_id")
+  movimientoId  String  @map("movimiento_id")
+  cantidad      Decimal @db.Decimal(10, 2)
+  costoUnitario Decimal @map("costo_unitario") @db.Decimal(14, 2)
+
+  lote       LoteBodega       @relation(fields: [loteId], references: [id])
+  movimiento MovimientoBodega @relation(fields: [movimientoId], references: [id])
+
+  @@map("consumos_lote_bodega")
 }
 
 model MovimientoBodega {
@@ -265,10 +313,30 @@ model MovimientoBodega {
   observacion  String?
   createdAt    DateTime @default(now()) @map("created_at")
 
-  item    ItemBodega @relation(fields: [itemId], references: [id])
-  usuario Usuario?   @relation(fields: [usuarioId], references: [id])
+  item     ItemBodega          @relation(fields: [itemId], references: [id])
+  usuario  Usuario?            @relation(fields: [usuarioId], references: [id])
+  consumos ConsumoLoteBodega[]
 
   @@map("movimientos_bodega")
+}
+
+// Transferencia trazable de stock entre faenas, antes de recurrir a compra.
+model TransferenciaBodega {
+  id             String   @id @default(uuid())
+  itemOrigenId   String   @map("item_origen_id")
+  itemDestinoId  String   @map("item_destino_id")
+  faenaOrigenId  String   @map("faena_origen_id")
+  faenaDestinoId String   @map("faena_destino_id")
+  cantidad       Decimal  @db.Decimal(10, 2)
+  usuarioId      String?  @map("usuario_id")
+  observacion    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  itemOrigen  ItemBodega @relation("TransferenciaItemOrigen", fields: [itemOrigenId], references: [id])
+  itemDestino ItemBodega @relation("TransferenciaItemDestino", fields: [itemDestinoId], references: [id])
+  usuario     Usuario?   @relation(fields: [usuarioId], references: [id])
+
+  @@map("transferencias_bodega")
 }
 
 model RepuestoOT {
@@ -331,15 +399,22 @@ model SolicitudRepuesto {
   fechaEstimadaLlegada DateTime? @map("fecha_estimada_llegada")
   creadoPorId          String    @map("creado_por_id")
   gestionadoPorId      String?   @map("gestionado_por_id")
+  cotizaciones         String[]  @default([])
+  esCompraDirecta      Boolean   @default(false) @map("es_compra_directa")
+  motivoCompraDirecta  String?   @map("motivo_compra_directa")
+  regularizada         Boolean   @default(false)
+  regularizadaPorId    String?   @map("regularizada_por_id")
+  fechaRegularizacion  DateTime? @map("fecha_regularizacion")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  ot            OrdenTrabajo            @relation(fields: [otId], references: [id])
-  faena         Faena                   @relation(fields: [faenaId], references: [id])
-  creadoPor     Usuario                 @relation("SRCreadoPor", fields: [creadoPorId], references: [id])
-  gestionadoPor Usuario?                @relation("SRGestionadoPor", fields: [gestionadoPorId], references: [id])
-  items         ItemSolicitudRepuesto[]
-  historial     HistorialSR[]
+  ot              OrdenTrabajo            @relation(fields: [otId], references: [id])
+  faena           Faena                   @relation(fields: [faenaId], references: [id])
+  creadoPor       Usuario                 @relation("SRCreadoPor", fields: [creadoPorId], references: [id])
+  gestionadoPor   Usuario?                @relation("SRGestionadoPor", fields: [gestionadoPorId], references: [id])
+  regularizadaPor Usuario?                @relation("SRRegularizadoPor", fields: [regularizadaPorId], references: [id])
+  items           ItemSolicitudRepuesto[]
+  historial       HistorialSR[]
 
   @@map("solicitudes_repuesto")
 }
@@ -959,4 +1034,36 @@ model ReporteFalla {
 
   @@index([faenaId, estado])
   @@map("reportes_falla")
+}
+
+// ─── Adaptador de correo saliente (Fases 6, 8, 10) ──────────────────────────
+// Bandeja de salida propia: sin proveedor real configurado, los correos
+// quedan en PENDIENTE con su plantilla lista para copiar/descargar
+// manualmente. No se realizan envíos reales todavía.
+
+enum EstadoEnvioCorreo {
+  PENDIENTE
+  ENVIADO
+  ERROR
+
+  @@map("estado_envio_correo")
+}
+
+model CorreoSaliente {
+  id            String            @id @default(uuid())
+  faenaId       String?           @map("faena_id")
+  tipo          String // SOLICITUD_REPUESTO | INFORME_DIARIO | INFORME_GERENCIAL | ...
+  entidadId     String?           @map("entidad_id")
+  destinatarios String[]
+  asunto        String
+  cuerpo        String
+  adjuntos      String[]          @default([])
+  estado        EstadoEnvioCorreo @default(PENDIENTE)
+  intentos      Int               @default(0)
+  errorMensaje  String?           @map("error_mensaje")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  enviadoAt     DateTime?         @map("enviado_at")
+
+  @@index([faenaId, estado])
+  @@map("correos_salientes")
 }
