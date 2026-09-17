@@ -2,6 +2,7 @@
 // para que sea testeable de forma aislada. src/lib/authz.ts la envuelve con
 // acceso a sesión/DB para uso real en Server Actions.
 import type { Rol } from './roles'
+import { ROLES_CENTRALES } from './roles'
 
 export type SesionAutenticada = {
   userId: string
@@ -9,9 +10,9 @@ export type SesionAutenticada = {
   faenaId: string
 }
 
-// Roles con alcance sobre todas las faenas (Central).
-// Hoy solo ADMINISTRADOR. La Fase 2 agrega JEFE_TALLER_CENTRAL y PLANIFICADOR_CENTRAL.
-export const ROLES_ALCANCE_CENTRAL: Rol[] = ['ADMINISTRADOR']
+// Roles con alcance sobre todas las faenas (Central): ADMINISTRADOR,
+// JEFE_TALLER_CENTRAL y PLANIFICADOR_CENTRAL. Ver src/lib/roles.ts.
+export const ROLES_ALCANCE_CENTRAL: Rol[] = ROLES_CENTRALES
 
 export class ErrorAutorizacion extends Error {
   constructor(message: string) {

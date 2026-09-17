@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { MapPin, Plus, Truck, ArrowRightLeft, X, ChevronDown, ChevronUp } from 'lucide-react'
 import type { FaenaConEquipos } from '@/actions/faenas'
-import { crearFaena, trasladarEquipo } from '@/actions/faenas'
+import { crearFaena } from '@/actions/faenas'
+import { trasladarEquipoConHistorial } from '@/actions/asignaciones'
 
 const TIPO_LABEL: Record<string, string> = {
   CAMION: 'Camión', EXCAVADORA: 'Excavadora', CARGADOR: 'Cargador',
@@ -44,7 +45,7 @@ export default function FaenasClient({ faenas }: { faenas: FaenaConEquipos[] }) 
   const confirmarTraslado = () => {
     if (!traslado || !faenaDestino) return
     startTransition(async () => {
-      await trasladarEquipo(traslado.equipoId, faenaDestino)
+      await trasladarEquipoConHistorial({ equipoId: traslado.equipoId, faenaDestinoId: faenaDestino })
       setTraslado(null)
       setFaenaDestino('')
       router.refresh()

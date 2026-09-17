@@ -35,6 +35,9 @@ model Faena {
   solicitudesRepuesto  SolicitudRepuesto[]
   pautas               PautaMantenimiento[]
   registrosAuditoria   RegistroAuditoria[]
+  asignacionesEquipo   AsignacionEquipoFaena[]
+  trasladosOrigen      TrasladoTrabajador[]    @relation("TrasladoOrigen")
+  trasladosDestino     TrasladoTrabajador[]    @relation("TrasladoDestino")
 
   @@map("faenas")
 }
@@ -50,23 +53,25 @@ model Usuario {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  faena                Faena                    @relation(fields: [faenaId], references: [id])
-  tecnico              Tecnico?
-  otsResponsable       OrdenTrabajo[]           @relation("Responsable")
-  otsCreadas           OrdenTrabajo[]           @relation("Creador")
-  otsAnuladas          OrdenTrabajo[]           @relation("Anulador")
-  registrosAuditoria   RegistroAuditoria[]
-  historialEstados     HistorialEstadoOT[]
-  horometros           HorometroKm[]
-  repuestosRegistrados RepuestoOT[]
-  movimientosBodega    MovimientoBodega[]
-  bitacora             BitacoraOT[]
-  ejecuciones          EjecucionMantenimiento[]
-  checklistCompletados ChecklistItemOT[]
-  inspecciones         InspeccionDiaria[]       @relation("InspeccionOperador")
-  srsCreadas           SolicitudRepuesto[]      @relation("SRCreadoPor")
-  srsGestionadas       SolicitudRepuesto[]      @relation("SRGestionadoPor")
-  historialSR          HistorialSR[]
+  faena                         Faena                    @relation(fields: [faenaId], references: [id])
+  tecnico                       Tecnico?
+  otsResponsable                OrdenTrabajo[]           @relation("Responsable")
+  otsCreadas                    OrdenTrabajo[]           @relation("Creador")
+  otsAnuladas                   OrdenTrabajo[]           @relation("Anulador")
+  registrosAuditoria            RegistroAuditoria[]
+  historialEstados              HistorialEstadoOT[]
+  horometros                    HorometroKm[]
+  repuestosRegistrados          RepuestoOT[]
+  movimientosBodega             MovimientoBodega[]
+  bitacora                      BitacoraOT[]
+  ejecuciones                   EjecucionMantenimiento[]
+  checklistCompletados          ChecklistItemOT[]
+  inspecciones                  InspeccionDiaria[]       @relation("InspeccionOperador")
+  srsCreadas                    SolicitudRepuesto[]      @relation("SRCreadoPor")
+  srsGestionadas                SolicitudRepuesto[]      @relation("SRGestionadoPor")
+  historialSR                   HistorialSR[]
+  asignacionesEquipoResponsable AsignacionEquipoFaena[]
+  trasladosTrabajador           TrasladoTrabajador[]
 
   @@map("usuarios")
 }
@@ -112,7 +117,7 @@ model Equipo {
   createdAt               DateTime     @default(now()) @map("created_at")
   updatedAt               DateTime     @updatedAt @map("updated_at")
 
-  faena                Faena                 @relation(fields: [faenaId], references: [id])
+  faena                Faena                   @relation(fields: [faenaId], references: [id])
   ots                  OrdenTrabajo[]
   horometros           HorometroKm[]
   planes               PlanMantenimiento[]
@@ -120,8 +125,9 @@ model Equipo {
   plantillasInspeccion PlantillaInspeccion[]
   inspecciones         InspeccionDiaria[]
   alertasInspeccion    AlertaInspeccion[]
-  pautaId              String?               @map("pauta_id")
-  pauta                PautaMantenimiento?   @relation(fields: [pautaId], references: [id])
+  pautaId              String?                 @map("pauta_id")
+  pauta                PautaMantenimiento?     @relation(fields: [pautaId], references: [id])
+  asignaciones         AsignacionEquipoFaena[]
 
   @@unique([faenaId, codigo])
   @@map("equipos")
@@ -482,8 +488,9 @@ model Trabajador {
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
-  faena     Faena        @relation(fields: [faenaId], references: [id])
+  faena     Faena                @relation(fields: [faenaId], references: [id])
   manoObras ManoObraOT[]
+  traslados TrasladoTrabajador[]
 
   @@map("trabajadores")
 }
@@ -560,6 +567,8 @@ enum OrigenFalla {
 
 enum RolUsuario {
   ADMINISTRADOR
+  JEFE_TALLER_CENTRAL
+  PLANIFICADOR_CENTRAL
   JEFE_TALLER
   PLANIFICADOR
   MECANICO
@@ -569,6 +578,14 @@ enum RolUsuario {
   OPERADOR
 
   @@map("rol_usuario")
+}
+
+enum ModalidadArriendo {
+  HORA
+  DIA
+  MES
+
+  @@map("modalidad_arriendo")
 }
 
 enum TipoEquipo {
@@ -831,4 +848,47 @@ model RegistroAuditoria {
   @@index([entidad, entidadId])
   @@index([faenaId])
   @@map("registro_auditoria")
+}
+
+// ─── Historial de asignación de equipos y traslados de trabajadores ────────
+
+model AsignacionEquipoFaena {
+  id                      String             @id @default(uuid())
+  equipoId                String             @map("equipo_id")
+  faenaId                 String             @map("faena_id")
+  fechaInicio             DateTime           @default(now()) @map("fecha_inicio")
+  fechaTermino            DateTime?          @map("fecha_termino")
+  motivo                  String?
+  usuarioResponsableId    String?            @map("usuario_responsable_id")
+  contrato                String?
+  modalidadArriendo       ModalidadArriendo? @map("modalidad_arriendo")
+  tarifa                  Decimal?           @map("tarifa") @db.Decimal(12, 2)
+  reglaDescuentoDetencion String?            @map("regla_descuento_detencion")
+  createdAt               DateTime           @default(now()) @map("created_at")
+
+  equipo             Equipo   @relation(fields: [equipoId], references: [id])
+  faena              Faena    @relation(fields: [faenaId], references: [id])
+  usuarioResponsable Usuario? @relation(fields: [usuarioResponsableId], references: [id])
+
+  @@index([equipoId, fechaTermino])
+  @@map("asignaciones_equipo_faena")
+}
+
+model TrasladoTrabajador {
+  id             String    @id @default(uuid())
+  trabajadorId   String    @map("trabajador_id")
+  faenaOrigenId  String    @map("faena_origen_id")
+  faenaDestinoId String    @map("faena_destino_id")
+  fechaInicio    DateTime  @default(now()) @map("fecha_inicio")
+  fechaTermino   DateTime? @map("fecha_termino")
+  motivo         String?
+  usuarioId      String?   @map("usuario_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  trabajador   Trabajador @relation(fields: [trabajadorId], references: [id])
+  faenaOrigen  Faena      @relation("TrasladoOrigen", fields: [faenaOrigenId], references: [id])
+  faenaDestino Faena      @relation("TrasladoDestino", fields: [faenaDestinoId], references: [id])
+  usuario      Usuario?   @relation(fields: [usuarioId], references: [id])
+
+  @@map("traslados_trabajador")
 }

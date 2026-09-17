@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { TipoTrabajador } from '@prisma/client'
+import { requireSesion, requireRolPermitido, auditar } from '@/lib/authz'
 
 export async function getTrabajadores() {
   const session = await auth()
@@ -77,6 +78,59 @@ export async function eliminarTrabajador(id: string) {
 
   await prisma.trabajador.update({ where: { id, faenaId: session.user.faenaId }, data: { activo: false } })
   revalidatePath('/trabajadores')
+}
+
+// Traslada un trabajador a otra faena dejando historial trazable
+// (transferencia temporal). Solo roles con alcance central.
+export async function trasladarTrabajador(trabajadorId: string, faenaDestinoId: string, motivo?: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'])
+
+  const trabajador = await prisma.trabajador.findUniqueOrThrow({
+    where: { id: trabajadorId },
+    select: { faenaId: true },
+  })
+
+  await prisma.$transaction([
+    prisma.trasladoTrabajador.create({
+      data: {
+        trabajadorId,
+        faenaOrigenId: trabajador.faenaId,
+        faenaDestinoId,
+        motivo: motivo ?? null,
+        usuarioId: sesion.userId,
+      },
+    }),
+    prisma.trabajador.update({
+      where: { id: trabajadorId },
+      data: { faenaId: faenaDestinoId },
+    }),
+  ])
+
+  await auditar({
+    entidad: 'Trabajador',
+    entidadId: trabajadorId,
+    accion: 'TRASLADAR_FAENA',
+    usuarioId: sesion.userId,
+    valorAnterior: { faenaId: trabajador.faenaId },
+    valorNuevo: { faenaId: faenaDestinoId },
+    motivo: motivo ?? null,
+  })
+
+  revalidatePath('/trabajadores')
+}
+
+export async function getHistorialTraslados(trabajadorId: string) {
+  await requireSesion()
+  return prisma.trasladoTrabajador.findMany({
+    where: { trabajadorId },
+    include: {
+      faenaOrigen: { select: { nombre: true } },
+      faenaDestino: { select: { nombre: true } },
+      usuario: { select: { nombre: true } },
+    },
+    orderBy: { fechaInicio: 'desc' },
+  })
 }
 
 /**

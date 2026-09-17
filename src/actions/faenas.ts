@@ -31,7 +31,7 @@ export async function getFaenas(): Promise<FaenaConEquipos[]> {
 
 export async function crearFaena(data: { nombre: string; codigo: string; ubicacion?: string }) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR'])
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'])
 
   const faena = await prisma.faena.create({
     data: {
@@ -52,36 +52,13 @@ export async function crearFaena(data: { nombre: string; codigo: string; ubicaci
   revalidatePath('/faenas')
 }
 
-export async function trasladarEquipo(equipoId: string, faenaId: string) {
-  const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR'])
-
-  const equipo = await prisma.equipo.findUniqueOrThrow({
-    where: { id: equipoId },
-    select: { faenaId: true },
-  })
-
-  await prisma.equipo.update({
-    where: { id: equipoId },
-    data: { faenaId },
-  })
-
-  await auditar({
-    entidad: 'Equipo',
-    entidadId: equipoId,
-    accion: 'TRASLADAR_FAENA',
-    usuarioId: sesion.userId,
-    valorAnterior: { faenaId: equipo.faenaId },
-    valorNuevo: { faenaId },
-  })
-
-  revalidatePath('/faenas')
-  revalidatePath('/equipos')
-}
+// trasladarEquipo fue reemplazado por trasladarEquipoConHistorial() en
+// src/actions/asignaciones.ts (Fase 2) — deja historial trazable de faena,
+// tarifa y contrato en vez de solo sobrescribir Equipo.faenaId.
 
 export async function toggleFaenaActiva(faenaId: string, activa: boolean) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR'])
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'])
 
   await prisma.faena.update({
     where: { id: faenaId },

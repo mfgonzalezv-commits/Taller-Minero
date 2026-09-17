@@ -20,6 +20,19 @@ describe('authz: requireRolPermitido (RBAC)', () => {
   })
 })
 
+describe('authz: roles centrales (Fase 2 — organización multi-faena)', () => {
+  it('ADMINISTRADOR, JEFE_TALLER_CENTRAL y PLANIFICADOR_CENTRAL tienen alcance central', () => {
+    expect(ROLES_ALCANCE_CENTRAL).toEqual(
+      expect.arrayContaining(['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'])
+    )
+  })
+
+  it('JEFE_TALLER y PLANIFICADOR (de faena) NO tienen alcance central', () => {
+    expect(ROLES_ALCANCE_CENTRAL).not.toContain('JEFE_TALLER')
+    expect(ROLES_ALCANCE_CENTRAL).not.toContain('PLANIFICADOR')
+  })
+})
+
 describe('authz: requireAlcanceFaena (aislamiento multi-faena)', () => {
   it('permite cuando el registro pertenece a la misma faena de la sesión', () => {
     expect(() => requireAlcanceFaena(sesion('JEFE_TALLER', 'faena-1'), 'faena-1')).not.toThrow()
