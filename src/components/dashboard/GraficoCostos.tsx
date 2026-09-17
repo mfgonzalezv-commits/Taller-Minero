@@ -31,7 +31,7 @@ export function GraficoCostos({ data }: Props) {
             />
             <Tooltip
               contentStyle={{ backgroundColor: 'var(--n-card)', border: '1px solid var(--n-border)', borderRadius: 6, color: 'white', fontSize: 13 }}
-              formatter={(v: number) => [fmt(v), 'Costo detención']}
+              formatter={(v) => [fmt(Number(v)), 'Costo detención']}
               cursor={{ fill: 'rgba(255,255,255,0.04)' }}
             />
             <Bar dataKey="costo" radius={[0, 4, 4, 0]} barSize={20}>

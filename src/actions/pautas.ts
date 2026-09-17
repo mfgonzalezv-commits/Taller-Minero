@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
+import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
 
 export type EstadoPM = 'VENCIDA' | 'PROXIMA' | 'OT_ACTIVA' | 'OK'
 
@@ -112,15 +114,16 @@ export async function vincularPautaEquipo(equipoId: string, pautaId: string | nu
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
   await prisma.equipo.update({
-    where: { id: equipoId },
+    where: { id: equipoId, faenaId: session.user.faenaId },
     data: { pautaId },
   })
   revalidatePath(`/equipos/${equipoId}`)
 }
 
 export async function getPautaEquipo(equipoId: string) {
+  const sesion = await requireSesion()
   const equipo = await prisma.equipo.findUnique({
-    where: { id: equipoId },
+    where: { id: equipoId, faenaId: sesion.faenaId },
     include: {
       pauta: {
         include: {
@@ -133,6 +136,10 @@ export async function getPautaEquipo(equipoId: string) {
 }
 
 export async function crearChecklistDesdePauta(otId: string, pautaId: string, ciclo: number) {
+  const sesion = await requireSesion()
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
+
   const pauta = await prisma.pautaMantenimiento.findUnique({
     where: { id: pautaId },
     include: { items: { orderBy: [{ categoria: 'asc' }, { orden: 'asc' }] } },
@@ -189,9 +196,13 @@ export async function programarPM(data: {
   if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
 
   const equipo = await prisma.equipo.findUnique({
-    where: { id: data.equipoId },
+    where: { id: data.equipoId, faenaId: session.user.faenaId },
     select: { costoHoraDetencion: true, codigo: true },
   })
+  if (!equipo) throw new Error('Equipo no encontrado en esta faena')
+  if (await hayOTPreventivaActiva(data.equipoId)) {
+    throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
+  }
 
   const unidad = await prisma.pautaMantenimiento.findUnique({
     where: { id: data.pautaId },

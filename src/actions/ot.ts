@@ -7,6 +7,8 @@ import { EstadoOT, OrigenFalla, PrioridadOT, TipoIntervencionOT, TipoMantenimien
 import { TRANSICIONES_OT } from '@/lib/constants'
 import { calcularTasaOverhead } from './trabajadores'
 import { crearChecklistDesdePauta } from './pautas'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
 // TRANSICIONES_OT se mantiene solo para los botones rápidos del header — la bitácora no tiene restricciones
 
 export async function getOTs(filtros?: { estado?: EstadoOT; equipoId?: string }) {
@@ -58,17 +60,41 @@ export async function crearOT(data: {
   pautaId?: string
   cicloPM?: number
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
-  const equipo = await prisma.equipo.findUnique({
-    where: { id: data.equipoId },
-    select: { costoHoraDetencion: true },
+  const equipo = await prisma.equipo.findUniqueOrThrow({
+    where: { id: data.equipoId, faenaId: sesion.faenaId },
+    select: { costoHoraDetencion: true, horometroActual: true },
+  })
+
+  if ((data.tipoMantenimiento ?? 'CORRECTIVO') === 'PREVENTIVO' && (await hayOTPreventivaActiva(data.equipoId))) {
+    throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
+  }
+
+  // Reincidencia: ¿hubo otra OT cerrada del mismo equipo en los últimos 30
+  // días o dentro de las últimas 250 horas de horómetro? Queda sugerida
+  // (reincidenciaConfirmada = null) hasta que el jefe de taller la confirme.
+  const hace30Dias = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const otAnterior = await prisma.ordenTrabajo.findFirst({
+    where: {
+      equipoId: data.equipoId,
+      estado: 'CERRADA',
+      OR: [
+        { fechaCierre: { gte: hace30Dias } },
+        {
+          horometroCierre: {
+            gte: Number(equipo.horometroActual) - 250,
+          },
+        },
+      ],
+    },
+    orderBy: { fechaCierre: 'desc' },
+    select: { id: true },
   })
 
   const ot = await prisma.ordenTrabajo.create({
     data: {
-      faenaId: session.user.faenaId,
+      faenaId: sesion.faenaId,
       equipoId: data.equipoId,
       descripcionFalla: data.descripcionFalla,
       origenFalla: data.origenFalla ?? null,
@@ -76,15 +102,18 @@ export async function crearOT(data: {
       prioridad: data.prioridad ?? 'MEDIA',
       tipoMantenimiento: data.tipoMantenimiento ?? 'CORRECTIVO',
       fechaCompromiso: data.fechaCompromiso,
-      creadoPorId: session.user.id,
-      costoHoraSnapshot: equipo?.costoHoraDetencion ?? 0,
+      creadoPorId: sesion.userId,
+      costoHoraSnapshot: equipo.costoHoraDetencion,
       pautaId: data.pautaId ?? null,
       cicloPM: data.cicloPM ?? null,
+      reincidente: !!otAnterior,
+      reincidenciaConfirmada: otAnterior ? null : undefined,
+      otOrigenId: otAnterior?.id ?? null,
       historial: {
         create: {
           estadoNuevo: 'ABIERTA',
-          faenaId: session.user.faenaId,
-          usuarioId: session.user.id,
+          faenaId: sesion.faenaId,
+          usuarioId: sesion.userId,
           observacion: 'OT creada',
         },
       },
@@ -173,11 +202,10 @@ export async function actualizarDiagnostico(data: {
   fechaInicioTrabajo?: string
   fechaTerminoTrabajo?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   await prisma.ordenTrabajo.update({
-    where: { id: data.otId },
+    where: { id: data.otId, faenaId: sesion.faenaId },
     data: {
       diagnostico: data.diagnostico || null,
       trabajoEjecutado: data.trabajoEjecutado || null,
@@ -194,31 +222,43 @@ export async function cambiarEstadoOT(
   nuevoEstado: EstadoOT,
   observacion?: string
 ) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: otId },
     include: { historial: { orderBy: { fechaCambio: 'desc' }, take: 1 } },
   })
+  requireAlcanceFaena(sesion, ot.faenaId)
+
+  if (nuevoEstado === 'CERRADA') {
+    requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'])
+  }
 
   const ahora = new Date()
   const inicioEstadoActual = ot.historial[0]?.fechaCambio ?? ot.fechaCreacion
   const minutos = Math.round((ahora.getTime() - inicioEstadoActual.getTime()) / 60000)
   const nuevoTiempoMin = ot.tiempoDetenidoMin + minutos
   const esReapertura = ot.estado === 'CERRADA' && nuevoEstado === 'ABIERTA'
-  const costoDetencion = nuevoEstado === 'CERRADA'
+  // El equipo vuelve a operativo y el contador de detención se congela al
+  // terminar el trabajo técnico (EN_VALIDACION), no al cierre administrativo
+  // (CERRADA) — pueden pasar días entre uno y otro.
+  const terminaDetencion = nuevoEstado === 'EN_VALIDACION' && ot.estado !== 'EN_VALIDACION'
+  const costoDetencion = terminaDetencion
     ? (Number(ot.costoHoraSnapshot) * nuevoTiempoMin) / 60
     : Number(ot.costoDetencion)
+
+  const horometroCierre = nuevoEstado === 'CERRADA'
+    ? (await prisma.equipo.findUnique({ where: { id: ot.equipoId }, select: { horometroActual: true } }))?.horometroActual
+    : undefined
 
   const updated = await prisma.$transaction([
     prisma.historialEstadoOT.create({
       data: {
         otId,
-        faenaId: session.user.faenaId,
+        faenaId: sesion.faenaId,
         estadoAnterior: ot.estado,
         estadoNuevo: nuevoEstado,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
         observacion: observacion ?? (esReapertura ? 'OT reabierta' : undefined),
         tiempoEnEstadoMin: minutos,
       },
@@ -232,13 +272,14 @@ export async function cambiarEstadoOT(
         ...(nuevoEstado === 'EN_REPARACION' && !ot.fechaInicioTrabajo
           ? { fechaInicioTrabajo: ahora }
           : {}),
-        ...(nuevoEstado === 'CERRADA' ? { fechaCierre: ahora } : {}),
-        ...(esReapertura ? { fechaCierre: null } : {}),
+        ...(terminaDetencion ? { fechaTerminoTrabajo: ahora } : {}),
+        ...(nuevoEstado === 'CERRADA' ? { fechaCierre: ahora, cerradoPorId: sesion.userId, horometroCierre } : {}),
+        ...(esReapertura ? { fechaCierre: null, cerradoPorId: null } : {}),
       },
     }),
   ])
 
-  if (nuevoEstado === 'CERRADA') {
+  if (terminaDetencion) {
     await prisma.equipo.update({
       where: { id: ot.equipoId },
       data: { estado: 'OPERATIVO' },
@@ -254,6 +295,58 @@ export async function cambiarEstadoOT(
   revalidatePath('/ot')
   revalidatePath(`/ot/${otId}`)
   return updated[1]
+}
+
+// Validación técnica del Jefe de Taller — distinta del cierre administrativo.
+// El equipo ya volvió a operativo al pasar a EN_VALIDACION; esto solo deja
+// registrado quién revisó el trabajo técnicamente antes de que se cierre.
+export async function validarTecnicamente(otId: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true, estado: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
+  if (ot.estado !== 'EN_VALIDACION') throw new Error('La OT debe estar en validación técnica')
+
+  await prisma.ordenTrabajo.update({
+    where: { id: otId },
+    data: { validadoTecnicamentePorId: sesion.userId, fechaValidacionTecnica: new Date() },
+  })
+
+  await auditar({
+    faenaId: ot.faenaId,
+    entidad: 'OrdenTrabajo',
+    entidadId: otId,
+    accion: 'VALIDAR_TECNICAMENTE',
+    usuarioId: sesion.userId,
+  })
+
+  revalidatePath(`/ot/${otId}`)
+}
+
+// Jefe de Taller confirma o descarta la reincidencia sugerida automáticamente
+// al crear la OT (mismo equipo, OT anterior cerrada hace <30 días o <250h).
+export async function confirmarReincidencia(otId: string, confirmar: boolean) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
+
+  await prisma.ordenTrabajo.update({
+    where: { id: otId },
+    data: { reincidenciaConfirmada: confirmar },
+  })
+
+  await auditar({
+    faenaId: ot.faenaId,
+    entidad: 'OrdenTrabajo',
+    entidadId: otId,
+    accion: confirmar ? 'CONFIRMAR_REINCIDENCIA' : 'DESCARTAR_REINCIDENCIA',
+    usuarioId: sesion.userId,
+  })
+
+  revalidatePath(`/ot/${otId}`)
 }
 
 export async function actualizarOrigenFalla(otId: string, data: {
@@ -402,30 +495,60 @@ export async function agregarBitacora(otId: string, data: {
   revalidatePath(`/ot/${otId}`)
 }
 
-export async function eliminarOT(otId: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+// Anula una OT en vez de borrarla físicamente: conserva todo su historial,
+// bitácora, repuestos y movimientos de bodega asociados para trazabilidad.
+// Jefe/Planificador de faena pueden anular OT de su faena; roles con alcance
+// central (ver src/lib/authz.ts) pueden anular de cualquier faena.
+export async function anularOT(otId: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR'])
+
+  if (!motivo || !motivo.trim()) {
+    throw new Error('Debe indicar un motivo para anular la OT')
+  }
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: otId },
-    select: { equipoId: true, faenaId: true },
+    select: { faenaId: true, estado: true, equipoId: true },
   })
-  if (ot.faenaId !== session.user.faenaId) throw new Error('Sin permisos')
+  requireAlcanceFaena(sesion, ot.faenaId)
 
-  // Borrar relaciones en orden para evitar FK violations
-  const srIds = (await prisma.solicitudRepuesto.findMany({ where: { otId }, select: { id: true } })).map(s => s.id)
-  if (srIds.length > 0) {
-    await prisma.historialSR.deleteMany({ where: { srId: { in: srIds } } })
-    // ItemSolicitudRepuesto tiene onDelete: Cascade, se borra con SolicitudRepuesto
+  if (ot.estado === 'ANULADA' || ot.estado === 'CERRADA') {
+    throw new Error(`No se puede anular una OT en estado ${ot.estado}`)
   }
-  await prisma.solicitudRepuesto.deleteMany({ where: { otId } })
-  await prisma.movimientoBodega.deleteMany({ where: { otId } })
-  await prisma.repuestoOT.deleteMany({ where: { otId } })
-  await prisma.manoObraOT.deleteMany({ where: { otId } })
-  await prisma.checklistItemOT.deleteMany({ where: { otId } })
-  await prisma.bitacoraOT.deleteMany({ where: { otId } })
-  await prisma.historialEstadoOT.deleteMany({ where: { otId } })
-  await prisma.ordenTrabajo.delete({ where: { id: otId } })
+
+  await prisma.$transaction([
+    prisma.ordenTrabajo.update({
+      where: { id: otId },
+      data: {
+        estado: 'ANULADA',
+        motivoAnulacion: motivo.trim(),
+        anuladaPorId: sesion.userId,
+        anuladaAt: new Date(),
+      },
+    }),
+    prisma.historialEstadoOT.create({
+      data: {
+        otId,
+        faenaId: ot.faenaId,
+        estadoAnterior: ot.estado,
+        estadoNuevo: 'ANULADA',
+        usuarioId: sesion.userId,
+        observacion: motivo.trim(),
+      },
+    }),
+  ])
+
+  await auditar({
+    faenaId: ot.faenaId,
+    entidad: 'OrdenTrabajo',
+    entidadId: otId,
+    accion: 'ANULAR',
+    usuarioId: sesion.userId,
+    valorAnterior: { estado: ot.estado },
+    valorNuevo: { estado: 'ANULADA' },
+    motivo: motivo.trim(),
+  })
 
   await prisma.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
 

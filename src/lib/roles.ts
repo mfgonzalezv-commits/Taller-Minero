@@ -1,22 +1,31 @@
 export type Rol =
   | 'ADMINISTRADOR'
+  | 'JEFE_TALLER_CENTRAL'
+  | 'PLANIFICADOR_CENTRAL'
   | 'JEFE_TALLER'
   | 'PLANIFICADOR'
   | 'MECANICO'
   | 'BODEGA'
   | 'COMPRAS'
   | 'GERENCIA'
+  | 'OPERADOR'
 
 // Prefijos de ruta → roles que pueden acceder
 const RUTAS_PROTEGIDAS: { prefijo: string; roles: Rol[] }[] = [
-  { prefijo: '/usuarios',           roles: ['ADMINISTRADOR', 'JEFE_TALLER'] },
-  { prefijo: '/equipos/nuevo',      roles: ['ADMINISTRADOR', 'JEFE_TALLER'] },
-  { prefijo: '/reportes',           roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA'] },
-  { prefijo: '/bodega',             roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'BODEGA', 'COMPRAS'] },
-  { prefijo: '/mantenimiento',      roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO'] },
-  { prefijo: '/compras',            roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'COMPRAS'] },
-  { prefijo: '/trabajadores',       roles: ['ADMINISTRADOR', 'JEFE_TALLER'] },
+  { prefijo: '/usuarios',           roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
+  { prefijo: '/equipos/nuevo',      roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
+  { prefijo: '/reportes',           roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA'] },
+  { prefijo: '/bodega',             roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'BODEGA', 'COMPRAS'] },
+  { prefijo: '/mantenimiento',      roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO'] },
+  { prefijo: '/compras',            roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'COMPRAS'] },
+  { prefijo: '/trabajadores',       roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
+  { prefijo: '/faenas',             roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'] },
+  { prefijo: '/arriendos',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'GERENCIA'] },
+  { prefijo: '/informes',           roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA'] },
 ]
+
+// Roles cuya faena asignada es "Central" — ven y operan sobre todas las faenas.
+export const ROLES_CENTRALES: Rol[] = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL']
 
 export function puedeAcceder(rol: string, pathname: string): boolean {
   for (const { prefijo, roles } of RUTAS_PROTEGIDAS) {
@@ -37,14 +46,18 @@ export function requireRol(rol: string | undefined, roles: Rol[]) {
 export const NAV_ITEMS: { label: string; href: string; roles: Rol[] | null }[] = [
   { label: 'Dashboard',  href: '/dashboard',         roles: null },
   { label: 'OTs',        href: '/ot',                roles: null },
+  { label: 'Fallas',     href: '/fallas',            roles: null },
   { label: 'Equipos',    href: '/equipos',           roles: null },
-  { label: 'Mantención', href: '/mantenimiento',     roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO'] },
+  { label: 'Mantención', href: '/mantenimiento',     roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO'] },
   { label: 'Horómetros', href: '/terreno/horometro', roles: null },
-  { label: 'Bodega',     href: '/bodega',            roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'BODEGA', 'COMPRAS'] },
-  { label: 'Reportes',   href: '/reportes',          roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA'] },
-  { label: 'Compras',    href: '/compras',           roles: ['ADMINISTRADOR', 'JEFE_TALLER', 'COMPRAS'] },
-  { label: 'Trabajadores', href: '/trabajadores',      roles: ['ADMINISTRADOR', 'JEFE_TALLER'] },
-  { label: 'Usuarios',    href: '/usuarios',          roles: ['ADMINISTRADOR', 'JEFE_TALLER'] },
+  { label: 'Bodega',     href: '/bodega',            roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'BODEGA', 'COMPRAS'] },
+  { label: 'Reportes',   href: '/reportes',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA'] },
+  { label: 'Compras',    href: '/compras',           roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'COMPRAS'] },
+  { label: 'Trabajadores', href: '/trabajadores',      roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
+  { label: 'Usuarios',    href: '/usuarios',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
+  { label: 'Faenas',      href: '/faenas',            roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'] },
+  { label: 'Arriendos',   href: '/arriendos',         roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'GERENCIA'] },
+  { label: 'Informes',    href: '/informes',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA'] },
 ]
 
 export function navParaRol(rol: string): typeof NAV_ITEMS {

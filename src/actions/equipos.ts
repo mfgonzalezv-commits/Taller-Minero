@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { TipoEquipo, EstadoEquipo } from '@prisma/client'
+import { requireSesion, requireAlcanceFaena, auditar } from '@/lib/authz'
 
 export async function getEquipos() {
   const session = await auth()
@@ -110,12 +111,27 @@ export async function eliminarEquipo(id: string) {
 }
 
 export async function actualizarEstadoEquipo(id: string, estado: EstadoEquipo) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+
+  const actual = await prisma.equipo.findUniqueOrThrow({
+    where: { id },
+    select: { faenaId: true, estado: true },
+  })
+  requireAlcanceFaena(sesion, actual.faenaId)
 
   const equipo = await prisma.equipo.update({
     where: { id },
     data: { estado },
+  })
+
+  await auditar({
+    faenaId: actual.faenaId,
+    entidad: 'Equipo',
+    entidadId: id,
+    accion: 'CAMBIAR_ESTADO',
+    usuarioId: sesion.userId,
+    valorAnterior: { estado: actual.estado },
+    valorNuevo: { estado },
   })
 
   revalidatePath('/equipos')

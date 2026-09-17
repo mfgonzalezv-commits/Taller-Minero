@@ -9,6 +9,7 @@ export const ESTADO_OT_CONFIG = {
   ESPERA_REPUESTO: { label: 'Esp. repuesto',  color: 'bg-orange-900/60 text-orange-300',  dot: 'bg-orange-400' },
   EN_VALIDACION:   { label: 'En validación',  color: 'bg-purple-900/60 text-purple-300',  dot: 'bg-purple-400' },
   CERRADA:         { label: 'Cerrada',        color: 'bg-green-900/60 text-green-300',    dot: 'bg-green-400' },
+  ANULADA:         { label: 'Anulada',        color: 'bg-red-900/60 text-red-300',        dot: 'bg-red-400' },
 } as const
 
 export const ESTADO_EQUIPO_CONFIG = {

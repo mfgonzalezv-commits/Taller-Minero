@@ -6,12 +6,13 @@ import {
 } from 'recharts'
 
 interface Props {
-  data: { dia: string; pct: number }[]
+  data: { dia: string; pct: number | null }[]
 }
 
 export function GraficoOperatividadSemanal({ data }: Props) {
-  const promedio = data.length
-    ? Math.round(data.reduce((a, d) => a + d.pct, 0) / data.length)
+  const conDatos = data.filter((d): d is { dia: string; pct: number } => d.pct !== null)
+  const promedio = conDatos.length
+    ? Math.round(conDatos.reduce((a, d) => a + d.pct, 0) / conDatos.length)
     : 0
 
   return (
@@ -46,7 +47,7 @@ export function GraficoOperatividadSemanal({ data }: Props) {
           />
           <Tooltip
             contentStyle={{ backgroundColor: 'var(--n-card)', border: '1px solid var(--n-border)', borderRadius: 6, color: 'white', fontSize: 13 }}
-            formatter={(v: number) => [`${v}%`, 'Operatividad']}
+            formatter={(v) => [v === null || v === undefined ? 'Sin datos suficientes' : `${v}%`, 'Operatividad']}
             cursor={{ fill: 'rgba(255,255,255,0.04)' }}
           />
           <ReferenceLine y={promedio} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
@@ -54,7 +55,11 @@ export function GraficoOperatividadSemanal({ data }: Props) {
             {data.map((entry, i) => (
               <Cell
                 key={i}
-                fill={entry.pct >= 75 ? 'rgba(76,175,80,0.35)' : entry.pct >= 50 ? 'rgba(255,159,67,0.35)' : 'rgba(229,9,20,0.35)'}
+                fill={
+                  entry.pct === null
+                    ? 'rgba(255,255,255,0.06)'
+                    : entry.pct >= 75 ? 'rgba(76,175,80,0.35)' : entry.pct >= 50 ? 'rgba(255,159,67,0.35)' : 'rgba(229,9,20,0.35)'
+                }
               />
             ))}
           </Bar>

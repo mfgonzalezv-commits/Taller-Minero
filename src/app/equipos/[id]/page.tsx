@@ -8,6 +8,9 @@ import { ChevronRight, Gauge, DollarSign, Plus, Pencil, Activity, ClipboardList,
 import BorrarEquipo from './BorrarEquipo'
 import VincularPauta from './VincularPauta'
 import { getPautasDisponibles } from '@/actions/pautas'
+import { QREquipo } from './QREquipo'
+import { AlertTriangle, ClipboardCheck } from 'lucide-react'
+import { getHistorialAsignaciones } from '@/actions/asignaciones'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
@@ -63,6 +66,11 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
   const todasPautas = puedeEditar ? await getPautasDisponibles() : []
   const pauta = equipo.pauta
 
+  const ROLES_VEN_HISTORIAL_ASIGNACION = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA']
+  const historialAsignaciones = ROLES_VEN_HISTORIAL_ASIGNACION.includes(session.user?.rol ?? '')
+    ? await getHistorialAsignaciones(equipo.id)
+    : []
+
   return (
     <AppShell>
       {/* Breadcrumb */}
@@ -103,7 +111,7 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               {[
                 { label: 'Marca / Modelo', value: equipo.marca ? `${equipo.marca} ${equipo.modelo ?? ''}`.trim() : null },
-                { label: 'Patente',        value: (equipo as any).patente ?? null },
+                { label: 'Patente',        value: equipo.patente ?? null },
                 { label: 'Año',            value: equipo.anio?.toString() },
                 { label: 'Tipo',           value: equipo.tipo },
                 { label: 'Faena',          value: equipo.faena?.nombre ?? null },
@@ -182,6 +190,59 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
 
         {/* Columna lateral */}
         <div className="space-y-4">
+
+          {/* Acciones rápidas — vía QR o acceso directo desde el equipo */}
+          <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--n-text-lt)' }}>Acciones rápidas</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Link href="/fallas" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                <AlertTriangle size={13} /> Reportar falla
+              </Link>
+              <Link href="/inspeccion/nueva" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                <ClipboardCheck size={13} /> Inspección
+              </Link>
+              <Link href="/terreno/horometro" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                <Gauge size={13} /> Horómetro
+              </Link>
+              {equipo.ots.find(o => o.estado !== 'CERRADA' && o.estado !== 'ANULADA') ? (
+                <Link href={`/ot/${equipo.ots.find(o => o.estado !== 'CERRADA' && o.estado !== 'ANULADA')!.id}`} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                  <ClipboardList size={13} /> OT activa
+                </Link>
+              ) : (
+                <span className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs" style={{ color: 'var(--n-text-lt)' }}>Sin OT activa</span>
+              )}
+            </div>
+          </div>
+
+          <QREquipo equipoId={equipo.id} codigo={equipo.codigo} />
+
+          {historialAsignaciones.length > 0 && (
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--n-border)' }}>
+                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--n-text-lt)' }}>Historial de asignación a faena</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--n-border)' }}>
+                    {['Faena', 'Desde', 'Hasta', 'Modalidad', 'Tarifa'].map(h => (
+                      <th key={h} className="px-3 py-2 text-left font-bold uppercase" style={{ color: 'var(--n-text-lt)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {historialAsignaciones.map(a => (
+                    <tr key={a.id} style={{ borderBottom: '1px solid var(--n-border)' }}>
+                      <td className="px-3 py-2 text-white">{a.faena.codigo}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{new Date(a.fechaInicio).toLocaleDateString('es-CL')}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{a.fechaTermino ? new Date(a.fechaTermino).toLocaleDateString('es-CL') : 'Vigente'}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{a.modalidadArriendo ?? '—'}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{a.tarifa ? fmt(Number(a.tarifa)) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Costo detención */}
           <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>

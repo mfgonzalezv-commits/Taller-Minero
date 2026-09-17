@@ -18,6 +18,8 @@ export default function NuevoItemForm() {
   const [unidad, setUnidad] = useState('UN')
   const [stockActual, setStockActual] = useState('0')
   const [stockMinimo, setStockMinimo] = useState('0')
+  const [stockMaximo, setStockMaximo] = useState('')
+  const [criticidad, setCriticidad] = useState<'BAJA' | 'MEDIA' | 'ALTA'>('MEDIA')
   const [precioRef, setPrecioRef] = useState('')
   const [categoria, setCategoria] = useState('')
 
@@ -34,6 +36,8 @@ export default function NuevoItemForm() {
           unidad,
           stockActual: Number(stockActual),
           stockMinimo: Number(stockMinimo),
+          stockMaximo: stockMaximo ? Number(stockMaximo) : undefined,
+          criticidad,
           precioRef: Number(precioRef) || 0,
           categoria: categoria || undefined,
         })
@@ -41,6 +45,8 @@ export default function NuevoItemForm() {
         setDescripcion('')
         setStockActual('0')
         setStockMinimo('0')
+        setStockMaximo('')
+        setCriticidad('MEDIA')
         setPrecioRef('')
         setOk(true)
         router.refresh()
@@ -108,6 +114,21 @@ export default function NuevoItemForm() {
           <div>
             <label className="text-xs font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--n-text-lt)' }}>Precio ref. (CLP)</label>
             <input type="number" value={precioRef} onChange={e => setPrecioRef(e.target.value)} min="0" placeholder="0" className="n-input" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--n-text-lt)' }}>Stock máximo</label>
+            <input type="number" value={stockMaximo} onChange={e => setStockMaximo(e.target.value)} min="0" placeholder="Sin límite" className="n-input" />
+          </div>
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--n-text-lt)' }}>Criticidad</label>
+            <select value={criticidad} onChange={e => setCriticidad(e.target.value as 'BAJA' | 'MEDIA' | 'ALTA')} className="n-input">
+              <option value="BAJA">Baja</option>
+              <option value="MEDIA">Media</option>
+              <option value="ALTA">Alta</option>
+            </select>
           </div>
         </div>
 

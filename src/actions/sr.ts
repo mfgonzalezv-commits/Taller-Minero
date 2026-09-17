@@ -1,25 +1,28 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { EstadoSR } from '@prisma/client'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar } from '@/lib/authz'
+import { consumirFIFO } from '@/lib/fifo'
+import { encolarCorreo } from '@/lib/correo'
 
 export async function crearSR(otId: string, data: {
   items: { descripcion: string; cantidad: number; unidad: string; itemBodegaId?: string; precioEstimado?: number }[]
   urgente: boolean
   observacion?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   const sr = await prisma.solicitudRepuesto.create({
     data: {
       otId,
-      faenaId: session.user.faenaId,
+      faenaId: ot.faenaId,
       urgente: data.urgente,
       observacion: data.observacion || null,
-      creadoPorId: session.user.id,
+      creadoPorId: sesion.userId,
       estado: 'ENVIADA',
       items: {
         create: data.items.map(i => ({
@@ -33,7 +36,7 @@ export async function crearSR(otId: string, data: {
       historial: {
         create: {
           estadoNuevo: 'ENVIADA',
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
           observacion: 'Solicitud creada',
         },
       },
@@ -55,16 +58,14 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
   observacion?: string
   fechaEstimadaLlegada?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
-
-  const userId = session.user.id!
-  const faenaId = session.user.faenaId!
+  const sesion = await requireSesion()
 
   const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({
     where: { id: srId },
     include: { items: true },
   })
+  requireAlcanceFaena(sesion, sr.faenaId)
+  const userId = sesion.userId
 
   await prisma.$transaction(async (tx) => {
     await tx.historialSR.create({
@@ -99,7 +100,7 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
             data: { stockActual: stockDespues },
           })
 
-          await tx.movimientoBodega.create({
+          const movSalida = await tx.movimientoBodega.create({
             data: {
               itemId: item.itemBodegaId,
               faenaId: sr.faenaId,
@@ -112,6 +113,12 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
               observacion: `SR-${String(sr.numeroSr).padStart(4, '0')} entregada`,
             },
           })
+          const consumos = await consumirFIFO(tx, item.itemBodegaId, Number(item.cantidad))
+          for (const c of consumos) {
+            await tx.consumoLoteBodega.create({
+              data: { loteId: c.loteId, movimientoId: movSalida.id, cantidad: c.cantidad, costoUnitario: c.costoUnitario },
+            })
+          }
 
           await tx.repuestoOT.create({
             data: {
@@ -180,16 +187,89 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
     }
   })
 
+  // Correo formal a Bodega Central / Adquisiciones — quedan por ahora en
+  // bandeja de salida (sin proveedor de correo configurado).
+  if (nuevoEstado === 'EN_BODEGA_CENTRAL' || nuevoEstado === 'EN_ADQUISICIONES') {
+    const srNumero = `SR-${String(sr.numeroSr).padStart(4, '0')}`
+    const destino = nuevoEstado === 'EN_BODEGA_CENTRAL' ? 'Bodega Central' : 'Adquisiciones Central'
+    const itemsDesc = sr.items.map(i => `- ${i.descripcion} × ${i.cantidad} ${i.unidad}`).join('\n')
+    await encolarCorreo({
+      faenaId: sr.faenaId,
+      tipo: 'SOLICITUD_REPUESTO',
+      entidadId: srId,
+      destinatarios: [],
+      asunto: `${srNumero} — Solicitud de repuesto${sr.urgente ? ' (URGENTE)' : ''}`,
+      cuerpo: `Solicitud ${srNumero} para ${destino}.\n\nÍtems:\n${itemsDesc}\n\n${sr.observacion ?? ''}`,
+    })
+  }
+
   revalidatePath(`/ot/${sr.otId}`)
   revalidatePath('/solicitudes-repuesto')
 }
 
-export async function getSRsByOT(otId: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+// Compra directa/urgente autorizada por el jefe de taller, fuera del flujo
+// normal — debe regularizarse después (Compras completa cotizaciones/orden).
+export async function marcarCompraDirecta(srId: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  if (!motivo?.trim()) throw new Error('Debe justificar la compra directa')
+
+  const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
+  requireAlcanceFaena(sesion, sr.faenaId)
+
+  await prisma.solicitudRepuesto.update({
+    where: { id: srId },
+    data: { esCompraDirecta: true, motivoCompraDirecta: motivo.trim() },
+  })
+
+  await auditar({
+    faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId,
+    accion: 'MARCAR_COMPRA_DIRECTA', usuarioId: sesion.userId, motivo: motivo.trim(),
+  })
+
+  revalidatePath('/solicitudes-repuesto')
+}
+
+export async function regularizarCompraDirecta(srId: string, cotizaciones: string[]) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'COMPRAS'])
+
+  const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
+  requireAlcanceFaena(sesion, sr.faenaId)
+  if (!sr.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
+
+  await prisma.solicitudRepuesto.update({
+    where: { id: srId },
+    data: { regularizada: true, regularizadaPorId: sesion.userId, fechaRegularizacion: new Date(), cotizaciones },
+  })
+
+  await auditar({
+    faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId,
+    accion: 'REGULARIZAR_COMPRA_DIRECTA', usuarioId: sesion.userId,
+  })
+
+  revalidatePath('/solicitudes-repuesto')
+}
+
+// Indicador mensual de compras fuera del flujo normal.
+export async function getComprasDirectasDelMes() {
+  const sesion = await requireSesion()
+  const inicioMes = new Date()
+  inicioMes.setDate(1)
+  inicioMes.setHours(0, 0, 0, 0)
 
   return prisma.solicitudRepuesto.findMany({
-    where: { otId, faenaId: session.user.faenaId },
+    where: { faenaId: sesion.faenaId, esCompraDirecta: true, createdAt: { gte: inicioMes } },
+    include: { ot: { select: { numeroOt: true } }, creadoPor: { select: { nombre: true } } },
+    orderBy: { createdAt: 'desc' },
+  })
+}
+
+export async function getSRsByOT(otId: string) {
+  const sesion = await requireSesion()
+
+  return prisma.solicitudRepuesto.findMany({
+    where: { otId, faenaId: sesion.faenaId },
     include: {
       items: { include: { itemBodega: { select: { codigo: true, stockActual: true } } } },
       creadoPor: { select: { nombre: true } },
@@ -201,12 +281,11 @@ export async function getSRsByOT(otId: string) {
 }
 
 export async function getSRsPendientes() {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   return prisma.solicitudRepuesto.findMany({
     where: {
-      faenaId: session.user.faenaId,
+      faenaId: sesion.faenaId,
       estado: { notIn: ['ENTREGADA', 'RECHAZADA'] },
     },
     include: {

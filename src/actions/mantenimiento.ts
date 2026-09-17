@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 
 // ─── Ciclos ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +66,7 @@ export async function eliminarCiclo(id: string) {
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
-  await prisma.cicloMantenimiento.update({ where: { id }, data: { activo: false } })
+  await prisma.cicloMantenimiento.update({ where: { id, faenaId: session.user.faenaId }, data: { activo: false } })
   revalidatePath('/mantenimiento')
 }
 
@@ -181,9 +183,10 @@ export async function crearPlan(data: {
   }
 
   const equipo = await prisma.equipo.findUnique({
-    where: { id: data.equipoId },
+    where: { id: data.equipoId, faenaId: session.user.faenaId },
     select: { horometroActual: true, kilometrajeActual: true },
   })
+  if (!equipo) throw new Error('Equipo no encontrado en esta faena')
 
   const proximaFecha = data.intervaloDias
     ? new Date(Date.now() + data.intervaloDias * 86400000)
@@ -228,8 +231,38 @@ export async function programarParada(planId: string, fechaProgramada: string) {
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
   await prisma.planMantenimiento.update({
-    where: { id: planId },
+    where: { id: planId, faenaId: session.user.faenaId },
     data: { fechaProgramada: new Date(fechaProgramada) },
+  })
+
+  revalidatePath('/mantenimiento')
+}
+
+// Postergar una mantención ya programada requiere justificación y solo lo
+// pueden hacer Jefe de Taller Central, Planificador Central o Jefe de Taller
+// de la faena — no es una reprogramación libre.
+export async function postergarPlan(planId: string, nuevaFecha: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER'])
+  if (!motivo?.trim()) throw new Error('Debe justificar la postergación')
+
+  const plan = await prisma.planMantenimiento.findUniqueOrThrow({ where: { id: planId } })
+  requireAlcanceFaena(sesion, plan.faenaId)
+
+  await prisma.planMantenimiento.update({
+    where: { id: planId },
+    data: { fechaProgramada: new Date(nuevaFecha) },
+  })
+
+  await auditar({
+    faenaId: plan.faenaId,
+    entidad: 'PlanMantenimiento',
+    entidadId: planId,
+    accion: 'POSTERGAR',
+    usuarioId: sesion.userId,
+    valorAnterior: { fechaProgramada: plan.fechaProgramada },
+    valorNuevo: { fechaProgramada: nuevaFecha },
+    motivo: motivo.trim(),
   })
 
   revalidatePath('/mantenimiento')
@@ -246,8 +279,12 @@ export async function generarOT(planId: string) {
       tareas: { orderBy: { orden: 'asc' } },
     },
   })
+  if (plan.faenaId !== session.user.faenaId) throw new Error('Sin permisos: el plan pertenece a otra faena')
 
   if (plan.otActivaId) throw new Error('Ya existe una OT activa para este plan')
+  if (await hayOTPreventivaActiva(plan.equipoId)) {
+    throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
+  }
 
   const ot = await prisma.ordenTrabajo.create({
     data: {
@@ -296,6 +333,7 @@ export async function registrarEjecucion(planId: string, observacion?: string) {
     where: { id: planId },
     include: { equipo: { select: { horometroActual: true, kilometrajeActual: true } } },
   })
+  if (plan.faenaId !== session.user.faenaId) throw new Error('Sin permisos: el plan pertenece a otra faena')
 
   const horoActual = Number(plan.equipo.horometroActual)
   const kmActual = Number(plan.equipo.kilometrajeActual)
@@ -341,7 +379,7 @@ export async function eliminarPlan(id: string) {
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
-  await prisma.planMantenimiento.update({ where: { id }, data: { activo: false } })
+  await prisma.planMantenimiento.update({ where: { id, faenaId: session.user.faenaId }, data: { activo: false } })
   revalidatePath('/mantenimiento')
 }
 
@@ -367,10 +405,10 @@ export async function importarPauta(data: {
   if (!data.filas.length) throw new Error('No hay filas para importar')
 
   const equipo = await prisma.equipo.findUnique({
-    where: { id: data.equipoId },
+    where: { id: data.equipoId, faenaId: session.user.faenaId },
     select: { horometroActual: true, kilometrajeActual: true },
   })
-  if (!equipo) throw new Error('Equipo no encontrado')
+  if (!equipo) throw new Error('Equipo no encontrado en esta faena')
 
   // Crear ciclo
   const ciclo = await prisma.cicloMantenimiento.create({

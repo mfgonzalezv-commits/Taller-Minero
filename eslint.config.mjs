@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Script suelto de desarrollo, CommonJS por diseño (no es parte de la app Next.js).
+    "read_xlsx.js",
   ]),
 ]);
 

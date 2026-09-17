@@ -480,7 +480,7 @@ export default function BitacoraOT({
         <div className="px-5 py-4 space-y-4 max-h-[640px] overflow-y-auto">
           {entradas.length === 0 && (
             <p className="text-sm text-center py-6" style={{ color: 'var(--n-text-lt)' }}>
-              Sin registros aún — presiona "Nueva entrada" para comenzar
+              Sin registros aún — presiona &quot;Nueva entrada&quot; para comenzar
             </p>
           )}
 

@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { RolUsuario } from '@prisma/client'
 import { hash } from 'bcryptjs'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 
 export async function getUsuarios() {
   const session = await auth()
@@ -74,11 +75,11 @@ export async function actualizarUsuario(id: string, data: {
   turno?: string
   password?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
-  if (session.user.rol !== 'ADMINISTRADOR' && session.user.rol !== 'JEFE_TALLER') {
-    throw new Error('Sin permisos')
-  }
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER'])
+
+  const objetivo = await prisma.usuario.findUniqueOrThrow({ where: { id }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, objetivo.faenaId)
 
   const updateData: Record<string, unknown> = {
     nombre: data.nombre,
@@ -105,7 +106,7 @@ export async function actualizarUsuario(id: string, data: {
       await prisma.tecnico.create({
         data: {
           usuarioId: id,
-          faenaId: session.user.faenaId,
+          faenaId: objetivo.faenaId,
           especialidades: data.especialidades ?? [],
           turno: data.turno,
         },
@@ -113,21 +114,40 @@ export async function actualizarUsuario(id: string, data: {
     }
   }
 
+  await auditar({
+    faenaId: objetivo.faenaId,
+    entidad: 'Usuario',
+    entidadId: id,
+    accion: 'ACTUALIZAR',
+    usuarioId: sesion.userId,
+    valorNuevo: { nombre: data.nombre, email: data.email, rol: data.rol, passwordCambiada: !!updateData.password },
+  })
+
   revalidatePath('/usuarios')
   revalidatePath(`/usuarios/${id}/editar`)
   return usuario
 }
 
 export async function toggleUsuarioActivo(id: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER'])
 
-  const usuario = await prisma.usuario.findUnique({ where: { id } })
-  if (!usuario) throw new Error('Usuario no encontrado')
+  const usuario = await prisma.usuario.findUniqueOrThrow({ where: { id } })
+  requireAlcanceFaena(sesion, usuario.faenaId)
 
   await prisma.usuario.update({
     where: { id },
     data: { activo: !usuario.activo },
+  })
+
+  await auditar({
+    faenaId: usuario.faenaId,
+    entidad: 'Usuario',
+    entidadId: id,
+    accion: usuario.activo ? 'DESACTIVAR' : 'ACTIVAR',
+    usuarioId: sesion.userId,
+    valorAnterior: { activo: usuario.activo },
+    valorNuevo: { activo: !usuario.activo },
   })
 
   revalidatePath('/usuarios')

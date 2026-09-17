@@ -10,7 +10,8 @@ import BitacoraOT from './BitacoraOT'
 import ChecklistOT from './ChecklistOT'
 import ChecklistPM from './ChecklistPM'
 import PrintButton from './PrintButton'
-import BorrarOT from './BorrarOT'
+import AnularOT from './AnularOT'
+import ValidacionOT from './ValidacionOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
 import Link from 'next/link'
 import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle } from 'lucide-react'
@@ -168,8 +169,8 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
     unidad: c.unidad, obligatorio: c.obligatorio, completado: c.completado,
     completadoAt: c.completadoAt?.toISOString() ?? null,
     completadoPor: c.usuario?.nombre ?? null, orden: c.orden,
-    resultado: (c as any).resultado ?? null,
-    observacion: (c as any).observacion ?? null,
+    resultado: c.resultado ?? null,
+    observacion: c.observacion ?? null,
   }))
 
   const solicitudesSerial = ot.solicitudesRepuesto.map(sr => ({
@@ -431,9 +432,19 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
                 </span>
               )}
               <PrintButton />
-              <BorrarOT otId={ot.id} />
+              {(rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER' || rolUsuario === 'PLANIFICADOR') &&
+                ot.estado !== 'ANULADA' && ot.estado !== 'CERRADA' && (
+                <AnularOT otId={ot.id} />
+              )}
             </div>
           </div>
+          <ValidacionOT
+            otId={ot.id}
+            estado={ot.estado}
+            yaValidada={!!ot.validadoTecnicamentePorId}
+            reincidenciaPendiente={ot.reincidente && ot.reincidenciaConfirmada === null}
+            puedeValidar={rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER_CENTRAL' || rolUsuario === 'JEFE_TALLER'}
+          />
           {transiciones.length > 0 && (
             <CambiarEstadoOT
               otId={ot.id}
@@ -498,8 +509,8 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
             </div>
 
             {checklistSerial.length > 0 && (
-              (ot as any).pautaId
-                ? <ChecklistPM otId={ot.id} items={checklistSerial} cicloPM={(ot as any).cicloPM} editable={ot.estado !== 'CERRADA'} />
+              ot.pautaId
+                ? <ChecklistPM otId={ot.id} items={checklistSerial} cicloPM={ot.cicloPM} editable={ot.estado !== 'CERRADA'} />
                 : <ChecklistOT otId={ot.id} items={checklistSerial} editable={ot.estado !== 'CERRADA'} />
             )}
             <TiemposEstadosOT
@@ -543,21 +554,21 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
           {/* Detalles */}
           <div className="rounded-xl p-5 space-y-3" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
             {[
-              { icon: Wrench,       label: 'Tipo',         value: TIPO_LABEL[ot.tipoMantenimiento] },
-              { icon: Wrench,       label: 'Técnico',      value: ot.tecnico?.usuario.nombre },
-              { icon: User,         label: 'Responsable',  value: ot.responsable?.nombre },
-              { icon: Calendar,     label: 'Creada',       value: `${new Date(ot.fechaCreacion).toLocaleDateString('es-CL')}${ot.creadoPor ? ` · ${ot.creadoPor.nombre}` : ''}` },
+              { icon: Wrench,       label: 'Tipo',         value: TIPO_LABEL[ot.tipoMantenimiento], urgente: false },
+              { icon: Wrench,       label: 'Técnico',      value: ot.tecnico?.usuario.nombre, urgente: false },
+              { icon: User,         label: 'Responsable',  value: ot.responsable?.nombre, urgente: false },
+              { icon: Calendar,     label: 'Creada',       value: `${new Date(ot.fechaCreacion).toLocaleDateString('es-CL')}${ot.creadoPor ? ` · ${ot.creadoPor.nombre}` : ''}`, urgente: false },
               { icon: AlertCircle,  label: 'Compromiso',   value: ot.fechaCompromiso ? new Date(ot.fechaCompromiso).toLocaleDateString('es-CL') : null, urgente: ot.fechaCompromiso ? new Date(ot.fechaCompromiso) < new Date() && ot.estado !== 'CERRADA' : false },
-              { icon: Clock,        label: 'Tiempo det.',  value: `${horasDetencion} horas` },
+              { icon: Clock,        label: 'Tiempo det.',  value: `${horasDetencion} horas`, urgente: false },
             ].filter(i => i.value).map(item => {
               const Icon = item.icon
               return (
                 <div key={item.label} className="flex items-start gap-2.5">
-                  <Icon size={13} className="mt-0.5 shrink-0" style={{ color: (item as any).urgente ? 'var(--n-red)' : 'var(--n-text-lt)' }} />
+                  <Icon size={13} className="mt-0.5 shrink-0" style={{ color: item.urgente ? 'var(--n-red)' : 'var(--n-text-lt)' }} />
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--n-text-lt)' }}>{item.label}</p>
-                    <p className="text-sm font-semibold" style={{ color: (item as any).urgente ? 'var(--n-red)' : 'white' }}>
-                      {item.value}{(item as any).urgente ? ' — VENCIDA' : ''}
+                    <p className="text-sm font-semibold" style={{ color: item.urgente ? 'var(--n-red)' : 'white' }}>
+                      {item.value}{item.urgente ? ' — VENCIDA' : ''}
                     </p>
                   </div>
                 </div>

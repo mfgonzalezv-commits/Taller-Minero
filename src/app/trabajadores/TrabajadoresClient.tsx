@@ -184,7 +184,7 @@ export default function TrabajadoresClient({
 
   const handleCrear = (data: Omit<Trabajador, 'id'>) => {
     startTransition(async () => {
-      await crearTrabajador({ ...data, tasaLeyesSociales: data.tasaLeyesSociales })
+      await crearTrabajador({ ...data, rut: data.rut ?? undefined, cargo: data.cargo ?? undefined })
       setMostrarForm(false)
       router.refresh()
     })
@@ -192,7 +192,7 @@ export default function TrabajadoresClient({
 
   const handleActualizar = (id: string, data: Omit<Trabajador, 'id'>) => {
     startTransition(async () => {
-      await actualizarTrabajador(id, data)
+      await actualizarTrabajador(id, { ...data, rut: data.rut ?? undefined, cargo: data.cargo ?? undefined })
       setEditando(null)
       router.refresh()
     })
@@ -205,13 +205,13 @@ export default function TrabajadoresClient({
     })
   }
 
-  const GrupoTrabajadores = ({
-    tipo,
-    lista,
-  }: {
-    tipo: 'DIRECTO' | 'INDIRECTO'
+  // Función de render (no componente) a propósito: si fuera un componente
+  // anidado, React lo trataría como un tipo nuevo en cada render del padre
+  // y remontaría toda la tabla — con esto solo se re-evalúa el JSX.
+  const renderGrupo = (
+    tipo: 'DIRECTO' | 'INDIRECTO',
     lista: Trabajador[]
-  }) => (
+  ) => (
     <div className="rounded-xl overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
       {/* Cabecera */}
       <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: '1px solid var(--n-border)' }}>
@@ -328,8 +328,8 @@ export default function TrabajadoresClient({
 
       {/* Grupos lado a lado */}
       <div className="grid grid-cols-2 gap-4">
-        <GrupoTrabajadores tipo="DIRECTO" lista={directos} />
-        <GrupoTrabajadores tipo="INDIRECTO" lista={indirectos} />
+        {renderGrupo('DIRECTO', directos)}
+        {renderGrupo('INDIRECTO', indirectos)}
       </div>
 
       {/* Explicación overhead */}

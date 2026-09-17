@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { CriticidadInspeccion, ResultadoItem, TurnoInspeccion } from '@prisma/client'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 
 // ─── Plantillas ───────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export async function eliminarPlantilla(id: string) {
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
-  await prisma.plantillaInspeccion.update({ where: { id }, data: { activo: false } })
+  await prisma.plantillaInspeccion.update({ where: { id, faenaId: session.user.faenaId }, data: { activo: false } })
   revalidatePath('/inspeccion/plantillas')
 }
 
@@ -135,8 +136,34 @@ export async function crearInspeccion(data: {
     })
   }
 
+  // Un hallazgo CRÍTICO detiene el equipo de inmediato y genera un reporte
+  // de falla real (no solo una alerta) — queda pendiente de validación del
+  // jefe de taller, igual que una detención pedida desde /fallas.
+  const criticos = conProblema.filter(r => r.resultado === 'CRITICO')
+  if (criticos.length) {
+    const descripcionCriticos = criticos.map(r => r.item.descripcion + (r.observacion ? ` — ${r.observacion}` : '')).join('; ')
+    await prisma.reporteFalla.create({
+      data: {
+        faenaId: session.user!.faenaId!,
+        equipoId: data.equipoId,
+        reportadoPorId: session.user!.id!,
+        descripcion: `Hallazgo crítico en inspección diaria: ${descripcionCriticos}`,
+        riesgoSeguridad: true,
+        prioridadSugerida: 'CRITICA',
+        prioridad: 'CRITICA',
+        detencionSolicitada: true,
+      },
+    })
+    await prisma.equipo.update({
+      where: { id: data.equipoId },
+      data: { estado: 'DETENIDO_PENDIENTE_VALIDACION' },
+    })
+  }
+
   revalidatePath('/inspeccion')
-  return { inspeccionId: inspeccion.id, alertas: conProblema.length }
+  revalidatePath('/fallas')
+  revalidatePath('/equipos')
+  return { inspeccionId: inspeccion.id, alertas: conProblema.length, criticos: criticos.length }
 }
 
 // ─── Alertas ──────────────────────────────────────────────────────────────────
@@ -166,7 +193,7 @@ export async function actualizarEstadoAlerta(alertaId: string, estado: 'EN_PROCE
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
   await prisma.alertaInspeccion.update({
-    where: { id: alertaId },
+    where: { id: alertaId, faenaId: session.user.faenaId },
     data: {
       estado,
       resueltaAt: estado === 'RESUELTA' ? new Date() : null,
@@ -187,6 +214,7 @@ export async function generarOTDesdeAlerta(alertaId: string) {
       inspeccion: { include: { operador: { select: { nombre: true } } } },
     },
   })
+  if (alerta.faenaId !== session.user.faenaId) throw new Error('Sin permisos: la alerta pertenece a otra faena')
 
   const prioridad =
     alerta.criticidad === 'CRITICO' ? 'CRITICA' :
@@ -213,4 +241,34 @@ export async function generarOTDesdeAlerta(alertaId: string) {
   revalidatePath('/inspeccion')
   revalidatePath('/ot')
   return ot.id
+}
+
+// Solo el Jefe de Taller (de faena o central) puede autorizar que un equipo
+// siga operando con una observación pendiente, en vez de quedar detenido.
+export async function autorizarOperarConObservacion(equipoId: string, observacion: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  if (!observacion?.trim()) throw new Error('Debe indicar la observación')
+
+  const equipo = await prisma.equipo.findUniqueOrThrow({ where: { id: equipoId }, select: { faenaId: true, estado: true } })
+  requireAlcanceFaena(sesion, equipo.faenaId)
+
+  await prisma.equipo.update({
+    where: { id: equipoId },
+    data: { estado: 'OPERATIVO_CON_OBSERVACION' },
+  })
+
+  await auditar({
+    faenaId: equipo.faenaId,
+    entidad: 'Equipo',
+    entidadId: equipoId,
+    accion: 'AUTORIZAR_OPERAR_CON_OBSERVACION',
+    usuarioId: sesion.userId,
+    valorAnterior: { estado: equipo.estado },
+    valorNuevo: { estado: 'OPERATIVO_CON_OBSERVACION' },
+    motivo: observacion.trim(),
+  })
+
+  revalidatePath('/equipos')
+  revalidatePath(`/equipos/${equipoId}`)
 }
