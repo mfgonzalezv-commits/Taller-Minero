@@ -1,18 +1,36 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "acceptEdits",
     "allow": [
-      "Bash(npx prisma generate *)",
-      "Bash(npx prisma db push *)",
-      "Bash(npx prisma db push)",
+      "Bash(npm ci *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
       "Bash(npx tsc --noEmit *)",
-      "Bash(npx tsc --noEmit)",
-      "Bash(taskkill *)",
-      "Bash(curl -s *)",
-      "Bash(tail *)",
-      "Bash(npm run dev *)",
-      "Bash(npm run build *)",
-      "PowerShell"
+      "Bash(npx eslint *)",
+      "Bash(npx playwright test *)",
+      "Bash(npx prisma generate *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git merge *)",
+      "Bash(npx prisma db push *)",
+      "Bash(npx prisma migrate deploy *)",
+      "Bash(railway up *)",
+      "Bash(railway deploy *)"
+    ],
+    "deny": [
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git checkout -- *)",
+      "Bash(npx prisma migrate reset *)"
     ]
   }
 }
