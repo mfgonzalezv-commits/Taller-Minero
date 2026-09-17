@@ -8,6 +8,8 @@ import { ChevronRight, Gauge, DollarSign, Plus, Pencil, Activity, ClipboardList,
 import BorrarEquipo from './BorrarEquipo'
 import VincularPauta from './VincularPauta'
 import { getPautasDisponibles } from '@/actions/pautas'
+import { QREquipo } from './QREquipo'
+import { AlertTriangle, ClipboardCheck } from 'lucide-react'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
@@ -182,6 +184,31 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
 
         {/* Columna lateral */}
         <div className="space-y-4">
+
+          {/* Acciones rápidas — vía QR o acceso directo desde el equipo */}
+          <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--n-text-lt)' }}>Acciones rápidas</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Link href="/fallas" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                <AlertTriangle size={13} /> Reportar falla
+              </Link>
+              <Link href="/inspeccion/nueva" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                <ClipboardCheck size={13} /> Inspección
+              </Link>
+              <Link href="/terreno/horometro" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                <Gauge size={13} /> Horómetro
+              </Link>
+              {equipo.ots.find(o => o.estado !== 'CERRADA' && o.estado !== 'ANULADA') ? (
+                <Link href={`/ot/${equipo.ots.find(o => o.estado !== 'CERRADA' && o.estado !== 'ANULADA')!.id}`} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+                  <ClipboardList size={13} /> OT activa
+                </Link>
+              ) : (
+                <span className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs" style={{ color: 'var(--n-text-lt)' }}>Sin OT activa</span>
+              )}
+            </div>
+          </div>
+
+          <QREquipo equipoId={equipo.id} codigo={equipo.codigo} />
 
           {/* Costo detención */}
           <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
