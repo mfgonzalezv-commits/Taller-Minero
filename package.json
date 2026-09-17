@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "seed:pautas": "tsx scripts/seed-pautas.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -50,6 +51,7 @@
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4.2.4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^2.1.9"
   },

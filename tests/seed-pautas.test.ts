@@ -5,7 +5,7 @@ import path from 'path'
 // Regresión: /api/seed-pautas borraba y recreaba datos productivos desde una
 // petición GET pública, sin autenticación. No debe volver a existir como
 // ruta HTTP. La utilidad equivalente vive en scripts/seed-pautas.ts,
-// ejecutable solo localmente vía CLI (npx tsx), nunca por la web.
+// ejecutable solo localmente vía CLI (npm run seed:pautas), nunca por la web.
 describe('seguridad: seed de pautas no expuesto por HTTP', () => {
   const apiDir = path.join(__dirname, '..', 'src', 'app', 'api')
 
@@ -46,5 +46,12 @@ describe('seguridad: seed de pautas no expuesto por HTTP', () => {
     const scriptPath = path.join(__dirname, '..', 'scripts', 'seed-pautas.ts')
     const contenido = fs.readFileSync(scriptPath, 'utf8')
     expect(contenido).not.toMatch(/C:\\\\Users/i)
+  })
+
+  it('package.json declara tsx como dependencia explícita y expone npm run seed:pautas', () => {
+    const pkgPath = path.join(__dirname, '..', 'package.json')
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+    expect(pkg.devDependencies?.tsx).toBeDefined()
+    expect(pkg.scripts?.['seed:pautas']).toBe('tsx scripts/seed-pautas.ts')
   })
 })

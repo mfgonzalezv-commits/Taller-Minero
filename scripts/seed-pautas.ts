@@ -1,5 +1,5 @@
 // Script local de desarrollo — NO expuesto por HTTP.
-// Uso: npx tsx scripts/seed-pautas.ts <codigoFaena> <archivoKM.xlsm> <archivoHRS.xlsm>
+// Uso: npm run seed:pautas -- <codigoFaena> <archivoKM.xlsm> <archivoHRS.xlsm>
 import { prisma } from '../src/lib/prisma'
 import * as xlsx from 'xlsx'
 import fs from 'fs'
@@ -224,7 +224,7 @@ async function main() {
   const [codigoFaena, archivoKM, archivoHRS] = process.argv.slice(2)
 
   if (!codigoFaena || !archivoKM || !archivoHRS) {
-    console.error('Uso: npx tsx scripts/seed-pautas.ts <codigoFaena> <archivoKM.xlsm> <archivoHRS.xlsm>')
+    console.error('Uso: npm run seed:pautas -- <codigoFaena> <archivoKM.xlsm> <archivoHRS.xlsm>')
     process.exit(1)
   }
 
