@@ -12,6 +12,7 @@ export default function HorometroForm() {
   const [kilometraje, setKilometraje] = useState('')
   const [ok, setOk] = useState(false)
   const [error, setError] = useState('')
+  const [advertencia, setAdvertencia] = useState('')
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -25,10 +26,11 @@ export default function HorometroForm() {
     if (!equipoId) return
     setError('')
     setOk(false)
+    setAdvertencia('')
 
     startTransition(async () => {
       try {
-        await registrarHorometro({
+        const res = await registrarHorometro({
           equipoId,
           horometro: horometro ? Number(horometro) : undefined,
           kilometraje: kilometraje ? Number(kilometraje) : undefined,
@@ -36,6 +38,7 @@ export default function HorometroForm() {
         setHorometro('')
         setKilometraje('')
         setOk(true)
+        if (res.advertencia) setAdvertencia(res.advertencia)
         const lista = await getEquiposParaHorometro()
         setEquipos(lista)
       } catch (err: unknown) {
@@ -84,6 +87,11 @@ export default function HorometroForm() {
 
         {error && <p className="text-xs font-medium" style={{ color: 'var(--n-red)' }}>{error}</p>}
         {ok && <p className="text-xs font-bold" style={{ color: 'var(--n-yellow)' }}>✓ Registrado correctamente</p>}
+        {advertencia && (
+          <p className="text-xs font-bold px-3 py-2 rounded" style={{ backgroundColor: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
+            ⚠️ {advertencia} — se guardó igual, quedó marcado para revisión.
+          </p>
+        )}
 
         <button type="submit" disabled={isPending || !equipoId} className="n-btn-primary w-full">
           {isPending ? 'Guardando...' : 'Registrar'}

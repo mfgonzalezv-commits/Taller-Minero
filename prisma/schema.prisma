@@ -139,17 +139,25 @@ model Equipo {
 }
 
 model HorometroKm {
-  id            String   @id @default(uuid())
-  equipoId      String   @map("equipo_id")
-  faenaId       String   @map("faena_id")
-  horometro     Decimal? @db.Decimal(10, 1)
-  kilometraje   Decimal? @db.Decimal(10, 1)
-  fechaRegistro DateTime @default(now()) @map("fecha_registro")
-  usuarioId     String?  @map("usuario_id")
-  origen        String   @default("manual")
+  id               String   @id @default(uuid())
+  equipoId         String   @map("equipo_id")
+  faenaId          String   @map("faena_id")
+  horometro        Decimal? @db.Decimal(10, 1)
+  kilometraje      Decimal? @db.Decimal(10, 1)
+  fechaRegistro    DateTime @default(now()) @map("fecha_registro")
+  usuarioId        String?  @map("usuario_id")
+  origen           String   @default("manual")
+  advertencia      String?
+  esCorreccion     Boolean  @default(false) @map("es_correccion")
+  correccionDeId   String?  @map("correccion_de_id")
+  motivoCorreccion String?  @map("motivo_correccion")
+  // Preparado para una validación formal futura (Fase 5, desactivada por ahora).
+  validado         Boolean? @map("validado")
 
-  equipo  Equipo   @relation(fields: [equipoId], references: [id])
-  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+  equipo       Equipo        @relation(fields: [equipoId], references: [id])
+  usuario      Usuario?      @relation(fields: [usuarioId], references: [id])
+  correccionDe HorometroKm?  @relation("CorreccionHorometro", fields: [correccionDeId], references: [id])
+  correcciones HorometroKm[] @relation("CorreccionHorometro")
 
   @@map("horometro_km")
 }
