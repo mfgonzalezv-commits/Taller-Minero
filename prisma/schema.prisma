@@ -59,6 +59,8 @@ model Usuario {
   otsResponsable                OrdenTrabajo[]           @relation("Responsable")
   otsCreadas                    OrdenTrabajo[]           @relation("Creador")
   otsAnuladas                   OrdenTrabajo[]           @relation("Anulador")
+  otsValidadasTecnicamente      OrdenTrabajo[]           @relation("ValidadorTecnico")
+  otsCerradas                   OrdenTrabajo[]           @relation("CierreAdministrativo")
   registrosAuditoria            RegistroAuditoria[]
   historialEstados              HistorialEstadoOT[]
   horometros                    HorometroKm[]
@@ -153,61 +155,68 @@ model HorometroKm {
 }
 
 model OrdenTrabajo {
-  id                  String            @id @default(uuid())
-  faenaId             String            @map("faena_id")
-  equipoId            String            @map("equipo_id")
-  numeroOt            Int               @default(autoincrement()) @map("numero_ot")
-  tipoMantenimiento   TipoMantenimiento @default(CORRECTIVO) @map("tipo_mantenimiento")
-  estado              EstadoOT          @default(ABIERTA)
-  prioridad           PrioridadOT       @default(MEDIA)
-  descripcionFalla    String            @map("descripcion_falla")
-  origenFalla         OrigenFalla?      @map("origen_falla")
-  reportadaPorNombre  String?           @map("reportada_por_nombre")
-  diagnostico         String?
-  trabajoEjecutado    String?           @map("trabajo_ejecutado")
-  fechaReporte        DateTime?         @map("fecha_reporte")
-  fechaCreacion       DateTime          @default(now()) @map("fecha_creacion")
-  fechaCompromiso     DateTime?         @map("fecha_compromiso")
-  fechaInicioTrabajo  DateTime?         @map("fecha_inicio_trabajo")
-  fechaTerminoTrabajo DateTime?         @map("fecha_termino_trabajo")
-  fechaCierre         DateTime?         @map("fecha_cierre")
-  responsableId       String?           @map("responsable_id")
-  tecnicoAsignadoId   String?           @map("tecnico_asignado_id")
-  creadoPorId         String?           @map("creado_por_id")
-  costoHoraSnapshot   Decimal           @default(0) @map("costo_hora_snapshot") @db.Decimal(12, 2)
-  tiempoDetenidoMin   Int               @default(0) @map("tiempo_detenido_min")
-  costoDetencion      Decimal           @default(0) @map("costo_detencion") @db.Decimal(14, 2)
-  costoManoObra       Decimal           @default(0) @map("costo_mano_obra") @db.Decimal(14, 2)
-  costoOverhead       Decimal           @default(0) @map("costo_overhead") @db.Decimal(14, 2)
-  reincidente         Boolean           @default(false)
-  enEsperaRepuesto    Boolean           @default(false) @map("en_espera_repuesto")
-  planMantenimientoId String?           @map("plan_mantenimiento_id")
-  pautaId             String?           @map("pauta_id")
-  cicloPM             Int?              @map("ciclo_pm")
-  otOrigenId          String?           @map("ot_origen_id")
-  causaRaiz           String?           @map("causa_raiz")
-  motivoAnulacion     String?           @map("motivo_anulacion")
-  anuladaPorId        String?           @map("anulada_por_id")
-  anuladaAt           DateTime?         @map("anulada_at")
-  createdAt           DateTime          @default(now()) @map("created_at")
-  updatedAt           DateTime          @updatedAt @map("updated_at")
+  id                        String            @id @default(uuid())
+  faenaId                   String            @map("faena_id")
+  equipoId                  String            @map("equipo_id")
+  numeroOt                  Int               @default(autoincrement()) @map("numero_ot")
+  tipoMantenimiento         TipoMantenimiento @default(CORRECTIVO) @map("tipo_mantenimiento")
+  estado                    EstadoOT          @default(ABIERTA)
+  prioridad                 PrioridadOT       @default(MEDIA)
+  descripcionFalla          String            @map("descripcion_falla")
+  origenFalla               OrigenFalla?      @map("origen_falla")
+  reportadaPorNombre        String?           @map("reportada_por_nombre")
+  diagnostico               String?
+  trabajoEjecutado          String?           @map("trabajo_ejecutado")
+  fechaReporte              DateTime?         @map("fecha_reporte")
+  fechaCreacion             DateTime          @default(now()) @map("fecha_creacion")
+  fechaCompromiso           DateTime?         @map("fecha_compromiso")
+  fechaInicioTrabajo        DateTime?         @map("fecha_inicio_trabajo")
+  fechaTerminoTrabajo       DateTime?         @map("fecha_termino_trabajo")
+  fechaCierre               DateTime?         @map("fecha_cierre")
+  responsableId             String?           @map("responsable_id")
+  tecnicoAsignadoId         String?           @map("tecnico_asignado_id")
+  creadoPorId               String?           @map("creado_por_id")
+  costoHoraSnapshot         Decimal           @default(0) @map("costo_hora_snapshot") @db.Decimal(12, 2)
+  tiempoDetenidoMin         Int               @default(0) @map("tiempo_detenido_min")
+  costoDetencion            Decimal           @default(0) @map("costo_detencion") @db.Decimal(14, 2)
+  costoManoObra             Decimal           @default(0) @map("costo_mano_obra") @db.Decimal(14, 2)
+  costoOverhead             Decimal           @default(0) @map("costo_overhead") @db.Decimal(14, 2)
+  reincidente               Boolean           @default(false)
+  reincidenciaConfirmada    Boolean?          @map("reincidencia_confirmada")
+  enEsperaRepuesto          Boolean           @default(false) @map("en_espera_repuesto")
+  planMantenimientoId       String?           @map("plan_mantenimiento_id")
+  pautaId                   String?           @map("pauta_id")
+  cicloPM                   Int?              @map("ciclo_pm")
+  otOrigenId                String?           @map("ot_origen_id")
+  causaRaiz                 String?           @map("causa_raiz")
+  motivoAnulacion           String?           @map("motivo_anulacion")
+  anuladaPorId              String?           @map("anulada_por_id")
+  anuladaAt                 DateTime?         @map("anulada_at")
+  validadoTecnicamentePorId String?           @map("validado_tecnicamente_por_id")
+  fechaValidacionTecnica    DateTime?         @map("fecha_validacion_tecnica")
+  cerradoPorId              String?           @map("cerrado_por_id")
+  horometroCierre           Decimal?          @map("horometro_cierre") @db.Decimal(10, 1)
+  createdAt                 DateTime          @default(now()) @map("created_at")
+  updatedAt                 DateTime          @updatedAt @map("updated_at")
 
-  faena               Faena               @relation(fields: [faenaId], references: [id])
-  equipo              Equipo              @relation(fields: [equipoId], references: [id])
-  responsable         Usuario?            @relation("Responsable", fields: [responsableId], references: [id])
-  tecnico             Tecnico?            @relation(fields: [tecnicoAsignadoId], references: [id])
-  creadoPor           Usuario?            @relation("Creador", fields: [creadoPorId], references: [id])
-  anuladaPor          Usuario?            @relation("Anulador", fields: [anuladaPorId], references: [id])
-  pauta               PautaMantenimiento? @relation(fields: [pautaId], references: [id])
-  otOrigen            OrdenTrabajo?       @relation("Reincidencia", fields: [otOrigenId], references: [id])
-  reincidencias       OrdenTrabajo[]      @relation("Reincidencia")
-  historial           HistorialEstadoOT[]
-  bitacora            BitacoraOT[]
-  repuestos           RepuestoOT[]
-  manoObra            ManoObraOT[]
-  checklist           ChecklistItemOT[]
-  solicitudesRepuesto SolicitudRepuesto[]
-  reportesFalla       ReporteFalla[]
+  faena                   Faena               @relation(fields: [faenaId], references: [id])
+  equipo                  Equipo              @relation(fields: [equipoId], references: [id])
+  responsable             Usuario?            @relation("Responsable", fields: [responsableId], references: [id])
+  tecnico                 Tecnico?            @relation(fields: [tecnicoAsignadoId], references: [id])
+  creadoPor               Usuario?            @relation("Creador", fields: [creadoPorId], references: [id])
+  anuladaPor              Usuario?            @relation("Anulador", fields: [anuladaPorId], references: [id])
+  validadoTecnicamentePor Usuario?            @relation("ValidadorTecnico", fields: [validadoTecnicamentePorId], references: [id])
+  cerradoPor              Usuario?            @relation("CierreAdministrativo", fields: [cerradoPorId], references: [id])
+  pauta                   PautaMantenimiento? @relation(fields: [pautaId], references: [id])
+  otOrigen                OrdenTrabajo?       @relation("Reincidencia", fields: [otOrigenId], references: [id])
+  reincidencias           OrdenTrabajo[]      @relation("Reincidencia")
+  historial               HistorialEstadoOT[]
+  bitacora                BitacoraOT[]
+  repuestos               RepuestoOT[]
+  manoObra                ManoObraOT[]
+  checklist               ChecklistItemOT[]
+  solicitudesRepuesto     SolicitudRepuesto[]
+  reportesFalla           ReporteFalla[]
 
   @@map("ordenes_trabajo")
 }

@@ -21,8 +21,8 @@ export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
-  const faenaId = faena?.id
+  const faenaId = session.user?.faenaId
+  const faena = faenaId ? await prisma.faena.findUnique({ where: { id: faenaId } }) : null
 
   const hace3Meses = new Date()
   hace3Meses.setDate(hace3Meses.getDate() - 91)
@@ -45,8 +45,8 @@ export default async function DashboardPage() {
     }),
     getPlanes(),
     prisma.ordenTrabajo.findMany({
-      where: { faenaId, fechaCreacion: { gte: hace3Meses } },
-      select: { equipoId: true, fechaCreacion: true, fechaCierre: true },
+      where: { faenaId, fechaCreacion: { gte: hace3Meses }, estado: { not: 'ANULADA' } },
+      select: { equipoId: true, fechaCreacion: true, fechaTerminoTrabajo: true, fechaCierre: true },
     }),
   ])
 
@@ -81,12 +81,19 @@ export default async function DashboardPage() {
       color: COLORES_ESTADO[estado] ?? '#6B7280',
     }))
 
-  // Operatividad semanal real — últimos 3 meses
+  // Operatividad semanal — últimos 3 meses. Un equipo cuenta como detenido en
+  // la semana si su OT seguía sin terminar TÉCNICAMENTE (fechaTerminoTrabajo,
+  // que es cuando de verdad vuelve a operar — Fase 4), no si la OT seguía
+  // administrativamente abierta. OTs anuladas no cuentan como detención real.
   const totalEquipos = equipos.length || 1
   const hoy = new Date()
   const diasHastaLunes = (hoy.getDay() + 6) % 7
   const ultimoLunes = new Date(hoy)
   ultimoLunes.setDate(hoy.getDate() - diasHastaLunes)
+
+  const HAY_DATOS_DESDE = otsHistoricas.length
+    ? otsHistoricas.reduce((min, ot) => (ot.fechaCreacion < min ? ot.fechaCreacion : min), otsHistoricas[0].fechaCreacion)
+    : null
 
   const operatividadSemanal = Array.from({ length: 13 }, (_, i) => {
     const weekStart = new Date(ultimoLunes)
@@ -94,18 +101,20 @@ export default async function DashboardPage() {
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 7)
 
+    const sinDatosSuficientes = HAY_DATOS_DESDE !== null && weekStart < HAY_DATOS_DESDE
+
     const equiposDetenidosEnSemana = new Set(
       otsHistoricas
         .filter(ot =>
           ot.fechaCreacion < weekEnd &&
-          (ot.fechaCierre === null || ot.fechaCierre > weekStart)
+          (ot.fechaTerminoTrabajo === null || ot.fechaTerminoTrabajo > weekStart)
         )
         .map(ot => ot.equipoId)
     ).size
 
     const pct = Math.round(((totalEquipos - equiposDetenidosEnSemana) / totalEquipos) * 100)
     const label = weekStart.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' })
-    return { dia: label, pct: Math.max(0, pct) }
+    return { dia: label, pct: sinDatosSuficientes ? null : Math.max(0, pct) }
   })
 
   // Datos costos

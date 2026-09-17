@@ -11,6 +11,7 @@ import ChecklistOT from './ChecklistOT'
 import ChecklistPM from './ChecklistPM'
 import PrintButton from './PrintButton'
 import AnularOT from './AnularOT'
+import ValidacionOT from './ValidacionOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
 import Link from 'next/link'
 import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle } from 'lucide-react'
@@ -437,6 +438,13 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
               )}
             </div>
           </div>
+          <ValidacionOT
+            otId={ot.id}
+            estado={ot.estado}
+            yaValidada={!!ot.validadoTecnicamentePorId}
+            reincidenciaPendiente={ot.reincidente && ot.reincidenciaConfirmada === null}
+            puedeValidar={rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER_CENTRAL' || rolUsuario === 'JEFE_TALLER'}
+          />
           {transiciones.length > 0 && (
             <CambiarEstadoOT
               otId={ot.id}
