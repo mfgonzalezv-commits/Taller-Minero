@@ -1,8 +1,8 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
 
 // Solicitud a bodega — sin descontar stock, queda pendiente
 export async function solicitarRepuesto(data: {
@@ -12,21 +12,22 @@ export async function solicitarRepuesto(data: {
   unidad: string
   itemBodegaId?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: data.otId }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   await prisma.$transaction([
     prisma.repuestoOT.create({
       data: {
         otId: data.otId,
-        faenaId: session.user.faenaId,
+        faenaId: ot.faenaId,
         descripcion: data.descripcion,
         cantidad: data.cantidad,
         unidad: data.unidad,
         precioUnit: 0,
         total: 0,
         estadoSolicitud: 'SOLICITADO',
-        registradoById: session.user.id,
+        registradoById: sesion.userId,
         itemBodegaId: data.itemBodegaId ?? null,
       },
     }),
@@ -35,7 +36,7 @@ export async function solicitarRepuesto(data: {
         otId: data.otId,
         descripcion: `Solicitud de repuesto: ${data.descripcion} × ${data.cantidad} ${data.unidad}`,
         setEspera: true,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
       },
     }),
     prisma.ordenTrabajo.update({
@@ -57,13 +58,15 @@ export async function agregarRepuesto(data: {
   precioUnit: number
   itemBodegaId?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: data.otId }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   const total = data.cantidad * data.precioUnit
 
   if (data.itemBodegaId) {
     const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: data.itemBodegaId } })
+    requireAlcanceFaena(sesion, item.faenaId)
     const stockAntes = Number(item.stockActual)
     const stockDespues = stockAntes - data.cantidad
 
@@ -71,14 +74,14 @@ export async function agregarRepuesto(data: {
       prisma.repuestoOT.create({
         data: {
           otId: data.otId,
-          faenaId: session.user.faenaId,
+          faenaId: ot.faenaId,
           descripcion: data.descripcion,
           cantidad: data.cantidad,
           unidad: data.unidad,
           precioUnit: data.precioUnit,
           total,
           estadoSolicitud: 'ENTREGADO',
-          registradoById: session.user.id,
+          registradoById: sesion.userId,
           itemBodegaId: data.itemBodegaId,
         },
       }),
@@ -89,13 +92,13 @@ export async function agregarRepuesto(data: {
       prisma.movimientoBodega.create({
         data: {
           itemId: data.itemBodegaId,
-          faenaId: session.user.faenaId,
+          faenaId: ot.faenaId,
           tipo: 'SALIDA',
           cantidad: data.cantidad,
           stockAntes,
           stockDespues,
           otId: data.otId,
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
           observacion: 'Entrega a OT',
         },
       }),
@@ -103,7 +106,7 @@ export async function agregarRepuesto(data: {
         data: {
           otId: data.otId,
           descripcion: `Repuesto entregado desde bodega: ${data.descripcion} × ${data.cantidad} ${data.unidad}`,
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
         },
       }),
     ])
@@ -113,21 +116,21 @@ export async function agregarRepuesto(data: {
       prisma.repuestoOT.create({
         data: {
           otId: data.otId,
-          faenaId: session.user.faenaId,
+          faenaId: ot.faenaId,
           descripcion: data.descripcion,
           cantidad: data.cantidad,
           unidad: data.unidad,
           precioUnit: data.precioUnit,
           total,
           estadoSolicitud: 'EXTERNO',
-          registradoById: session.user.id,
+          registradoById: sesion.userId,
         },
       }),
       prisma.bitacoraOT.create({
         data: {
           otId: data.otId,
           descripcion: `Compra externa registrada: ${data.descripcion} × ${data.cantidad} ${data.unidad}`,
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
         },
       }),
     ])
@@ -139,10 +142,10 @@ export async function agregarRepuesto(data: {
 
 // Jefe/Planificador autoriza una solicitud de repuesto
 export async function autorizarSolicitud(repuestoId: string, otId: string) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
+  requireAlcanceFaena(sesion, repuesto.faenaId)
   if (repuesto.estadoSolicitud !== 'SOLICITADO') throw new Error('Solo se pueden autorizar solicitudes pendientes')
 
   await prisma.$transaction([
@@ -154,7 +157,7 @@ export async function autorizarSolicitud(repuestoId: string, otId: string) {
       data: {
         otId,
         descripcion: `Repuesto autorizado: ${repuesto.descripcion} × ${repuesto.cantidad} ${repuesto.unidad}`,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
       },
     }),
   ])
@@ -165,10 +168,10 @@ export async function autorizarSolicitud(repuestoId: string, otId: string) {
 
 // Jefe/Planificador rechaza una solicitud de repuesto
 export async function rechazarSolicitud(repuestoId: string, otId: string, motivo?: string) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
+  requireAlcanceFaena(sesion, repuesto.faenaId)
   if (repuesto.estadoSolicitud !== 'SOLICITADO') throw new Error('Solo se pueden rechazar solicitudes pendientes')
 
   await prisma.$transaction([
@@ -180,7 +183,7 @@ export async function rechazarSolicitud(repuestoId: string, otId: string, motivo
       data: {
         otId,
         descripcion: `Repuesto rechazado: ${repuesto.descripcion}${motivo ? ` — ${motivo}` : ''}`,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
       },
     }),
   ])
@@ -191,10 +194,10 @@ export async function rechazarSolicitud(repuestoId: string, otId: string, motivo
 
 // Bodega deriva a Compras por falta de stock
 export async function derivarACompras(repuestoId: string, otId: string) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
+  requireAlcanceFaena(sesion, repuesto.faenaId)
   if (repuesto.estadoSolicitud !== 'AUTORIZADO') throw new Error('Solo se pueden derivar solicitudes autorizadas')
 
   await prisma.$transaction([
@@ -206,7 +209,7 @@ export async function derivarACompras(repuestoId: string, otId: string) {
       data: {
         otId,
         descripcion: `Sin stock en bodega — derivado a Compras: ${repuesto.descripcion} × ${repuesto.cantidad} ${repuesto.unidad}`,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
       },
     }),
   ])
@@ -217,10 +220,10 @@ export async function derivarACompras(repuestoId: string, otId: string) {
 
 // Bodega recibe el stock de Compras — vuelve a AUTORIZADO para ser entregado
 export async function recibirDeCompras(repuestoId: string, otId: string) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
+  requireAlcanceFaena(sesion, repuesto.faenaId)
   if (repuesto.estadoSolicitud !== 'EN_COMPRAS') throw new Error('Solo aplica a ítems en compras')
 
   await prisma.$transaction([
@@ -232,7 +235,7 @@ export async function recibirDeCompras(repuestoId: string, otId: string) {
       data: {
         otId,
         descripcion: `Stock recibido desde Compras — listo para entregar: ${repuesto.descripcion} × ${repuesto.cantidad} ${repuesto.unidad}`,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
       },
     }),
   ])
@@ -248,10 +251,10 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
   itemBodegaId?: string
   destinoResto?: 'BODEGA_CENTRAL' | 'COMPRAS'
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
+  requireAlcanceFaena(sesion, repuesto.faenaId)
   if (repuesto.estadoSolicitud !== 'AUTORIZADO') throw new Error('Solo se pueden entregar solicitudes autorizadas')
 
   const cantSolicitada = Number(repuesto.cantidad)
@@ -280,7 +283,7 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
         descripcion: esParcia
           ? `Bodega entregó parcialmente: ${repuesto.descripcion} × ${cantEntregada} ${repuesto.unidad} (quedan ${cantResto} pendientes → ${data.destinoResto === 'COMPRAS' ? 'Compras' : 'Bodega central'})`
           : `Bodega entregó: ${repuesto.descripcion} × ${cantEntregada} ${repuesto.unidad}`,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
       },
     }),
   ]
@@ -288,6 +291,7 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
   // Descontar stock si viene de bodega
   if (bodegaId) {
     const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: bodegaId } })
+    requireAlcanceFaena(sesion, item.faenaId)
     const stockAntes = Number(item.stockActual)
     const stockDespues = stockAntes - cantEntregada
     ops.push(
@@ -295,13 +299,13 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
       prisma.movimientoBodega.create({
         data: {
           itemId: bodegaId,
-          faenaId: session.user.faenaId,
+          faenaId: repuesto.faenaId,
           tipo: 'SALIDA',
           cantidad: cantEntregada,
           stockAntes,
           stockDespues,
           otId,
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
           observacion: esParcia ? `Entrega parcial OT (quedan ${cantResto})` : 'Entrega de solicitud OT',
         },
       })
@@ -317,7 +321,7 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
       prisma.repuestoOT.create({
         data: {
           otId,
-          faenaId: session.user.faenaId,
+          faenaId: repuesto.faenaId,
           descripcion: repuesto.descripcion + notaDestino,
           cantidad: cantResto,
           unidad: repuesto.unidad,
@@ -333,10 +337,10 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
 }
 
 export async function eliminarRepuesto(id: string, otId: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id } })
+  requireAlcanceFaena(sesion, repuesto.faenaId)
 
   // Solo devolver stock si fue entregado desde bodega
   if (repuesto.itemBodegaId && repuesto.estadoSolicitud === 'ENTREGADO') {
@@ -353,13 +357,13 @@ export async function eliminarRepuesto(id: string, otId: string) {
       prisma.movimientoBodega.create({
         data: {
           itemId: repuesto.itemBodegaId,
-          faenaId: session.user.faenaId,
+          faenaId: repuesto.faenaId,
           tipo: 'ENTRADA',
           cantidad: Number(repuesto.cantidad),
           stockAntes,
           stockDespues,
           otId,
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
           observacion: 'Devolución por eliminación en OT',
         },
       }),

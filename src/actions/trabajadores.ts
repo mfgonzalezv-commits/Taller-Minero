@@ -56,7 +56,7 @@ export async function actualizarTrabajador(id: string, data: {
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
   await prisma.trabajador.update({
-    where: { id },
+    where: { id, faenaId: session.user.faenaId },
     data: {
       nombre: data.nombre,
       rut: data.rut || null,
@@ -75,7 +75,7 @@ export async function eliminarTrabajador(id: string) {
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
-  await prisma.trabajador.update({ where: { id }, data: { activo: false } })
+  await prisma.trabajador.update({ where: { id, faenaId: session.user.faenaId }, data: { activo: false } })
   revalidatePath('/trabajadores')
 }
 

@@ -1,9 +1,9 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { calcularTasaOverhead } from './trabajadores'
+import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
 
 async function recalcularCostoManoObra(otId: string, faenaId: string) {
   const entradas = await prisma.manoObraOT.findMany({
@@ -32,8 +32,13 @@ export async function agregarManoObra(data: {
   tarifaNormal: number
   tarifaExtra: number
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
+    where: { id: data.otId },
+    select: { faenaId: true },
+  })
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   const total =
     data.horasNormales * data.tarifaNormal +
@@ -42,7 +47,7 @@ export async function agregarManoObra(data: {
   await prisma.manoObraOT.create({
     data: {
       otId: data.otId,
-      faenaId: session.user.faenaId,
+      faenaId: ot.faenaId,
       nombre: data.nombre,
       tecnicoId: data.tecnicoId || null,
       trabajadorId: data.trabajadorId || null,
@@ -54,15 +59,20 @@ export async function agregarManoObra(data: {
     },
   })
 
-  await recalcularCostoManoObra(data.otId, session.user.faenaId)
+  await recalcularCostoManoObra(data.otId, ot.faenaId)
   revalidatePath(`/ot/${data.otId}`)
 }
 
 export async function eliminarManoObra(id: string, otId: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
+    where: { id: otId },
+    select: { faenaId: true },
+  })
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   await prisma.manoObraOT.delete({ where: { id } })
-  await recalcularCostoManoObra(otId, session.user.faenaId)
+  await recalcularCostoManoObra(otId, ot.faenaId)
   revalidatePath(`/ot/${otId}`)
 }

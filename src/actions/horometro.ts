@@ -3,21 +3,27 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
 
 export async function registrarHorometro(data: {
   equipoId: string
   horometro?: number
   kilometraje?: number
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   if (!data.horometro && !data.kilometraje) {
     throw new Error('Debe ingresar horómetro o kilometraje')
   }
 
-  const faenaId = session.user!.faenaId!
-  const usuarioId = session.user!.id!
+  const equipo = await prisma.equipo.findUniqueOrThrow({
+    where: { id: data.equipoId },
+    select: { faenaId: true },
+  })
+  requireAlcanceFaena(sesion, equipo.faenaId)
+
+  const faenaId = equipo.faenaId
+  const usuarioId = sesion.userId
 
   const registro = await prisma.$transaction(async (tx) => {
     const r = await tx.horometroKm.create({

@@ -1,25 +1,26 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { EstadoSR } from '@prisma/client'
+import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
 
 export async function crearSR(otId: string, data: {
   items: { descripcion: string; cantidad: number; unidad: string; itemBodegaId?: string; precioEstimado?: number }[]
   urgente: boolean
   observacion?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   const sr = await prisma.solicitudRepuesto.create({
     data: {
       otId,
-      faenaId: session.user.faenaId,
+      faenaId: ot.faenaId,
       urgente: data.urgente,
       observacion: data.observacion || null,
-      creadoPorId: session.user.id,
+      creadoPorId: sesion.userId,
       estado: 'ENVIADA',
       items: {
         create: data.items.map(i => ({
@@ -33,7 +34,7 @@ export async function crearSR(otId: string, data: {
       historial: {
         create: {
           estadoNuevo: 'ENVIADA',
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
           observacion: 'Solicitud creada',
         },
       },
@@ -55,16 +56,14 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
   observacion?: string
   fechaEstimadaLlegada?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
-
-  const userId = session.user.id!
-  const faenaId = session.user.faenaId!
+  const sesion = await requireSesion()
 
   const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({
     where: { id: srId },
     include: { items: true },
   })
+  requireAlcanceFaena(sesion, sr.faenaId)
+  const userId = sesion.userId
 
   await prisma.$transaction(async (tx) => {
     await tx.historialSR.create({
@@ -185,11 +184,10 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
 }
 
 export async function getSRsByOT(otId: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   return prisma.solicitudRepuesto.findMany({
-    where: { otId, faenaId: session.user.faenaId },
+    where: { otId, faenaId: sesion.faenaId },
     include: {
       items: { include: { itemBodega: { select: { codigo: true, stockActual: true } } } },
       creadoPor: { select: { nombre: true } },
@@ -201,12 +199,11 @@ export async function getSRsByOT(otId: string) {
 }
 
 export async function getSRsPendientes() {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   return prisma.solicitudRepuesto.findMany({
     where: {
-      faenaId: session.user.faenaId,
+      faenaId: sesion.faenaId,
       estado: { notIn: ['ENTREGADA', 'RECHAZADA'] },
     },
     include: {

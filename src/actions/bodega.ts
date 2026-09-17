@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { requireSesion, requireAlcanceFaena, auditar } from '@/lib/authz'
 
 export async function getItemsBodega() {
   const session = await auth()
@@ -67,10 +68,10 @@ export async function registrarMovimiento(data: {
   otId?: string
   observacion?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
 
   const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: data.itemId } })
+  requireAlcanceFaena(sesion, item.faenaId)
   const stockAntes = Number(item.stockActual)
   const stockDespues =
     data.tipo === 'ENTRADA'
@@ -85,13 +86,13 @@ export async function registrarMovimiento(data: {
     prisma.movimientoBodega.create({
       data: {
         itemId: data.itemId,
-        faenaId: session.user.faenaId,
+        faenaId: item.faenaId,
         tipo: data.tipo,
         cantidad: data.cantidad,
         stockAntes,
         stockDespues,
         otId: data.otId,
-        usuarioId: session.user.id,
+        usuarioId: sesion.userId,
         observacion: data.observacion,
       },
     }),
@@ -100,6 +101,17 @@ export async function registrarMovimiento(data: {
       data: { stockActual: stockDespues },
     }),
   ])
+
+  await auditar({
+    faenaId: item.faenaId,
+    entidad: 'ItemBodega',
+    entidadId: data.itemId,
+    accion: `MOVIMIENTO_${data.tipo}`,
+    usuarioId: sesion.userId,
+    valorAnterior: { stockActual: stockAntes },
+    valorNuevo: { stockActual: stockDespues },
+    motivo: data.observacion ?? null,
+  })
 
   revalidatePath('/bodega')
   revalidatePath(`/ot/${data.otId}`)

@@ -12,66 +12,69 @@ datasource db {
 }
 
 model Faena {
-  id          String    @id @default(uuid())
-  empresa     String?
-  nombre      String
-  codigo      String    @unique
-  ubicacion   String?
-  activa      Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  empresa   String?
+  nombre    String
+  codigo    String   @unique
+  ubicacion String?
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  usuarios            Usuario[]
-  equipos             Equipo[]
-  tecnicos            Tecnico[]
-  ots                 OrdenTrabajo[]
-  planes              PlanMantenimiento[]
-  ciclos              CicloMantenimiento[]
-  itemsBodega         ItemBodega[]
-  trabajadores        Trabajador[]
+  usuarios             Usuario[]
+  equipos              Equipo[]
+  tecnicos             Tecnico[]
+  ots                  OrdenTrabajo[]
+  planes               PlanMantenimiento[]
+  ciclos               CicloMantenimiento[]
+  itemsBodega          ItemBodega[]
+  trabajadores         Trabajador[]
   plantillasInspeccion PlantillaInspeccion[]
-  inspecciones        InspeccionDiaria[]
-  alertasInspeccion   AlertaInspeccion[]
-  solicitudesRepuesto SolicitudRepuesto[]
-  pautas              PautaMantenimiento[]
+  inspecciones         InspeccionDiaria[]
+  alertasInspeccion    AlertaInspeccion[]
+  solicitudesRepuesto  SolicitudRepuesto[]
+  pautas               PautaMantenimiento[]
+  registrosAuditoria   RegistroAuditoria[]
 
   @@map("faenas")
 }
 
 model Usuario {
-  id        String      @id @default(uuid())
-  faenaId   String      @map("faena_id")
+  id        String     @id @default(uuid())
+  faenaId   String     @map("faena_id")
   nombre    String
-  email     String      @unique
+  email     String     @unique
   password  String
   rol       RolUsuario
-  activo    Boolean     @default(true)
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
+  activo    Boolean    @default(true)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
 
-  faena             Faena          @relation(fields: [faenaId], references: [id])
-  tecnico           Tecnico?
-  otsResponsable    OrdenTrabajo[] @relation("Responsable")
-  otsCreadas        OrdenTrabajo[] @relation("Creador")
-  historialEstados  HistorialEstadoOT[]
-  horometros             HorometroKm[]
-  repuestosRegistrados   RepuestoOT[]
-  movimientosBodega      MovimientoBodega[]
-  bitacora               BitacoraOT[]
-  ejecuciones            EjecucionMantenimiento[]
-  checklistCompletados   ChecklistItemOT[]
-  inspecciones           InspeccionDiaria[]       @relation("InspeccionOperador")
-  srsCreadas             SolicitudRepuesto[]      @relation("SRCreadoPor")
-  srsGestionadas         SolicitudRepuesto[]      @relation("SRGestionadoPor")
-  historialSR            HistorialSR[]
+  faena                Faena                    @relation(fields: [faenaId], references: [id])
+  tecnico              Tecnico?
+  otsResponsable       OrdenTrabajo[]           @relation("Responsable")
+  otsCreadas           OrdenTrabajo[]           @relation("Creador")
+  otsAnuladas          OrdenTrabajo[]           @relation("Anulador")
+  registrosAuditoria   RegistroAuditoria[]
+  historialEstados     HistorialEstadoOT[]
+  horometros           HorometroKm[]
+  repuestosRegistrados RepuestoOT[]
+  movimientosBodega    MovimientoBodega[]
+  bitacora             BitacoraOT[]
+  ejecuciones          EjecucionMantenimiento[]
+  checklistCompletados ChecklistItemOT[]
+  inspecciones         InspeccionDiaria[]       @relation("InspeccionOperador")
+  srsCreadas           SolicitudRepuesto[]      @relation("SRCreadoPor")
+  srsGestionadas       SolicitudRepuesto[]      @relation("SRGestionadoPor")
+  historialSR          HistorialSR[]
 
   @@map("usuarios")
 }
 
 model Tecnico {
-  id             String   @id @default(uuid())
-  usuarioId      String   @unique @map("usuario_id")
-  faenaId        String   @map("faena_id")
+  id              String   @id @default(uuid())
+  usuarioId       String   @unique @map("usuario_id")
+  faenaId         String   @map("faena_id")
   especialidades  String[] @default([])
   turno           String?
   disponible      Boolean  @default(true)
@@ -89,36 +92,36 @@ model Tecnico {
 }
 
 model Equipo {
-  id                       String       @id @default(uuid())
-  faenaId                  String       @map("faena_id")
-  codigo                   String
-  nombre                   String
-  tipo                     TipoEquipo
-  marca                    String?
-  modelo                   String?
-  patente                  String?
-  anio                     Int?
-  ubicacionActual          String?      @map("ubicacion_actual")
-  estado                   EstadoEquipo @default(OPERATIVO)
-  horometroActual          Decimal      @default(0) @map("horometro_actual") @db.Decimal(10, 1)
-  kilometrajeActual        Decimal      @default(0) @map("kilometraje_actual") @db.Decimal(10, 1)
-  costoHoraDetencion       Decimal      @default(0) @map("costo_hora_detencion") @db.Decimal(12, 2)
-  costoDetencionAcumulado  Decimal      @default(0) @map("costo_detencion_acumulado") @db.Decimal(14, 2)
-  qrCode                   String?      @map("qr_code")
-  activo                   Boolean      @default(true)
-  createdAt                DateTime     @default(now()) @map("created_at")
-  updatedAt                DateTime     @updatedAt @map("updated_at")
+  id                      String       @id @default(uuid())
+  faenaId                 String       @map("faena_id")
+  codigo                  String
+  nombre                  String
+  tipo                    TipoEquipo
+  marca                   String?
+  modelo                  String?
+  patente                 String?
+  anio                    Int?
+  ubicacionActual         String?      @map("ubicacion_actual")
+  estado                  EstadoEquipo @default(OPERATIVO)
+  horometroActual         Decimal      @default(0) @map("horometro_actual") @db.Decimal(10, 1)
+  kilometrajeActual       Decimal      @default(0) @map("kilometraje_actual") @db.Decimal(10, 1)
+  costoHoraDetencion      Decimal      @default(0) @map("costo_hora_detencion") @db.Decimal(12, 2)
+  costoDetencionAcumulado Decimal      @default(0) @map("costo_detencion_acumulado") @db.Decimal(14, 2)
+  qrCode                  String?      @map("qr_code")
+  activo                  Boolean      @default(true)
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
 
-  faena               Faena                @relation(fields: [faenaId], references: [id])
-  ots                 OrdenTrabajo[]
-  horometros          HorometroKm[]
-  planes              PlanMantenimiento[]
-  ciclos              CicloMantenimiento[]
+  faena                Faena                 @relation(fields: [faenaId], references: [id])
+  ots                  OrdenTrabajo[]
+  horometros           HorometroKm[]
+  planes               PlanMantenimiento[]
+  ciclos               CicloMantenimiento[]
   plantillasInspeccion PlantillaInspeccion[]
-  inspecciones        InspeccionDiaria[]
-  alertasInspeccion   AlertaInspeccion[]
-  pautaId             String?            @map("pauta_id")
-  pauta               PautaMantenimiento? @relation(fields: [pautaId], references: [id])
+  inspecciones         InspeccionDiaria[]
+  alertasInspeccion    AlertaInspeccion[]
+  pautaId              String?               @map("pauta_id")
+  pauta                PautaMantenimiento?   @relation(fields: [pautaId], references: [id])
 
   @@unique([faenaId, codigo])
   @@map("equipos")
@@ -168,33 +171,36 @@ model OrdenTrabajo {
   costoManoObra       Decimal           @default(0) @map("costo_mano_obra") @db.Decimal(14, 2)
   costoOverhead       Decimal           @default(0) @map("costo_overhead") @db.Decimal(14, 2)
   reincidente         Boolean           @default(false)
-  enEsperaRepuesto      Boolean           @default(false) @map("en_espera_repuesto")
-  planMantenimientoId   String?           @map("plan_mantenimiento_id")
-  pautaId               String?           @map("pauta_id")
-  cicloPM               Int?              @map("ciclo_pm")
-  otOrigenId            String?           @map("ot_origen_id")
+  enEsperaRepuesto    Boolean           @default(false) @map("en_espera_repuesto")
+  planMantenimientoId String?           @map("plan_mantenimiento_id")
+  pautaId             String?           @map("pauta_id")
+  cicloPM             Int?              @map("ciclo_pm")
+  otOrigenId          String?           @map("ot_origen_id")
   causaRaiz           String?           @map("causa_raiz")
+  motivoAnulacion     String?           @map("motivo_anulacion")
+  anuladaPorId        String?           @map("anulada_por_id")
+  anuladaAt           DateTime?         @map("anulada_at")
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @updatedAt @map("updated_at")
 
-  faena         Faena               @relation(fields: [faenaId], references: [id])
-  equipo        Equipo              @relation(fields: [equipoId], references: [id])
-  responsable   Usuario?            @relation("Responsable", fields: [responsableId], references: [id])
-  tecnico       Tecnico?            @relation(fields: [tecnicoAsignadoId], references: [id])
-  creadoPor     Usuario?            @relation("Creador", fields: [creadoPorId], references: [id])
-  pauta         PautaMantenimiento? @relation(fields: [pautaId], references: [id])
-  otOrigen      OrdenTrabajo?       @relation("Reincidencia", fields: [otOrigenId], references: [id])
-  reincidencias OrdenTrabajo[]      @relation("Reincidencia")
-  historial            HistorialEstadoOT[]
-  bitacora             BitacoraOT[]
-  repuestos            RepuestoOT[]
-  manoObra             ManoObraOT[]
-  checklist            ChecklistItemOT[]
-  solicitudesRepuesto  SolicitudRepuesto[]
+  faena               Faena               @relation(fields: [faenaId], references: [id])
+  equipo              Equipo              @relation(fields: [equipoId], references: [id])
+  responsable         Usuario?            @relation("Responsable", fields: [responsableId], references: [id])
+  tecnico             Tecnico?            @relation(fields: [tecnicoAsignadoId], references: [id])
+  creadoPor           Usuario?            @relation("Creador", fields: [creadoPorId], references: [id])
+  anuladaPor          Usuario?            @relation("Anulador", fields: [anuladaPorId], references: [id])
+  pauta               PautaMantenimiento? @relation(fields: [pautaId], references: [id])
+  otOrigen            OrdenTrabajo?       @relation("Reincidencia", fields: [otOrigenId], references: [id])
+  reincidencias       OrdenTrabajo[]      @relation("Reincidencia")
+  historial           HistorialEstadoOT[]
+  bitacora            BitacoraOT[]
+  repuestos           RepuestoOT[]
+  manoObra            ManoObraOT[]
+  checklist           ChecklistItemOT[]
+  solicitudesRepuesto SolicitudRepuesto[]
 
   @@map("ordenes_trabajo")
 }
-
 
 model ItemBodega {
   id          String   @id @default(uuid())
@@ -210,7 +216,7 @@ model ItemBodega {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  faena       Faena              @relation(fields: [faenaId], references: [id])
+  faena       Faena                   @relation(fields: [faenaId], references: [id])
   movimientos MovimientoBodega[]
   repuestos   RepuestoOT[]
   itemsSR     ItemSolicitudRepuesto[]
@@ -220,43 +226,43 @@ model ItemBodega {
 }
 
 model MovimientoBodega {
-  id          String   @id @default(uuid())
-  itemId      String   @map("item_id")
-  faenaId     String   @map("faena_id")
-  tipo        String   // ENTRADA | SALIDA | AJUSTE
-  cantidad    Decimal  @db.Decimal(10, 2)
-  stockAntes  Decimal  @map("stock_antes") @db.Decimal(10, 2)
-  stockDespues Decimal @map("stock_despues") @db.Decimal(10, 2)
-  otId        String?  @map("ot_id")
-  usuarioId   String?  @map("usuario_id")
-  observacion String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id           String   @id @default(uuid())
+  itemId       String   @map("item_id")
+  faenaId      String   @map("faena_id")
+  tipo         String // ENTRADA | SALIDA | AJUSTE
+  cantidad     Decimal  @db.Decimal(10, 2)
+  stockAntes   Decimal  @map("stock_antes") @db.Decimal(10, 2)
+  stockDespues Decimal  @map("stock_despues") @db.Decimal(10, 2)
+  otId         String?  @map("ot_id")
+  usuarioId    String?  @map("usuario_id")
+  observacion  String?
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  item    ItemBodega   @relation(fields: [itemId], references: [id])
-  usuario Usuario?     @relation(fields: [usuarioId], references: [id])
+  item    ItemBodega @relation(fields: [itemId], references: [id])
+  usuario Usuario?   @relation(fields: [usuarioId], references: [id])
 
   @@map("movimientos_bodega")
 }
 
 model RepuestoOT {
-  id               String         @id @default(uuid())
-  otId             String         @map("ot_id")
-  faenaId          String         @map("faena_id")
-  descripcion      String
-  cantidad         Decimal        @db.Decimal(10, 2)
-  unidad           String         @default("un")
-  precioUnit       Decimal        @default(0) @map("precio_unit") @db.Decimal(14, 2)
-  total            Decimal        @default(0) @db.Decimal(14, 2)
-  estadoSolicitud  EstadoRepuesto @default(ENTREGADO) @map("estado_solicitud")
-  registradoById   String?        @map("registrado_by_id")
-  itemBodegaId     String?        @map("item_bodega_id")
-  bitacoraId       String?        @map("bitacora_id")
-  createdAt        DateTime       @default(now()) @map("created_at")
+  id              String         @id @default(uuid())
+  otId            String         @map("ot_id")
+  faenaId         String         @map("faena_id")
+  descripcion     String
+  cantidad        Decimal        @db.Decimal(10, 2)
+  unidad          String         @default("un")
+  precioUnit      Decimal        @default(0) @map("precio_unit") @db.Decimal(14, 2)
+  total           Decimal        @default(0) @db.Decimal(14, 2)
+  estadoSolicitud EstadoRepuesto @default(ENTREGADO) @map("estado_solicitud")
+  registradoById  String?        @map("registrado_by_id")
+  itemBodegaId    String?        @map("item_bodega_id")
+  bitacoraId      String?        @map("bitacora_id")
+  createdAt       DateTime       @default(now()) @map("created_at")
 
-  ot             OrdenTrabajo @relation(fields: [otId], references: [id])
-  registradoPor  Usuario?     @relation(fields: [registradoById], references: [id])
-  itemBodega     ItemBodega?  @relation(fields: [itemBodegaId], references: [id])
-  bitacora       BitacoraOT?  @relation(fields: [bitacoraId], references: [id])
+  ot            OrdenTrabajo @relation(fields: [otId], references: [id])
+  registradoPor Usuario?     @relation(fields: [registradoById], references: [id])
+  itemBodega    ItemBodega?  @relation(fields: [itemBodegaId], references: [id])
+  bitacora      BitacoraOT?  @relation(fields: [bitacoraId], references: [id])
 
   @@map("repuestos_ot")
 }
@@ -301,10 +307,10 @@ model SolicitudRepuesto {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  ot            OrdenTrabajo          @relation(fields: [otId], references: [id])
-  faena         Faena                 @relation(fields: [faenaId], references: [id])
-  creadoPor     Usuario               @relation("SRCreadoPor", fields: [creadoPorId], references: [id])
-  gestionadoPor Usuario?              @relation("SRGestionadoPor", fields: [gestionadoPorId], references: [id])
+  ot            OrdenTrabajo            @relation(fields: [otId], references: [id])
+  faena         Faena                   @relation(fields: [faenaId], references: [id])
+  creadoPor     Usuario                 @relation("SRCreadoPor", fields: [creadoPorId], references: [id])
+  gestionadoPor Usuario?                @relation("SRGestionadoPor", fields: [gestionadoPorId], references: [id])
   items         ItemSolicitudRepuesto[]
   historial     HistorialSR[]
 
@@ -343,14 +349,14 @@ model HistorialSR {
 }
 
 model CicloMantenimiento {
-  id          String    @id @default(uuid())
-  faenaId     String    @map("faena_id")
-  equipoId    String    @map("equipo_id")
+  id          String   @id @default(uuid())
+  faenaId     String   @map("faena_id")
+  equipoId    String   @map("equipo_id")
   nombre      String
   descripcion String?
-  activo      Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   faena  Faena               @relation(fields: [faenaId], references: [id])
   equipo Equipo              @relation(fields: [equipoId], references: [id])
@@ -421,19 +427,19 @@ model EjecucionMantenimiento {
 }
 
 model ChecklistItemOT {
-  id            String    @id @default(uuid())
-  otId          String    @map("ot_id")
+  id            String              @id @default(uuid())
+  otId          String              @map("ot_id")
   descripcion   String
   codigo        String?
-  cantidad      Decimal?  @db.Decimal(10, 3)
+  cantidad      Decimal?            @db.Decimal(10, 3)
   unidad        String?
-  obligatorio   Boolean   @default(true)
-  completado    Boolean   @default(false)
-  completadoAt  DateTime? @map("completado_at")
-  completadoPor String?            @map("completado_por")
+  obligatorio   Boolean             @default(true)
+  completado    Boolean             @default(false)
+  completadoAt  DateTime?           @map("completado_at")
+  completadoPor String?             @map("completado_por")
   resultado     ResultadoChecklist?
   observacion   String?
-  orden         Int                @default(0)
+  orden         Int                 @default(0)
 
   ot      OrdenTrabajo @relation(fields: [otId], references: [id], onDelete: Cascade)
   usuario Usuario?     @relation(fields: [completadoPor], references: [id])
@@ -455,9 +461,9 @@ model ManoObraOT {
   total         Decimal  @default(0) @db.Decimal(14, 2)
   createdAt     DateTime @default(now()) @map("created_at")
 
-  ot          OrdenTrabajo @relation(fields: [otId], references: [id])
-  tecnico     Tecnico?     @relation(fields: [tecnicoId], references: [id])
-  trabajador  Trabajador?  @relation(fields: [trabajadorId], references: [id])
+  ot         OrdenTrabajo @relation(fields: [otId], references: [id])
+  tecnico    Tecnico?     @relation(fields: [tecnicoId], references: [id])
+  trabajador Trabajador?  @relation(fields: [trabajadorId], references: [id])
 
   @@map("mano_obra_ot")
 }
@@ -483,15 +489,15 @@ model Trabajador {
 }
 
 model HistorialEstadoOT {
-  id                 String    @id @default(uuid())
-  otId               String    @map("ot_id")
-  faenaId            String    @map("faena_id")
-  estadoAnterior     EstadoOT? @map("estado_anterior")
-  estadoNuevo        EstadoOT  @map("estado_nuevo")
-  fechaCambio        DateTime  @default(now()) @map("fecha_cambio")
-  usuarioId          String?   @map("usuario_id")
-  observacion        String?
-  tiempoEnEstadoMin  Int       @default(0) @map("tiempo_en_estado_min")
+  id                String    @id @default(uuid())
+  otId              String    @map("ot_id")
+  faenaId           String    @map("faena_id")
+  estadoAnterior    EstadoOT? @map("estado_anterior")
+  estadoNuevo       EstadoOT  @map("estado_nuevo")
+  fechaCambio       DateTime  @default(now()) @map("fecha_cambio")
+  usuarioId         String?   @map("usuario_id")
+  observacion       String?
+  tiempoEnEstadoMin Int       @default(0) @map("tiempo_en_estado_min")
 
   ot      OrdenTrabajo @relation(fields: [otId], references: [id])
   usuario Usuario?     @relation(fields: [usuarioId], references: [id])
@@ -500,19 +506,19 @@ model HistorialEstadoOT {
 }
 
 model BitacoraOT {
-  id               String               @id @default(uuid())
-  otId             String               @map("ot_id")
-  fechaHora        DateTime             @default(now()) @map("fecha_hora")
-  horaInicio       String?              @map("hora_inicio")
-  horaTermino      String?              @map("hora_termino")
-  personal         String[]             @default([])
-  tipoIntervencion TipoIntervencionOT?  @map("tipo_intervencion")
+  id               String              @id @default(uuid())
+  otId             String              @map("ot_id")
+  fechaHora        DateTime            @default(now()) @map("fecha_hora")
+  horaInicio       String?             @map("hora_inicio")
+  horaTermino      String?             @map("hora_termino")
+  personal         String[]            @default([])
+  tipoIntervencion TipoIntervencionOT? @map("tipo_intervencion")
   descripcion      String
-  notaRepuesto     String?              @map("nota_repuesto")
+  notaRepuesto     String?             @map("nota_repuesto")
   estado           EstadoOT?
-  setEspera        Boolean?             @map("set_espera")
-  usuarioId        String?              @map("usuario_id")
-  createdAt        DateTime             @default(now()) @map("created_at")
+  setEspera        Boolean?            @map("set_espera")
+  usuarioId        String?             @map("usuario_id")
+  createdAt        DateTime            @default(now()) @map("created_at")
 
   ot        OrdenTrabajo @relation(fields: [otId], references: [id])
   usuario   Usuario?     @relation(fields: [usuarioId], references: [id])
@@ -611,6 +617,7 @@ enum EstadoOT {
   ESPERA_REPUESTO
   EN_VALIDACION
   CERRADA
+  ANULADA
 
   @@map("estado_ot")
 }
@@ -653,13 +660,13 @@ enum EstadoAlerta {
 }
 
 model PlantillaInspeccion {
-  id          String   @id @default(uuid())
-  faenaId     String   @map("faena_id")
-  equipoId    String?  @map("equipo_id")
-  nombre      String
-  activo      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  faenaId   String   @map("faena_id")
+  equipoId  String?  @map("equipo_id")
+  nombre    String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   faena        Faena                     @relation(fields: [faenaId], references: [id])
   equipo       Equipo?                   @relation(fields: [equipoId], references: [id])
@@ -670,35 +677,35 @@ model PlantillaInspeccion {
 }
 
 model ItemPlantillaInspeccion {
-  id            String               @id @default(uuid())
-  plantillaId   String               @map("plantilla_id")
-  categoria     String
-  descripcion   String
+  id             String               @id @default(uuid())
+  plantillaId    String               @map("plantilla_id")
+  categoria      String
+  descripcion    String
   criticidadBase CriticidadInspeccion @default(INFORMATIVO) @map("criticidad_base")
-  orden         Int                  @default(0)
+  orden          Int                  @default(0)
 
-  plantilla  PlantillaInspeccion  @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+  plantilla  PlantillaInspeccion   @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
   resultados ResultadoInspeccion[]
 
   @@map("items_plantilla_inspeccion")
 }
 
 model InspeccionDiaria {
-  id           String           @id @default(uuid())
-  faenaId      String           @map("faena_id")
-  equipoId     String           @map("equipo_id")
-  plantillaId  String           @map("plantilla_id")
-  fecha        DateTime         @default(now())
-  turno        TurnoInspeccion
-  operadorId   String           @map("operador_id")
-  completada   Boolean          @default(false)
-  observacion  String?
-  createdAt    DateTime         @default(now()) @map("created_at")
+  id          String          @id @default(uuid())
+  faenaId     String          @map("faena_id")
+  equipoId    String          @map("equipo_id")
+  plantillaId String          @map("plantilla_id")
+  fecha       DateTime        @default(now())
+  turno       TurnoInspeccion
+  operadorId  String          @map("operador_id")
+  completada  Boolean         @default(false)
+  observacion String?
+  createdAt   DateTime        @default(now()) @map("created_at")
 
-  faena      Faena                  @relation(fields: [faenaId], references: [id])
-  equipo     Equipo                 @relation(fields: [equipoId], references: [id])
-  plantilla  PlantillaInspeccion    @relation(fields: [plantillaId], references: [id])
-  operador   Usuario                @relation("InspeccionOperador", fields: [operadorId], references: [id])
+  faena      Faena                 @relation(fields: [faenaId], references: [id])
+  equipo     Equipo                @relation(fields: [equipoId], references: [id])
+  plantilla  PlantillaInspeccion   @relation(fields: [plantillaId], references: [id])
+  operador   Usuario               @relation("InspeccionOperador", fields: [operadorId], references: [id])
   resultados ResultadoInspeccion[]
   alertas    AlertaInspeccion[]
 
@@ -771,9 +778,9 @@ model PautaMantenimiento {
   faenaId           String        @map("faena_id")
   nombre            String
   marcaModelo       String        @map("marca_modelo")
-  codigosInternos   String[]      @map("codigos_internos") @default([])
+  codigosInternos   String[]      @default([]) @map("codigos_internos")
   tipoMetrica       TipoMetricaPM @map("tipo_metrica")
-  ciclosDisponibles Int[]         @map("ciclos_disponibles") @default([])
+  ciclosDisponibles Int[]         @default([]) @map("ciclos_disponibles")
   activo            Boolean       @default(true)
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
@@ -795,11 +802,33 @@ model ItemPauta {
   alternativo       String?
   cantidad          Decimal?        @db.Decimal(10, 3)
   unidad            String?         @default("un")
-  ciclosReemplazar  Int[]           @map("ciclos_reemplazar") @default([])
-  ciclosCondicionar Int[]           @map("ciclos_condicionar") @default([])
+  ciclosReemplazar  Int[]           @default([]) @map("ciclos_reemplazar")
+  ciclosCondicionar Int[]           @default([]) @map("ciclos_condicionar")
   orden             Int             @default(0)
 
   pauta PautaMantenimiento @relation(fields: [pautaId], references: [id], onDelete: Cascade)
 
   @@map("items_pauta")
+}
+
+// ─── Auditoría de acciones críticas ─────────────────────────────────────────
+
+model RegistroAuditoria {
+  id            String   @id @default(uuid())
+  faenaId       String?  @map("faena_id")
+  entidad       String
+  entidadId     String   @map("entidad_id")
+  accion        String
+  usuarioId     String?  @map("usuario_id")
+  valorAnterior Json?    @map("valor_anterior")
+  valorNuevo    Json?    @map("valor_nuevo")
+  motivo        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  faena   Faena?   @relation(fields: [faenaId], references: [id])
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([entidad, entidadId])
+  @@index([faenaId])
+  @@map("registro_auditoria")
 }

@@ -60,7 +60,7 @@ export async function eliminarPlantilla(id: string) {
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
-  await prisma.plantillaInspeccion.update({ where: { id }, data: { activo: false } })
+  await prisma.plantillaInspeccion.update({ where: { id, faenaId: session.user.faenaId }, data: { activo: false } })
   revalidatePath('/inspeccion/plantillas')
 }
 
@@ -166,7 +166,7 @@ export async function actualizarEstadoAlerta(alertaId: string, estado: 'EN_PROCE
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
   await prisma.alertaInspeccion.update({
-    where: { id: alertaId },
+    where: { id: alertaId, faenaId: session.user.faenaId },
     data: {
       estado,
       resueltaAt: estado === 'RESUELTA' ? new Date() : null,
@@ -187,6 +187,7 @@ export async function generarOTDesdeAlerta(alertaId: string) {
       inspeccion: { include: { operador: { select: { nombre: true } } } },
     },
   })
+  if (alerta.faenaId !== session.user.faenaId) throw new Error('Sin permisos: la alerta pertenece a otra faena')
 
   const prioridad =
     alerta.criticidad === 'CRITICO' ? 'CRITICA' :

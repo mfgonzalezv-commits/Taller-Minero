@@ -10,7 +10,7 @@ import BitacoraOT from './BitacoraOT'
 import ChecklistOT from './ChecklistOT'
 import ChecklistPM from './ChecklistPM'
 import PrintButton from './PrintButton'
-import BorrarOT from './BorrarOT'
+import AnularOT from './AnularOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
 import Link from 'next/link'
 import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle } from 'lucide-react'
@@ -431,7 +431,10 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
                 </span>
               )}
               <PrintButton />
-              <BorrarOT otId={ot.id} />
+              {(rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER' || rolUsuario === 'PLANIFICADOR') &&
+                ot.estado !== 'ANULADA' && ot.estado !== 'CERRADA' && (
+                <AnularOT otId={ot.id} />
+              )}
             </div>
           </div>
           {transiciones.length > 0 && (

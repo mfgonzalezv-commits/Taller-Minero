@@ -7,6 +7,7 @@ import { EstadoOT, OrigenFalla, PrioridadOT, TipoIntervencionOT, TipoMantenimien
 import { TRANSICIONES_OT } from '@/lib/constants'
 import { calcularTasaOverhead } from './trabajadores'
 import { crearChecklistDesdePauta } from './pautas'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 // TRANSICIONES_OT se mantiene solo para los botones rápidos del header — la bitácora no tiene restricciones
 
 export async function getOTs(filtros?: { estado?: EstadoOT; equipoId?: string }) {
@@ -402,30 +403,60 @@ export async function agregarBitacora(otId: string, data: {
   revalidatePath(`/ot/${otId}`)
 }
 
-export async function eliminarOT(otId: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+// Anula una OT en vez de borrarla físicamente: conserva todo su historial,
+// bitácora, repuestos y movimientos de bodega asociados para trazabilidad.
+// Jefe/Planificador de faena pueden anular OT de su faena; roles con alcance
+// central (ver src/lib/authz.ts) pueden anular de cualquier faena.
+export async function anularOT(otId: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR'])
+
+  if (!motivo || !motivo.trim()) {
+    throw new Error('Debe indicar un motivo para anular la OT')
+  }
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: otId },
-    select: { equipoId: true, faenaId: true },
+    select: { faenaId: true, estado: true, equipoId: true },
   })
-  if (ot.faenaId !== session.user.faenaId) throw new Error('Sin permisos')
+  requireAlcanceFaena(sesion, ot.faenaId)
 
-  // Borrar relaciones en orden para evitar FK violations
-  const srIds = (await prisma.solicitudRepuesto.findMany({ where: { otId }, select: { id: true } })).map(s => s.id)
-  if (srIds.length > 0) {
-    await prisma.historialSR.deleteMany({ where: { srId: { in: srIds } } })
-    // ItemSolicitudRepuesto tiene onDelete: Cascade, se borra con SolicitudRepuesto
+  if (ot.estado === 'ANULADA' || ot.estado === 'CERRADA') {
+    throw new Error(`No se puede anular una OT en estado ${ot.estado}`)
   }
-  await prisma.solicitudRepuesto.deleteMany({ where: { otId } })
-  await prisma.movimientoBodega.deleteMany({ where: { otId } })
-  await prisma.repuestoOT.deleteMany({ where: { otId } })
-  await prisma.manoObraOT.deleteMany({ where: { otId } })
-  await prisma.checklistItemOT.deleteMany({ where: { otId } })
-  await prisma.bitacoraOT.deleteMany({ where: { otId } })
-  await prisma.historialEstadoOT.deleteMany({ where: { otId } })
-  await prisma.ordenTrabajo.delete({ where: { id: otId } })
+
+  await prisma.$transaction([
+    prisma.ordenTrabajo.update({
+      where: { id: otId },
+      data: {
+        estado: 'ANULADA',
+        motivoAnulacion: motivo.trim(),
+        anuladaPorId: sesion.userId,
+        anuladaAt: new Date(),
+      },
+    }),
+    prisma.historialEstadoOT.create({
+      data: {
+        otId,
+        faenaId: ot.faenaId,
+        estadoAnterior: ot.estado,
+        estadoNuevo: 'ANULADA',
+        usuarioId: sesion.userId,
+        observacion: motivo.trim(),
+      },
+    }),
+  ])
+
+  await auditar({
+    faenaId: ot.faenaId,
+    entidad: 'OrdenTrabajo',
+    entidadId: otId,
+    accion: 'ANULAR',
+    usuarioId: sesion.userId,
+    valorAnterior: { estado: ot.estado },
+    valorNuevo: { estado: 'ANULADA' },
+    motivo: motivo.trim(),
+  })
 
   await prisma.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
 

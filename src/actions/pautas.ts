@@ -112,7 +112,7 @@ export async function vincularPautaEquipo(equipoId: string, pautaId: string | nu
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
   await prisma.equipo.update({
-    where: { id: equipoId },
+    where: { id: equipoId, faenaId: session.user.faenaId },
     data: { pautaId },
   })
   revalidatePath(`/equipos/${equipoId}`)
@@ -189,9 +189,10 @@ export async function programarPM(data: {
   if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
 
   const equipo = await prisma.equipo.findUnique({
-    where: { id: data.equipoId },
+    where: { id: data.equipoId, faenaId: session.user.faenaId },
     select: { costoHoraDetencion: true, codigo: true },
   })
+  if (!equipo) throw new Error('Equipo no encontrado en esta faena')
 
   const unidad = await prisma.pautaMantenimiento.findUnique({
     where: { id: data.pautaId },
