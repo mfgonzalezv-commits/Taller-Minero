@@ -10,6 +10,7 @@ import VincularPauta from './VincularPauta'
 import { getPautasDisponibles } from '@/actions/pautas'
 import { QREquipo } from './QREquipo'
 import { AlertTriangle, ClipboardCheck } from 'lucide-react'
+import { getHistorialAsignaciones } from '@/actions/asignaciones'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
@@ -64,6 +65,11 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
   const otsRecientes = equipo.ots.slice(0, 20)
   const todasPautas = puedeEditar ? await getPautasDisponibles() : []
   const pauta = equipo.pauta
+
+  const ROLES_VEN_HISTORIAL_ASIGNACION = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA']
+  const historialAsignaciones = ROLES_VEN_HISTORIAL_ASIGNACION.includes(session.user?.rol ?? '')
+    ? await getHistorialAsignaciones(equipo.id)
+    : []
 
   return (
     <AppShell>
@@ -209,6 +215,34 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
           </div>
 
           <QREquipo equipoId={equipo.id} codigo={equipo.codigo} />
+
+          {historialAsignaciones.length > 0 && (
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--n-border)' }}>
+                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--n-text-lt)' }}>Historial de asignación a faena</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--n-border)' }}>
+                    {['Faena', 'Desde', 'Hasta', 'Modalidad', 'Tarifa'].map(h => (
+                      <th key={h} className="px-3 py-2 text-left font-bold uppercase" style={{ color: 'var(--n-text-lt)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {historialAsignaciones.map(a => (
+                    <tr key={a.id} style={{ borderBottom: '1px solid var(--n-border)' }}>
+                      <td className="px-3 py-2 text-white">{a.faena.codigo}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{new Date(a.fechaInicio).toLocaleDateString('es-CL')}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{a.fechaTermino ? new Date(a.fechaTermino).toLocaleDateString('es-CL') : 'Vigente'}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{a.modalidadArriendo ?? '—'}</td>
+                      <td className="px-3 py-2" style={{ color: 'var(--n-text)' }}>{a.tarifa ? fmt(Number(a.tarifa)) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Costo detención */}
           <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>

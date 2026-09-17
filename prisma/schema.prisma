@@ -39,6 +39,7 @@ model Faena {
   trasladosOrigen      TrasladoTrabajador[]    @relation("TrasladoOrigen")
   trasladosDestino     TrasladoTrabajador[]    @relation("TrasladoDestino")
   reportesFalla        ReporteFalla[]
+  estadosPago          EstadoPago[]
 
   @@map("faenas")
 }
@@ -78,6 +79,9 @@ model Usuario {
   reportesFallaReportados       ReporteFalla[]
   srsRegularizadas              SolicitudRepuesto[]      @relation("SRRegularizadoPor")
   transferenciasBodega          TransferenciaBodega[]
+  estadosPagoPreparados         EstadoPago[]             @relation("EstadoPagoPreparado")
+  estadosPagoAprobados          EstadoPago[]             @relation("EstadoPagoAprobado")
+  ajustesEstadoPago             AjusteEstadoPagoLinea[]
 
   @@map("usuarios")
 }
@@ -135,6 +139,7 @@ model Equipo {
   pauta                PautaMantenimiento?     @relation(fields: [pautaId], references: [id])
   asignaciones         AsignacionEquipoFaena[]
   reportesFalla        ReporteFalla[]
+  estadoPagoLineas     EstadoPagoLinea[]
 
   @@unique([faenaId, codigo])
   @@map("equipos")
@@ -965,9 +970,10 @@ model AsignacionEquipoFaena {
   reglaDescuentoDetencion String?            @map("regla_descuento_detencion")
   createdAt               DateTime           @default(now()) @map("created_at")
 
-  equipo             Equipo   @relation(fields: [equipoId], references: [id])
-  faena              Faena    @relation(fields: [faenaId], references: [id])
-  usuarioResponsable Usuario? @relation(fields: [usuarioResponsableId], references: [id])
+  equipo             Equipo            @relation(fields: [equipoId], references: [id])
+  faena              Faena             @relation(fields: [faenaId], references: [id])
+  usuarioResponsable Usuario?          @relation(fields: [usuarioResponsableId], references: [id])
+  estadoPagoLineas   EstadoPagoLinea[]
 
   @@index([equipoId, fechaTermino])
   @@map("asignaciones_equipo_faena")
@@ -1066,4 +1072,79 @@ model CorreoSaliente {
 
   @@index([faenaId, estado])
   @@map("correos_salientes")
+}
+
+// ─── Estado de Pago (Fase 9) ─────────────────────────────────────────────────
+// Usa el historial de AsignacionEquipoFaena (Fase 2) como fuente de tarifa,
+// modalidad y contrato. Solo cobra arriendo — reparaciones, repuestos y
+// servicios externos NO se incluyen aquí (eso vive en la OT).
+
+enum EstadoEstadoPago {
+  BORRADOR
+  PREPARADO
+  APROBADO
+  RECHAZADO
+
+  @@map("estado_estado_pago")
+}
+
+model EstadoPago {
+  id              String           @id @default(uuid())
+  faenaId         String           @map("faena_id")
+  periodoInicio   DateTime         @map("periodo_inicio")
+  periodoTermino  DateTime         @map("periodo_termino")
+  estado          EstadoEstadoPago @default(BORRADOR)
+  preparadoPorId  String?          @map("preparado_por_id")
+  aprobadoPorId   String?          @map("aprobado_por_id")
+  fechaAprobacion DateTime?        @map("fecha_aprobacion")
+  motivoRechazo   String?          @map("motivo_rechazo")
+  totalBruto      Decimal          @default(0) @map("total_bruto") @db.Decimal(14, 2)
+  totalDescuentos Decimal          @default(0) @map("total_descuentos") @db.Decimal(14, 2)
+  totalAjustes    Decimal          @default(0) @map("total_ajustes") @db.Decimal(14, 2)
+  totalNeto       Decimal          @default(0) @map("total_neto") @db.Decimal(14, 2)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  faena        Faena             @relation(fields: [faenaId], references: [id])
+  preparadoPor Usuario?          @relation("EstadoPagoPreparado", fields: [preparadoPorId], references: [id])
+  aprobadoPor  Usuario?          @relation("EstadoPagoAprobado", fields: [aprobadoPorId], references: [id])
+  lineas       EstadoPagoLinea[]
+
+  @@unique([faenaId, periodoInicio])
+  @@map("estados_pago")
+}
+
+model EstadoPagoLinea {
+  id                 String            @id @default(uuid())
+  estadoPagoId       String            @map("estado_pago_id")
+  equipoId           String            @map("equipo_id")
+  asignacionId       String?           @map("asignacion_id")
+  modalidad          ModalidadArriendo
+  tarifa             Decimal           @db.Decimal(12, 2)
+  cantidadUnidades   Decimal           @map("cantidad_unidades") @db.Decimal(10, 2)
+  montoBruto         Decimal           @map("monto_bruto") @db.Decimal(14, 2)
+  horasDetencion     Decimal           @default(0) @map("horas_detencion") @db.Decimal(10, 2)
+  descuentoDetencion Decimal           @default(0) @map("descuento_detencion") @db.Decimal(14, 2)
+  montoNeto          Decimal           @map("monto_neto") @db.Decimal(14, 2)
+
+  estadoPago EstadoPago              @relation(fields: [estadoPagoId], references: [id])
+  equipo     Equipo                  @relation(fields: [equipoId], references: [id])
+  asignacion AsignacionEquipoFaena?  @relation(fields: [asignacionId], references: [id])
+  ajustes    AjusteEstadoPagoLinea[]
+
+  @@map("estado_pago_lineas")
+}
+
+model AjusteEstadoPagoLinea {
+  id        String   @id @default(uuid())
+  lineaId   String   @map("linea_id")
+  monto     Decimal  @db.Decimal(14, 2)
+  motivo    String
+  usuarioId String?  @map("usuario_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  linea   EstadoPagoLinea @relation(fields: [lineaId], references: [id])
+  usuario Usuario?        @relation(fields: [usuarioId], references: [id])
+
+  @@map("ajustes_estado_pago_linea")
 }

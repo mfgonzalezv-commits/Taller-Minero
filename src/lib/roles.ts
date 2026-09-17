@@ -20,6 +20,7 @@ const RUTAS_PROTEGIDAS: { prefijo: string; roles: Rol[] }[] = [
   { prefijo: '/compras',            roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'COMPRAS'] },
   { prefijo: '/trabajadores',       roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
   { prefijo: '/faenas',             roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'] },
+  { prefijo: '/arriendos',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'GERENCIA'] },
 ]
 
 // Roles cuya faena asignada es "Central" — ven y operan sobre todas las faenas.
@@ -54,6 +55,7 @@ export const NAV_ITEMS: { label: string; href: string; roles: Rol[] | null }[] =
   { label: 'Trabajadores', href: '/trabajadores',      roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
   { label: 'Usuarios',    href: '/usuarios',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
   { label: 'Faenas',      href: '/faenas',            roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'] },
+  { label: 'Arriendos',   href: '/arriendos',         roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'GERENCIA'] },
 ]
 
 export function navParaRol(rol: string): typeof NAV_ITEMS {
