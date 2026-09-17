@@ -111,7 +111,7 @@ export default async function EquipoDetallePage({ params }: { params: Promise<{ 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               {[
                 { label: 'Marca / Modelo', value: equipo.marca ? `${equipo.marca} ${equipo.modelo ?? ''}`.trim() : null },
-                { label: 'Patente',        value: (equipo as any).patente ?? null },
+                { label: 'Patente',        value: equipo.patente ?? null },
                 { label: 'Año',            value: equipo.anio?.toString() },
                 { label: 'Tipo',           value: equipo.tipo },
                 { label: 'Faena',          value: equipo.faena?.nombre ?? null },

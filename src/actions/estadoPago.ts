@@ -3,14 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
-
-// Periodo de facturación del taller: día 26 al 25 del mes siguiente.
-function calcularPeriodo(fechaBase: Date) {
-  const dia = fechaBase.getDate()
-  const inicio = new Date(fechaBase.getFullYear(), fechaBase.getMonth() - (dia < 26 ? 1 : 0), 26)
-  const termino = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 25, 23, 59, 59)
-  return { inicio, termino }
-}
+import { calcularPeriodo } from '@/lib/periodo-pago'
 
 // Prepara el Estado de Pago del periodo: solo arriendo, según la asignación
 // vigente de cada equipo (Fase 2) en la faena, con descuento de detenciones.

@@ -34,7 +34,7 @@ export function GraficoFlota({ data, total, pctOperativo }: Props) {
           </Pie>
           <Tooltip
             contentStyle={{ backgroundColor: 'var(--n-card)', border: '1px solid var(--n-border)', borderRadius: 6, color: 'white', fontSize: 13 }}
-            formatter={(v: number) => [`${v} equipos`, '']}
+            formatter={(v) => [`${v} equipos`, '']}
           />
         </PieChart>
       </ResponsiveContainer>

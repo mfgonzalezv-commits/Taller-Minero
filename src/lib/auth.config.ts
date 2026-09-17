@@ -11,8 +11,8 @@ export const authConfig: NextAuthConfig = {
     jwt: async ({ token, user }) => {
       if (user) {
         token.id = user.id
-        token.role = (user as any).rol
-        token.faenaId = (user as any).faenaId
+        token.role = user.rol
+        token.faenaId = user.faenaId
       }
       return token
     },

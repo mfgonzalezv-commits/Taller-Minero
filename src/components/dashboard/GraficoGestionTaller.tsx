@@ -23,7 +23,7 @@ export function GraficoGestionTaller({ data }: Props) {
           />
           <Tooltip
             contentStyle={{ backgroundColor: 'var(--n-card)', border: '1px solid var(--n-border)', borderRadius: 6, color: 'white', fontSize: 13 }}
-            formatter={(v: number) => [`${v} OTs`, '']}
+            formatter={(v) => [`${v} OTs`, '']}
             cursor={{ fill: 'rgba(255,255,255,0.04)' }}
           />
           <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={18}>
