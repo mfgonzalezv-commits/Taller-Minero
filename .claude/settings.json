@@ -1,10 +1,8 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(npx prisma generate *)",
-      "Bash(npx prisma db push *)",
-      "Bash(npx prisma db push)",
+      "Bash(npx prisma validate *)",
       "Bash(npx tsc --noEmit *)",
       "Bash(npx tsc --noEmit)",
       "Bash(taskkill *)",
@@ -12,6 +10,8 @@
       "Bash(tail *)",
       "Bash(npm run dev *)",
       "Bash(npm run build *)",
+      "Bash(npm test *)",
+      "Bash(npx eslint *)",
       "PowerShell"
     ]
   }

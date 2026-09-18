@@ -2,6 +2,9 @@ import { PrismaClient, RolUsuario, TipoEquipo, EstadoEquipo, EstadoOT, Prioridad
 import { PrismaNeon } from '@prisma/adapter-neon'
 import { hash } from 'bcryptjs'
 import 'dotenv/config'
+import { impedirEjecucionEnProduccion } from '../src/lib/db-guard'
+
+impedirEjecucionEnProduccion('prisma/seed.ts (borra y recrea datos de ejemplo)')
 
 const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })

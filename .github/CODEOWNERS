@@ -1,0 +1,35 @@
+# Ver AGENTS.md y docs/AI_GOVERNANCE.md antes de tocar estos archivos.
+# CODEOWNERS exige revisión del propietario en las áreas de mayor riesgo (risk:high).
+# GitHub solo hace cumplir esto si "Require review from Code Owners" está activo en la
+# protección de rama de `main` (ver lista de acciones manuales en el informe del PR).
+
+# Owner por defecto de todo el repositorio
+*                                   @mfgonzalezv-commits
+
+# Schema y migraciones de base de datos
+/prisma/**                         @mfgonzalezv-commits
+
+# Autenticación y autorización (RBAC, aislamiento por faena)
+/src/lib/auth.ts                   @mfgonzalezv-commits
+/src/lib/auth.config.ts            @mfgonzalezv-commits
+/src/lib/authz.ts                  @mfgonzalezv-commits
+/src/lib/authz-core.ts             @mfgonzalezv-commits
+/src/middleware.ts                 @mfgonzalezv-commits
+/src/lib/roles.ts                  @mfgonzalezv-commits
+
+# Cálculo de costos y Estado de Pago
+/src/lib/calculo-estado-pago.ts    @mfgonzalezv-commits
+/src/lib/periodo-pago.ts           @mfgonzalezv-commits
+/src/actions/estadoPago.ts         @mfgonzalezv-commits
+/src/lib/fifo.ts                   @mfgonzalezv-commits
+
+# Separación dev/producción
+/src/lib/db-guard.ts               @mfgonzalezv-commits
+/prisma/seed.ts                    @mfgonzalezv-commits
+/scripts/seed-dev.ts               @mfgonzalezv-commits
+
+# Automatización y gobierno multiagente
+/.github/**                        @mfgonzalezv-commits
+/AGENTS.md                         @mfgonzalezv-commits
+/CLAUDE.md                         @mfgonzalezv-commits
+/GEMINI.md                         @mfgonzalezv-commits

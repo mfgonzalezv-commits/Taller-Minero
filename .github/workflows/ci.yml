@@ -1,0 +1,125 @@
+name: CI
+
+# Se activa solo con `pull_request` (no `pull_request_target`) — un PR desde un fork nunca
+# corre con secretos del repositorio base. Ver docs/AI_GOVERNANCE.md.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Permisos mínimos: este workflow solo lee el repo y publica resultados de checks, no
+# necesita escribir contenido ni PRs.
+permissions:
+  contents: read
+
+# Cancela la corrida anterior del mismo PR cuando se publica un commit nuevo, para no gastar
+# minutos de CI auditando código que ya quedó obsoleto.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validación (tests, tipos, lint, build)
+    runs-on: ubuntu-latest
+    env:
+      # Marcadores de posición, NO secretos reales — el proyecto usa Server Actions con
+      # Prisma vía adapter de Neon, ninguno de estos comandos abre conexión real a una base
+      # de datos. Verificado localmente: prisma generate/validate, tsc, eslint, vitest y
+      # `next build` corren completos sin conectividad real. No usar DATABASE_URL de
+      # erp_minera ni erp_minera_dev aquí bajo ninguna circunstancia.
+      DATABASE_URL: "postgresql://user:pass@localhost:5432/fakedb"
+      NEXTAUTH_SECRET: "ci-placeholder-secret-not-real"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXT_PUBLIC_APP_NAME: "Taller Minero"
+      NEXT_PUBLIC_APP_ENV: "ci"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configurar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Instalar dependencias (reproducible)
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Prisma validate
+        run: npx prisma validate
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npx eslint .
+
+      - name: Pruebas (Vitest)
+        run: npm test
+
+      - name: Build de producción
+        run: npm run build
+
+  secret-scan:
+    name: Verificación de secretos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (historial completo para escanear commits del PR)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  migraciones:
+    name: Verificación de migraciones (base efímera, descartable)
+    runs-on: ubuntu-latest
+    # Contenedor Postgres temporal que vive solo durante este job — se crea y destruye con
+    # el runner de GitHub Actions. No es erp_minera ni erp_minera_dev, no persiste datos,
+    # no tiene relación con Neon/Railway.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configurar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Aplicar todo el historial de migraciones desde cero
+        run: npx prisma migrate deploy
