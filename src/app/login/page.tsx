@@ -107,16 +107,17 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Usuarios de prueba */}
-        <div
-          className="mt-4 rounded-xl p-4 text-xs"
-          style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)', color: 'var(--n-text-lt)' }}
-        >
-          <p className="font-semibold mb-2 text-white">Usuarios de prueba</p>
-          <p>admin@faena.cl · jefe@faena.cl</p>
-          <p>mecanico1@faena.cl · bodega@faena.cl</p>
-          <p className="mt-2 font-medium" style={{ color: 'var(--n-red)' }}>Contraseña: password123</p>
-        </div>
+        {/* Usuarios de prueba — solo visible fuera de producción (build de desarrollo) */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div
+            className="mt-4 rounded-xl p-4 text-xs"
+            style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)', color: 'var(--n-text-lt)' }}
+          >
+            <p className="font-semibold mb-2 text-white">Usuarios de prueba (solo entorno local)</p>
+            <p>admin@dev.local · mecanico@dev.local</p>
+            <p className="mt-2 font-medium" style={{ color: 'var(--n-red)' }}>Contraseña: password123</p>
+          </div>
+        )}
       </div>
     </div>
   )
