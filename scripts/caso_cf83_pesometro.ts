@@ -7,6 +7,9 @@
  */
 
 import { prisma } from '../src/lib/prisma'
+import { impedirEjecucionEnProduccion } from '../src/lib/db-guard'
+
+impedirEjecucionEnProduccion('caso_cf83_pesometro (datos de prueba simulados)')
 
 // ─── IDs del sistema ─────────────────────────────────────────────────────────
 const EQUIPO_ID   = '056a4da7-140d-46ae-b17d-a40ec29f4533'

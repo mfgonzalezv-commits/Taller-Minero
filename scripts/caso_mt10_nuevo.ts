@@ -1,4 +1,7 @@
 import { prisma } from '../src/lib/prisma'
+import { impedirEjecucionEnProduccion } from '../src/lib/db-guard'
+
+impedirEjecucionEnProduccion('caso_mt10_nuevo (datos de prueba simulados)')
 
 async function main() {
   const ot = await prisma.ordenTrabajo.create({

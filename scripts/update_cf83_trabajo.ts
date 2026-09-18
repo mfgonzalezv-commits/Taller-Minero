@@ -1,4 +1,7 @@
 import { prisma } from '../src/lib/prisma'
+import { impedirEjecucionEnProduccion } from '../src/lib/db-guard'
+
+impedirEjecucionEnProduccion('update_cf83_trabajo (datos de prueba simulados)')
 
 const OT_ID    = 'c532e53f-4fd4-4ac3-82f0-75a8ce72282f'
 const FAENA_ID = '76c2c9b1-85fc-4d0b-bff9-bb32426e7fe8'

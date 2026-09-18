@@ -1,8 +1,11 @@
 // Script local de desarrollo — NO expuesto por HTTP.
 // Uso: npm run seed:pautas -- <codigoFaena> <archivoKM.xlsm> <archivoHRS.xlsm>
 import { prisma } from '../src/lib/prisma'
+import { impedirEjecucionEnProduccion } from '../src/lib/db-guard'
 import * as xlsx from 'xlsx'
 import fs from 'fs'
+
+impedirEjecucionEnProduccion('seed-pautas (carga masiva de catálogo)')
 
 function parsearMultiplicador(texto: string): number {
   if (texto.includes('x 10.000') || texto.includes('x 10000')) return 10000
