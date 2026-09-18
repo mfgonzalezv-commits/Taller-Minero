@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 import { calcularPeriodo } from '@/lib/periodo-pago'
+import { calcularLineaArriendo } from '@/lib/calculo-estado-pago'
 
 // Prepara el Estado de Pago del periodo: solo arriendo, según la asignación
 // vigente de cada equipo (Fase 2) en la faena, con descuento de detenciones.
@@ -44,12 +45,17 @@ export async function prepararEstadoPago(faenaId: string, fechaBase?: string) {
     montoNeto: number
   }[] = []
 
+  // `termino` ya incluye las 23:59:59 del último día del periodo, así que la
+  // diferencia en ms entre `inicio` (00:00:00) y `termino` redondeada a días
+  // ya da el conteo correcto de días calendario reales del periodo (28-31).
+  const diasPeriodo = Math.round((termino.getTime() - inicio.getTime()) / 86_400_000)
+
   for (const a of asignaciones) {
     const tarifa = Number(a.tarifa)
-    let cantidadUnidades = 0
-    let montoBruto = 0
+    const modalidad = a.modalidadArriendo!
 
-    if (a.modalidadArriendo === 'HORA') {
+    let horasTrabajadas = 0
+    if (modalidad === 'HORA') {
       // Horas trabajadas = delta de horómetro en el periodo (ya excluye
       // naturalmente el tiempo detenido: el horómetro no avanza detenido).
       const lecturas = await prisma.horometroKm.findMany({
@@ -57,31 +63,17 @@ export async function prepararEstadoPago(faenaId: string, fechaBase?: string) {
         orderBy: { fechaRegistro: 'asc' },
       })
       if (lecturas.length >= 2) {
-        cantidadUnidades = Math.max(0, Number(lecturas[lecturas.length - 1].horometro) - Number(lecturas[0].horometro))
+        horasTrabajadas = Math.max(0, Number(lecturas[lecturas.length - 1].horometro) - Number(lecturas[0].horometro))
       }
-      montoBruto = cantidadUnidades * tarifa
-    } else {
-      // DIA o MES: se factura el periodo completo (o la fracción vigente)
-      // y se descuentan proporcionalmente las horas detenidas.
-      // `termino` ya incluye las 23:59:59 del último día del periodo, así que
-      // la diferencia en ms entre `inicio` (00:00:00) y `termino` redondeada
-      // a días YA da el conteo correcto de días calendario — sumar +1 lo
-      // infla en un día (bug encontrado y corregido en la verificación final
-      // con datos de prueba: para 26-ago→25-sep daba 32 días en vez de 31).
-      const diasPeriodo = Math.round((termino.getTime() - inicio.getTime()) / 86_400_000)
-      const diasVigentes = Math.min(
-        diasPeriodo,
-        Math.round(((a.fechaTermino ?? termino).getTime() - Math.max(a.fechaInicio.getTime(), inicio.getTime())) / 86_400_000)
-      )
-      cantidadUnidades = a.modalidadArriendo === 'MES' ? diasVigentes / 30 : diasVigentes
-      montoBruto = a.modalidadArriendo === 'MES' ? tarifa * (diasVigentes / 30) : tarifa * diasVigentes
     }
 
+    const diasVigentes = Math.min(
+      diasPeriodo,
+      Math.round(((a.fechaTermino ?? termino).getTime() - Math.max(a.fechaInicio.getTime(), inicio.getTime())) / 86_400_000)
+    )
+
     // Horas de detención reales EN ESTE PERIODO (de OT del equipo cuya
-    // ventana de detención se solapa con [inicio, termino]). Antes esto
-    // sumaba tiempoDetenidoMin de TODA OT histórica del equipo sin acotar
-    // por periodo, inflando el descuento acumulativamente mes a mes — bug
-    // corregido en el control final antes de desplegar.
+    // ventana de detención se solapa con [inicio, termino]).
     const ots = await prisma.ordenTrabajo.findMany({
       where: {
         equipoId: a.equipoId,
@@ -93,28 +85,31 @@ export async function prepararEstadoPago(faenaId: string, fechaBase?: string) {
     })
     const horasDetencion = ots.reduce((acc, o) => acc + o.tiempoDetenidoMin, 0) / 60
 
-    let descuentoDetencion = 0
-    if (a.reglaDescuentoDetencion && a.modalidadArriendo !== 'HORA') {
-      // Regla simple: "100%" = descuenta el equivalente proporcional de
-      // arriendo por las horas detenidas; sin regla configurada, no se
-      // descuenta (queda para ajuste manual con motivo).
-      const porcentaje = parseFloat(a.reglaDescuentoDetencion.replace('%', '')) || 0
-      const tarifaHoraEquivalente = a.modalidadArriendo === 'MES' ? tarifa / (30 * 24) : tarifa / 24
-      descuentoDetencion = horasDetencion * tarifaHoraEquivalente * (porcentaje / 100)
-    }
+    const porcentajeDescuentoDetencion = a.reglaDescuentoDetencion
+      ? parseFloat(a.reglaDescuentoDetencion.replace('%', '')) || 0
+      : 0
 
-    const montoNeto = Math.max(0, montoBruto - descuentoDetencion)
+    const resultado = calcularLineaArriendo({
+      modalidad,
+      tarifa,
+      politicaProrateo: a.politicaProrateo,
+      diasPeriodo,
+      diasVigentes,
+      horasTrabajadas,
+      horasDetencion,
+      porcentajeDescuentoDetencion,
+    })
 
     lineas.push({
       equipoId: a.equipoId,
       asignacionId: a.id,
-      modalidad: a.modalidadArriendo!,
+      modalidad,
       tarifa,
-      cantidadUnidades,
-      montoBruto,
+      cantidadUnidades: resultado.cantidadUnidades,
+      montoBruto: resultado.montoBruto,
       horasDetencion,
-      descuentoDetencion,
-      montoNeto,
+      descuentoDetencion: resultado.descuentoDetencion,
+      montoNeto: resultado.montoNeto,
     })
   }
 

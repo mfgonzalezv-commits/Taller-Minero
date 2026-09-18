@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, auditar } from '@/lib/authz'
-import { ModalidadArriendo } from '@prisma/client'
+import { ModalidadArriendo, PoliticaProrateo } from '@prisma/client'
 
 // Traslada un equipo a otra faena dejando historial trazable: cierra la
 // asignación activa (si existe) y abre una nueva. Equipo.faenaId se mantiene
@@ -18,6 +18,8 @@ export async function trasladarEquipoConHistorial(data: {
   modalidadArriendo?: ModalidadArriendo
   tarifa?: number
   reglaDescuentoDetencion?: string
+  /** Solo aplica a modalidad MES. Por defecto DIAS_REALES si no se indica. */
+  politicaProrateo?: PoliticaProrateo
 }) {
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'])
@@ -47,6 +49,7 @@ export async function trasladarEquipoConHistorial(data: {
         modalidadArriendo: data.modalidadArriendo ?? null,
         tarifa: data.tarifa ?? null,
         reglaDescuentoDetencion: data.reglaDescuentoDetencion ?? null,
+        politicaProrateo: data.politicaProrateo ?? 'DIAS_REALES',
       },
     })
 

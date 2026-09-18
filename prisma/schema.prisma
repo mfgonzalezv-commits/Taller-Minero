@@ -693,6 +693,18 @@ enum ModalidadArriendo {
   @@map("modalidad_arriendo")
 }
 
+// Política de prorrateo del arriendo MES — explícita y configurable por
+// contrato (Estado de Pago, Fase 9). DIAS_REALES: el monto varía según los
+// días calendario reales del periodo (28-31). BASE_30: el monto de un
+// periodo completo siempre es la tarifa exacta, usando 30 como divisor fijo
+// solo para prorratear periodos parciales (inicio/término a mitad de mes).
+enum PoliticaProrateo {
+  DIAS_REALES
+  BASE_30
+
+  @@map("politica_prorateo")
+}
+
 enum TipoEquipo {
   CAMION
   MAQUINARIA
@@ -972,6 +984,9 @@ model AsignacionEquipoFaena {
   modalidadArriendo       ModalidadArriendo? @map("modalidad_arriendo")
   tarifa                  Decimal?           @map("tarifa") @db.Decimal(12, 2)
   reglaDescuentoDetencion String?            @map("regla_descuento_detencion")
+  // Solo aplica a modalidad MES: si el arriendo mensual se prorratea por los
+  // días reales del periodo (28-31) o por una base comercial fija de 30.
+  politicaProrateo        PoliticaProrateo   @default(DIAS_REALES) @map("politica_prorateo")
   createdAt               DateTime           @default(now()) @map("created_at")
 
   equipo             Equipo            @relation(fields: [equipoId], references: [id])
