@@ -2,7 +2,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { auth } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { ESTADO_OT_CONFIG, PRIORIDAD_CONFIG, TRANSICIONES_OT } from '@/lib/constants'
+import { ESTADO_OT_CONFIG, PRIORIDAD_CONFIG, TRANSICIONES_OT, RESPONSABLE_POR_ESTADO } from '@/lib/constants'
 import CambiarEstadoOT from './CambiarEstadoOT'
 import RepuestosOT from './RepuestosOT'
 import ManoObraOT from './ManoObraOT'
@@ -13,12 +13,21 @@ import PrintButton from './PrintButton'
 import AnularOT from './AnularOT'
 import ValidacionOT from './ValidacionOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
+import AsignarTecnico from './AsignarTecnico'
+import EditarDiagnostico from './EditarDiagnostico'
 import Link from 'next/link'
-import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle } from 'lucide-react'
+import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle, ArrowRight } from 'lucide-react'
 import type { OrigenFalla } from '@prisma/client'
 
 const TIPO_LABEL: Record<string, string> = {
   CORRECTIVO: 'Correctivo', PREVENTIVO: 'Preventivo', PREDICTIVO: 'Predictivo',
+}
+
+const ROL_LABEL_CORTO: Record<string, string> = {
+  ADMINISTRADOR: 'Administrador', JEFE_TALLER_CENTRAL: 'Jefe de Taller Central',
+  PLANIFICADOR_CENTRAL: 'Planificador Central', JEFE_TALLER: 'Jefe de Taller',
+  PLANIFICADOR: 'Planificador', MECANICO: 'Mecánico', BODEGA: 'Bodega',
+  COMPRAS: 'Compras', GERENCIA: 'Gerencia', OPERADOR: 'Operador',
 }
 
 const ORIGEN_LABEL: Record<OrigenFalla, { label: string; icon: React.ReactNode }> = {
@@ -87,6 +96,12 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
   })
 
   if (!ot) notFound()
+
+  const tecnicosDisponibles = await prisma.tecnico.findMany({
+    where: { faenaId: ot.faenaId, disponible: true },
+    select: { id: true, especialidades: true, usuario: { select: { id: true, nombre: true } } },
+    orderBy: { usuario: { nombre: 'asc' } },
+  })
 
   const ec = ESTADO_OT_CONFIG[ot.estado]
   const pc = PRIORIDAD_CONFIG[ot.prioridad]
@@ -413,24 +428,14 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
 
         {/* Título */}
         <div className="mb-6">
-          <div className="flex items-start justify-between mb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
             <div>
-              <h1 className="text-2xl font-black text-white uppercase tracking-tight">OT #{ot.numeroOt}</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">OT #{ot.numeroOt}</h1>
               <p className="text-sm mt-0.5 font-semibold" style={{ color: 'var(--n-yellow)' }}>
                 {ot.equipo.codigo} — {ot.equipo.nombre}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 items-center">
-              <span className={`rounded px-2.5 py-1 text-xs font-bold ${pc.color}`}>{pc.label}</span>
-              <span className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-bold ${ec.color}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${ec.dot}`} />
-                {ec.label}
-              </span>
-              {ot.enEsperaRepuesto && ot.estado !== 'ESPERA_REPUESTO' && (
-                <span className="rounded px-2.5 py-1 text-xs font-bold bg-orange-900/60 text-orange-300">
-                  ⏳ Espera repuesto
-                </span>
-              )}
               <PrintButton />
               {(rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER' || rolUsuario === 'PLANIFICADOR') &&
                 ot.estado !== 'ANULADA' && ot.estado !== 'CERRADA' && (
@@ -438,6 +443,47 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
               )}
             </div>
           </div>
+
+          {/* Resumen operativo — lo primero que se lee: estado, prioridad, responsable, próxima acción */}
+          <div className="rounded-xl p-4 mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--n-text-lt)' }}>Estado</p>
+              <span className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold ${ec.color}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${ec.dot}`} />
+                {ec.label}
+              </span>
+              {ot.enEsperaRepuesto && ot.estado !== 'ESPERA_REPUESTO' && (
+                <span className="block mt-1 rounded px-2 py-0.5 text-xs font-bold bg-orange-900/60 text-orange-300 w-fit">
+                  ⏳ Espera repuesto
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--n-text-lt)' }}>Prioridad</p>
+              <span className={`rounded px-2 py-1 text-xs font-bold ${pc.color}`}>{pc.label}</span>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--n-text-lt)' }}>Equipo</p>
+              <p className="text-sm font-bold text-white">{ot.equipo.codigo}</p>
+              <p className="text-xs truncate" style={{ color: 'var(--n-text-mid)' }}>{ot.equipo.nombre}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--n-text-lt)' }}>Responsable</p>
+              <p className="text-sm font-bold text-white">{ot.responsable?.nombre ?? '—'}</p>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--n-text-lt)' }}>Próxima acción</p>
+              {RESPONSABLE_POR_ESTADO[ot.estado] ? (
+                <p className="text-sm font-bold flex items-center gap-1" style={{ color: 'var(--n-yellow)' }}>
+                  <ArrowRight size={13} className="shrink-0" />
+                  {ROL_LABEL_CORTO[RESPONSABLE_POR_ESTADO[ot.estado]!] ?? RESPONSABLE_POR_ESTADO[ot.estado]}
+                </p>
+              ) : (
+                <p className="text-sm font-bold" style={{ color: '#4ade80' }}>Sin acciones pendientes</p>
+              )}
+            </div>
+          </div>
+
           <ValidacionOT
             otId={ot.id}
             estado={ot.estado}
@@ -462,11 +508,11 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
           )}
         </div>
 
-        {/* Grid principal: bitácora | detalle */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
+        {/* Grid principal: una columna en móvil, bitácora | detalle (1fr 2fr) desde lg: */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 
           {/* Columna izquierda: Bitácora */}
-          <div>
+          <div className="lg:col-span-1">
             <BitacoraOT
               otId={ot.id}
               estadoActual={ot.estado}
@@ -480,7 +526,7 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
           </div>
 
           {/* Columna derecha */}
-          <div className="space-y-4">
+          <div className="space-y-4 lg:col-span-2">
 
             {/* Falla + Diagnóstico + Trabajo */}
             <div className="rounded-xl p-6 space-y-4" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
@@ -506,6 +552,28 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
                 <p className="text-sm font-medium text-white">{ot.descripcionFalla}</p>
               </div>
 
+              {/* Diagnóstico + trabajo ejecutado — recuperado a la vista de pantalla (antes solo existía en la impresión) */}
+              <div className="pt-4 space-y-4" style={{ borderTop: '1px solid var(--n-border)' }}>
+                <EditarDiagnostico
+                  otId={ot.id}
+                  diagnostico={ot.diagnostico}
+                  trabajoEjecutado={ot.trabajoEjecutado}
+                  fechaInicioTrabajo={ot.fechaInicioTrabajo?.toISOString() ?? null}
+                  fechaTerminoTrabajo={ot.fechaTerminoTrabajo?.toISOString() ?? null}
+                  fechaDiagnostico={null}
+                  fechaTrabajo={null}
+                  editable={ot.estado !== 'CERRADA'}
+                  bitacora={bitacoraSerial.map(b => ({
+                    descripcion: b.descripcion,
+                    tipoIntervencion: b.tipoIntervencion,
+                    fechaHora: b.fechaHora,
+                    horaInicio: b.horaInicio,
+                    horaTermino: b.horaTermino,
+                    personal: b.personal,
+                  }))}
+                />
+              </div>
+
             </div>
 
             {checklistSerial.length > 0 && (
@@ -523,8 +591,8 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {/* Panel inferior: costos, detalles, técnico */}
-        <div className="grid gap-4 lg:grid-cols-3 mt-4">
+        {/* Panel inferior: costos, detalles, técnico — 1 columna en móvil, 3 desde lg: */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mt-4">
 
           {/* Costos */}
           <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
@@ -555,7 +623,6 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
           <div className="rounded-xl p-5 space-y-3" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
             {[
               { icon: Wrench,       label: 'Tipo',         value: TIPO_LABEL[ot.tipoMantenimiento], urgente: false },
-              { icon: Wrench,       label: 'Técnico',      value: ot.tecnico?.usuario.nombre, urgente: false },
               { icon: User,         label: 'Responsable',  value: ot.responsable?.nombre, urgente: false },
               { icon: Calendar,     label: 'Creada',       value: `${new Date(ot.fechaCreacion).toLocaleDateString('es-CL')}${ot.creadoPor ? ` · ${ot.creadoPor.nombre}` : ''}`, urgente: false },
               { icon: AlertCircle,  label: 'Compromiso',   value: ot.fechaCompromiso ? new Date(ot.fechaCompromiso).toLocaleDateString('es-CL') : null, urgente: ot.fechaCompromiso ? new Date(ot.fechaCompromiso) < new Date() && ot.estado !== 'CERRADA' : false },
@@ -576,6 +643,12 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
             })}
           </div>
 
+          {/* Técnico asignado — recuperado a la interfaz (antes existía pero no se renderizaba) */}
+          <AsignarTecnico
+            otId={ot.id}
+            tecnicoActualId={ot.tecnico?.id}
+            tecnicos={tecnicosDisponibles}
+          />
 
         </div>
 
