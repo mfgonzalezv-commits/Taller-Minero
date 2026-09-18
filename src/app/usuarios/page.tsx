@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/layout/AppShell'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
@@ -7,22 +8,28 @@ import { Pencil } from 'lucide-react'
 
 const ROL_LABEL: Record<string, string> = {
   ADMINISTRADOR: 'Administrador',
+  JEFE_TALLER_CENTRAL: 'Jefe de Taller Central',
+  PLANIFICADOR_CENTRAL: 'Planificador Central',
   JEFE_TALLER: 'Jefe de Taller',
   PLANIFICADOR: 'Planificador',
   MECANICO: 'Mecánico',
   BODEGA: 'Bodeguero',
   COMPRAS: 'Compras',
   GERENCIA: 'Gerencia',
+  OPERADOR: 'Operador',
 }
 
 const ROL_COLOR: Record<string, string> = {
   ADMINISTRADOR: 'bg-purple-100 text-purple-700',
+  JEFE_TALLER_CENTRAL: 'bg-blue-100 text-blue-800',
+  PLANIFICADOR_CENTRAL: 'bg-indigo-100 text-indigo-800',
   JEFE_TALLER: 'bg-blue-100 text-blue-700',
   MECANICO: 'bg-orange-100 text-orange-700',
   BODEGA: 'bg-green-100 text-green-700',
   PLANIFICADOR: 'bg-indigo-100 text-indigo-700',
   COMPRAS: 'bg-teal-100 text-teal-700',
   GERENCIA: 'bg-slate-100 text-slate-700',
+  OPERADOR: 'bg-gray-100 text-gray-700',
 }
 
 export default async function UsuariosPage() {
@@ -40,17 +47,19 @@ export default async function UsuariosPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Usuarios</h1>
-          <Link
-            href="/usuarios/nuevo"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            + Agregar usuario
-          </Link>
-        </div>
+        <PageHeader
+          title="Usuarios"
+          actions={
+            <Link
+              href="/usuarios/nuevo"
+              className="flex items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 min-h-11"
+            >
+              + Agregar usuario
+            </Link>
+          }
+        />
 
-        <div className="rounded-lg bg-white shadow overflow-hidden">
+        <div className="rounded-lg bg-white shadow overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -58,6 +67,9 @@ export default async function UsuariosPage() {
                 <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Email</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Rol</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Estado</th>
+                {puedeEditar && (
+                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Editar</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

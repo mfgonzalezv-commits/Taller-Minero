@@ -10,7 +10,7 @@ export default async function NuevoUsuarioPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-xl px-4 py-6">
-        <h1 className="mb-6 text-2xl font-bold text-slate-900">Agregar Usuario</h1>
+        <h1 className="mb-6 text-2xl font-black text-white uppercase tracking-tight">Agregar Usuario</h1>
         <NuevoUsuarioForm />
       </div>
     </AppShell>
