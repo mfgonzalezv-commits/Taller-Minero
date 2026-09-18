@@ -229,7 +229,7 @@
 .n-btn-ghost:focus-visible { outline: 2px solid var(--n-yellow); outline-offset: 2px; }
 
 /* Foco visible genérico para navegación por teclado sobre elementos interactivos
-   que no usan las clases n-btn-*/n-input (links, botones custom, filas clicables). */
+   que no usan las clases n-btn- o n-input (links, botones custom, filas clicables). */
 a:focus-visible,
 button:focus-visible,
 [role="button"]:focus-visible,

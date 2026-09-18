@@ -111,3 +111,27 @@ aquí en el mismo PR, no solo en el código.
   `risk:low`, porque cambia qué datos ve cada usuario.
 - Dependencias con vulnerabilidades conocidas (`next`, `next-auth`, `prisma`, `vitest`) no se
   han actualizado — requieren su propia tanda de pruebas dedicada (ver `npm audit`).
+- **`AsignarTecnico` y `EditarDiagnostico` (`src/app/ot/[id]/`) existen como componentes
+  completos pero deliberadamente NO están renderizados en `src/app/ot/[id]/page.tsx`**
+  (revisión de Codex, 2026-09-18, sobre PR de mejoras frontend). Bloqueo de seguridad
+  detectado antes de exponerlos en pantalla:
+  - `asignarTecnico()` (`src/actions/ot.ts`) no valida rol del usuario que llama ni que el
+    técnico pertenezca a la misma faena de la OT — cualquier usuario autenticado podría
+    asignar cualquier técnico a cualquier OT.
+  - `actualizarDiagnostico()` (`src/actions/ot.ts`) valida `requireSesion()` y aislamiento de
+    faena, pero no define qué roles pueden editar diagnóstico/trabajo ejecutado de una OT.
+  - Ninguno de los dos se corrigió en el PR de frontend porque es `risk:low` (solo UI) y no
+    puede tocar Server Actions/RBAC. Corregir estas dos funciones y luego volver a exponer
+    los componentes en la ficha de OT debe hacerse en un PR `risk:high` aparte, auditado por
+    Codex antes de fusionar.
+- **Los selectores de rol en `/usuarios/nuevo` y `/usuarios/[id]/editar` no ofrecen
+  `JEFE_TALLER_CENTRAL` ni `PLANIFICADOR_CENTRAL`** (revertido tras revisión de Codex,
+  2026-09-18). Motivo: `crearUsuario()` y `actualizarUsuario()` (`src/actions/usuarios.ts`)
+  solo validan que quien llama sea `ADMINISTRADOR`/`JEFE_TALLER` — no restringen qué
+  `RolUsuario` se le puede asignar al usuario nuevo/editado. Con el selector completo, un
+  `JEFE_TALLER` (alcance de una sola faena) podría haberse asignado a sí mismo o a otro
+  usuario un rol de alcance central. La administración segura de creación de roles centrales
+  debe resolverse en un PR `risk:high` aparte (validar en la Server Action quién puede
+  otorgar qué rol, no solo en el formulario). Las etiquetas de estos roles siguen existiendo
+  donde son puramente informativas (`TopBar.tsx`, listado de `/usuarios`) porque ahí solo
+  muestran el rol de un usuario ya existente, no permiten asignarlo.

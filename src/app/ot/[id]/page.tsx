@@ -13,8 +13,6 @@ import PrintButton from './PrintButton'
 import AnularOT from './AnularOT'
 import ValidacionOT from './ValidacionOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
-import AsignarTecnico from './AsignarTecnico'
-import EditarDiagnostico from './EditarDiagnostico'
 import Link from 'next/link'
 import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle, ArrowRight } from 'lucide-react'
 import type { OrigenFalla } from '@prisma/client'
@@ -96,12 +94,6 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
   })
 
   if (!ot) notFound()
-
-  const tecnicosDisponibles = await prisma.tecnico.findMany({
-    where: { faenaId: ot.faenaId, disponible: true },
-    select: { id: true, especialidades: true, usuario: { select: { id: true, nombre: true } } },
-    orderBy: { usuario: { nombre: 'asc' } },
-  })
 
   const ec = ESTADO_OT_CONFIG[ot.estado]
   const pc = PRIORIDAD_CONFIG[ot.prioridad]
@@ -552,28 +544,9 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
                 <p className="text-sm font-medium text-white">{ot.descripcionFalla}</p>
               </div>
 
-              {/* Diagnóstico + trabajo ejecutado — recuperado a la vista de pantalla (antes solo existía en la impresión) */}
-              <div className="pt-4 space-y-4" style={{ borderTop: '1px solid var(--n-border)' }}>
-                <EditarDiagnostico
-                  otId={ot.id}
-                  diagnostico={ot.diagnostico}
-                  trabajoEjecutado={ot.trabajoEjecutado}
-                  fechaInicioTrabajo={ot.fechaInicioTrabajo?.toISOString() ?? null}
-                  fechaTerminoTrabajo={ot.fechaTerminoTrabajo?.toISOString() ?? null}
-                  fechaDiagnostico={null}
-                  fechaTrabajo={null}
-                  editable={ot.estado !== 'CERRADA'}
-                  bitacora={bitacoraSerial.map(b => ({
-                    descripcion: b.descripcion,
-                    tipoIntervencion: b.tipoIntervencion,
-                    fechaHora: b.fechaHora,
-                    horaInicio: b.horaInicio,
-                    horaTermino: b.horaTermino,
-                    personal: b.personal,
-                  }))}
-                />
-              </div>
-
+              {/* EditarDiagnostico y AsignarTecnico (más abajo) NO se renderizan a propósito:
+                  sus Server Actions no validan rol/alcance de faena. Ver docs/REGLAS_NEGOCIO.md
+                  → "Deuda técnica documentada" para el detalle antes de volver a exponerlos. */}
             </div>
 
             {checklistSerial.length > 0 && (
@@ -642,13 +615,6 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
               )
             })}
           </div>
-
-          {/* Técnico asignado — recuperado a la interfaz (antes existía pero no se renderizaba) */}
-          <AsignarTecnico
-            otId={ot.id}
-            tecnicoActualId={ot.tecnico?.id}
-            tecnicos={tecnicosDisponibles}
-          />
 
         </div>
 

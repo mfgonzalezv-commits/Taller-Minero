@@ -7,8 +7,6 @@ import type { RolUsuario } from '@prisma/client'
 
 const ROLES: { value: RolUsuario; label: string }[] = [
   { value: 'ADMINISTRADOR', label: 'Administrador' },
-  { value: 'JEFE_TALLER_CENTRAL', label: 'Jefe de Taller Central' },
-  { value: 'PLANIFICADOR_CENTRAL', label: 'Planificador Central' },
   { value: 'JEFE_TALLER', label: 'Jefe de Taller' },
   { value: 'PLANIFICADOR', label: 'Planificador' },
   { value: 'MECANICO', label: 'Mecánico' },
