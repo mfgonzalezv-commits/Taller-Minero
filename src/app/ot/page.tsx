@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/layout/AppShell'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
@@ -25,23 +26,23 @@ export default async function OTPage() {
 
   return (
     <AppShell>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tight">Órdenes de Trabajo</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--n-text-lt)' }}>
-            {activas} activas · {criticas > 0 ? <span style={{ color: 'var(--n-red)' }}>{criticas} críticas</span> : '0 críticas'} · {ots.filter(o => o.estado === 'CERRADA').length} cerradas
-          </p>
-        </div>
-        <Link
-          href="/ot/nueva"
-          className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
-          style={{ backgroundColor: 'var(--n-red)' }}
-        >
-          <Plus size={15} />
-          Nueva OT
-        </Link>
-      </div>
+      <PageHeader
+        title="Órdenes de Trabajo"
+        indicadores={[
+          { label: 'activas', value: activas },
+          { label: 'críticas', value: criticas, color: criticas > 0 ? 'var(--n-red)' : undefined },
+          { label: 'cerradas', value: ots.filter(o => o.estado === 'CERRADA').length },
+        ]}
+        actions={
+          <Link
+            href="/ot/nueva"
+            className="n-btn-primary"
+          >
+            <Plus size={15} />
+            Nueva OT
+          </Link>
+        }
+      />
 
       <OTListaClient ots={ots} />
     </AppShell>

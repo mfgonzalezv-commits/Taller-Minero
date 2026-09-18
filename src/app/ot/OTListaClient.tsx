@@ -124,7 +124,8 @@ export default function OTListaClient({ ots }: { ots: OT[] }) {
               {filtradas.length} {filtradas.length === 1 ? 'resultado' : 'resultados'}
               {filtradas.length < ots.length ? ` de ${ots.length}` : ''}
             </p>
-            <table className="w-full">
+            {/* Tabla — desde sm: hacia arriba */}
+            <table className="w-full hidden sm:table">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--n-border)' }}>
                   {['N°', 'Equipo', 'Falla', 'Estado', 'Prioridad', 'Fecha'].map(col => (
@@ -171,6 +172,36 @@ export default function OTListaClient({ ots }: { ots: OT[] }) {
                 })}
               </tbody>
             </table>
+
+            {/* Tarjetas — bajo sm:, cada fila es un link completo a la OT */}
+            <div className="sm:hidden">
+              {filtradas.map((ot) => {
+                const ec = ESTADO_OT_CONFIG[ot.estado as keyof typeof ESTADO_OT_CONFIG]
+                const pc = PRIORIDAD_CONFIG[ot.prioridad as keyof typeof PRIORIDAD_CONFIG]
+                return (
+                  <Link
+                    key={ot.id}
+                    href={`/ot/${ot.id}`}
+                    className="n-row-hover block px-4 py-3"
+                    style={{ borderBottom: '1px solid var(--n-border)' }}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-mono text-xs font-bold" style={{ color: 'var(--n-text-lt)' }}>#{ot.numeroOt}</span>
+                      <span className="text-xs" style={{ color: 'var(--n-text-lt)' }}>{new Date(ot.fechaCreacion).toLocaleDateString('es-CL')}</span>
+                    </div>
+                    <p className="text-sm font-bold text-white">{ot.equipo.codigo} <span className="font-normal" style={{ color: 'var(--n-text-lt)' }}>· {ot.equipo.nombre}</span></p>
+                    <p className="text-sm mt-0.5 line-clamp-1" style={{ color: 'var(--n-yellow)' }}>{ot.descripcionFalla}</p>
+                    <div className="flex gap-2 mt-1.5 flex-wrap">
+                      <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-bold ${ec.color}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${ec.dot}`} />
+                        {ec.label}
+                      </span>
+                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${pc.color}`}>{pc.label}</span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
           </>
         )}
       </div>
