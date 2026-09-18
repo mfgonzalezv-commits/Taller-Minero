@@ -1,7 +1,9 @@
 import { AppShell } from '@/components/layout/AppShell'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { serializar } from '@/lib/serialize'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import EquiposClient from './EquiposClient'
@@ -65,29 +67,28 @@ export default async function EquiposPage() {
 
       {/* ══ VISTA PANTALLA (oculta al imprimir) ══ */}
       <div className="no-print">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-black text-white uppercase tracking-tight">Equipos</h1>
-            <div className="flex gap-4 mt-0.5 text-xs font-bold">
-              <span style={{ color: '#3DBE7A' }}>{operativos} operativos</span>
-              <span style={{ color: 'var(--n-red)' }}>{detenidos} detenidos</span>
-              <span style={{ color: '#FF9F43' }}>{enTaller} en taller</span>
-              <span style={{ color: '#6B7280' }}>{fueraServ} F/S</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <EquiposPrintButton />
-            <Link
-              href="/equipos/nuevo"
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
-              style={{ backgroundColor: 'var(--n-red)' }}
-            >
-              <Plus size={15} />
-              Agregar equipo
-            </Link>
-          </div>
-        </div>
-        <EquiposClient equipos={equipos} />
+        <PageHeader
+          title="Equipos"
+          indicadores={[
+            { label: 'operativos', value: operativos, color: '#3DBE7A' },
+            { label: 'detenidos', value: detenidos, color: 'var(--n-red)' },
+            { label: 'en taller', value: enTaller, color: '#FF9F43' },
+            { label: 'F/S', value: fueraServ, color: '#6B7280' },
+          ]}
+          actions={
+            <>
+              <EquiposPrintButton />
+              <Link
+                href="/equipos/nuevo"
+                className="n-btn-primary"
+              >
+                <Plus size={15} />
+                Agregar equipo
+              </Link>
+            </>
+          }
+        />
+        <EquiposClient equipos={serializar(equipos)} />
       </div>
 
       {/* ══ TABLA IMPRIMIBLE (solo al imprimir) ══ */}

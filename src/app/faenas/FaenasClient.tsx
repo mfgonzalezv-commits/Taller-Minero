@@ -54,11 +54,11 @@ export default function FaenasClient({ faenas }: { faenas: FaenaConEquipos[] }) 
 
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex justify-end mb-4">
         <button
           onClick={() => setModalNueva(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-          style={{ backgroundColor: 'var(--win-blue)', color: 'white' }}
+          className="flex items-center gap-2 px-4 rounded-lg text-sm font-bold min-h-11"
+          style={{ backgroundColor: 'var(--n-yellow)', color: '#1A1A1A' }}
         >
           <Plus size={15} /> Nueva faena
         </button>
@@ -66,38 +66,38 @@ export default function FaenasClient({ faenas }: { faenas: FaenaConEquipos[] }) 
 
       <div className="space-y-4">
         {faenas.map(f => (
-          <div key={f.id} className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--win-card)', border: '1px solid var(--win-border)' }}>
+          <div key={f.id} className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
             {/* Header faena */}
             <button
               className="w-full flex items-center gap-3 px-5 py-4 text-left"
-              style={{ borderBottom: expandidos[f.id] ? '1px solid var(--win-border)' : 'none' }}
+              style={{ borderBottom: expandidos[f.id] ? '1px solid var(--n-border)' : 'none' }}
               onClick={() => toggleExpandido(f.id)}
             >
               <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
-                style={{ backgroundColor: 'rgba(0,120,212,0.1)' }}>
-                <MapPin size={16} style={{ color: 'var(--win-blue)' }} />
+                style={{ backgroundColor: 'rgba(255,209,0,0.12)' }}>
+                <MapPin size={16} style={{ color: 'var(--n-yellow)' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold" style={{ color: 'var(--win-text)' }}>{f.nombre}</p>
+                  <p className="text-sm font-bold" style={{ color: 'var(--n-text)' }}>{f.nombre}</p>
                   <span className="text-xs px-1.5 py-0.5 rounded font-mono"
-                    style={{ backgroundColor: 'var(--win-bg)', color: 'var(--win-text-mid)', border: '1px solid var(--win-border)' }}>
+                    style={{ backgroundColor: 'var(--n-bg)', color: 'var(--n-text-mid)', border: '1px solid var(--n-border)' }}>
                     {f.codigo}
                   </span>
                   {!f.activa && (
                     <span className="text-xs px-1.5 py-0.5 rounded font-bold"
-                      style={{ backgroundColor: 'rgba(200,0,0,0.1)', color: '#c00' }}>INACTIVA</span>
+                      style={{ backgroundColor: 'rgba(229,9,20,0.15)', color: 'var(--n-red)' }}>INACTIVA</span>
                   )}
                 </div>
                 {f.ubicacion && (
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--win-text-lt)' }}>{f.ubicacion}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--n-text-lt)' }}>{f.ubicacion}</p>
                 )}
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--win-text-mid)' }}>
+                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--n-text-mid)' }}>
                   <Truck size={13} /> {f.equipos.length} equipos
                 </span>
-                {expandidos[f.id] ? <ChevronUp size={16} style={{ color: 'var(--win-text-lt)' }} /> : <ChevronDown size={16} style={{ color: 'var(--win-text-lt)' }} />}
+                {expandidos[f.id] ? <ChevronUp size={16} style={{ color: 'var(--n-text-lt)' }} /> : <ChevronDown size={16} style={{ color: 'var(--n-text-lt)' }} />}
               </div>
             </button>
 
@@ -105,23 +105,23 @@ export default function FaenasClient({ faenas }: { faenas: FaenaConEquipos[] }) 
             {expandidos[f.id] && (
               <div className="px-5 py-3">
                 {f.equipos.length === 0 ? (
-                  <p className="text-sm py-4 text-center" style={{ color: 'var(--win-text-lt)' }}>Sin equipos asignados</p>
+                  <p className="text-sm py-4 text-center" style={{ color: 'var(--n-text-lt)' }}>Sin equipos asignados</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {f.equipos.map(e => (
                       <div key={e.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg"
-                        style={{ backgroundColor: 'var(--win-bg)', border: '1px solid var(--win-border)' }}>
+                        style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)' }}>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold font-mono" style={{ color: 'var(--win-blue)' }}>{e.codigo}</span>
-                            <span className="text-xs" style={{ color: 'var(--win-text-lt)' }}>{TIPO_LABEL[e.tipo] ?? e.tipo}</span>
+                            <span className="text-xs font-bold font-mono" style={{ color: 'var(--n-yellow)' }}>{e.codigo}</span>
+                            <span className="text-xs" style={{ color: 'var(--n-text-lt)' }}>{TIPO_LABEL[e.tipo] ?? e.tipo}</span>
                           </div>
-                          <p className="text-xs truncate" style={{ color: 'var(--win-text)' }}>{e.nombre}</p>
+                          <p className="text-xs truncate" style={{ color: 'var(--n-text)' }}>{e.nombre}</p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <Link href={`/equipos/${e.id}`}
                             className="text-xs px-2 py-1 rounded"
-                            style={{ color: 'var(--win-text-lt)', border: '1px solid var(--win-border)' }}>
+                            style={{ color: 'var(--n-text-lt)', border: '1px solid var(--n-border)' }}>
                             Ver
                           </Link>
                           {faenas.length > 1 && (
@@ -129,7 +129,7 @@ export default function FaenasClient({ faenas }: { faenas: FaenaConEquipos[] }) 
                               title="Trasladar equipo"
                               onClick={() => { setTraslado({ equipoId: e.id, equipoCodigo: e.codigo, equipoNombre: e.nombre, faenaActualId: f.id }); setFaenaDestino('') }}
                               className="p-1 rounded"
-                              style={{ color: 'var(--win-text-lt)', border: '1px solid var(--win-border)' }}>
+                              style={{ color: 'var(--n-text-lt)', border: '1px solid var(--n-border)' }}>
                               <ArrowRightLeft size={12} />
                             </button>
                           )}
@@ -147,25 +147,25 @@ export default function FaenasClient({ faenas }: { faenas: FaenaConEquipos[] }) 
       {/* Modal nueva faena */}
       {modalNueva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="w-full max-w-md rounded-xl shadow-2xl" style={{ backgroundColor: 'var(--win-card)', border: '1px solid var(--win-border)' }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--win-border)' }}>
-              <p className="font-bold text-sm" style={{ color: 'var(--win-text)' }}>Nueva faena</p>
-              <button onClick={() => { setModalNueva(false); setErrorMsg('') }} style={{ color: 'var(--win-text-lt)' }}><X size={18} /></button>
+          <div className="w-full max-w-md rounded-xl shadow-2xl" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--n-border)' }}>
+              <p className="font-bold text-sm" style={{ color: 'var(--n-text)' }}>Nueva faena</p>
+              <button onClick={() => { setModalNueva(false); setErrorMsg('') }} style={{ color: 'var(--n-text-lt)' }}><X size={18} /></button>
             </div>
             <div className="px-5 py-5 space-y-4">
               <div>
-                <label className="n-label">Nombre <span style={{ color: 'red' }}>*</span></label>
+                <label className="n-label">Nombre <span style={{ color: 'var(--n-red)' }}>*</span></label>
                 <input className="n-input mt-1" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej: Faena El Teniente" />
               </div>
               <div>
-                <label className="n-label">Código <span style={{ color: 'red' }}>*</span></label>
+                <label className="n-label">Código <span style={{ color: 'var(--n-red)' }}>*</span></label>
                 <input className="n-input mt-1 uppercase" value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="Ej: FET-001" />
               </div>
               <div>
-                <label className="n-label">Ubicación <span style={{ color: 'var(--win-text-lt)', fontWeight: 400 }}>(opcional)</span></label>
+                <label className="n-label">Ubicación <span style={{ color: 'var(--n-text-lt)', fontWeight: 400 }}>(opcional)</span></label>
                 <input className="n-input mt-1" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Ej: Región de O'Higgins, Chile" />
               </div>
-              {errorMsg && <p className="text-xs" style={{ color: 'red' }}>{errorMsg}</p>}
+              {errorMsg && <p className="text-xs" style={{ color: 'var(--n-red)' }}>{errorMsg}</p>}
               <div className="flex gap-3 pt-2">
                 <button onClick={guardarFaena} disabled={pending} className="n-btn-primary flex-1">
                   {pending ? 'Guardando...' : 'Crear faena'}
@@ -180,13 +180,13 @@ export default function FaenasClient({ faenas }: { faenas: FaenaConEquipos[] }) 
       {/* Modal traslado */}
       {traslado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="w-full max-w-sm rounded-xl shadow-2xl" style={{ backgroundColor: 'var(--win-card)', border: '1px solid var(--win-border)' }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--win-border)' }}>
+          <div className="w-full max-w-sm rounded-xl shadow-2xl" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--n-border)' }}>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--win-text-lt)' }}>Trasladar equipo</p>
-                <p className="text-sm font-bold" style={{ color: 'var(--win-text)' }}>{traslado.equipoCodigo} · {traslado.equipoNombre}</p>
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--n-text-lt)' }}>Trasladar equipo</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--n-text)' }}>{traslado.equipoCodigo} · {traslado.equipoNombre}</p>
               </div>
-              <button onClick={() => setTraslado(null)} style={{ color: 'var(--win-text-lt)' }}><X size={18} /></button>
+              <button onClick={() => setTraslado(null)} style={{ color: 'var(--n-text-lt)' }}><X size={18} /></button>
             </div>
             <div className="px-5 py-5 space-y-4">
               <div>

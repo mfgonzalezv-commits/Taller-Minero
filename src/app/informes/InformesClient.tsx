@@ -56,14 +56,14 @@ export default function InformesClient({ faenaId }: { rolUsuario: string; faenaI
 
       {/* Informe diario */}
       <div className="n-card p-5 mb-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
           <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--n-text-lt)' }}>Informe operacional de hoy</p>
-          <button onClick={() => accion(() => enviarInformeDiario(faenaId))} disabled={isPending} className="n-btn-primary text-xs px-3 py-1.5">
+          <button onClick={() => accion(() => enviarInformeDiario(faenaId))} disabled={isPending} className="n-btn-primary text-xs px-3 py-1.5 sm:self-start">
             Enviar informe (correo)
           </button>
         </div>
         {informe && (
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>
               <p style={{ color: 'var(--n-text-lt)' }}>Flota</p>
               <p className="font-bold text-white">{informe.flota.operativos}/{informe.flota.total} operativa</p>
@@ -86,9 +86,9 @@ export default function InformesClient({ faenaId }: { rolUsuario: string; faenaI
       {/* Compromisos */}
       <div className="n-card p-5 mb-6">
         <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--n-text-lt)' }}>Compromisos de reunión</p>
-        <div className="flex gap-2 mb-3">
+        <div className="flex flex-col gap-2 mb-3 sm:flex-row">
           <input value={nuevoCompromiso} onChange={e => setNuevoCompromiso(e.target.value)} placeholder="Descripción del compromiso" className="n-input flex-1" />
-          <input type="date" value={fechaLimite} onChange={e => setFechaLimite(e.target.value)} className="n-input" style={{ width: 160 }} />
+          <input type="date" value={fechaLimite} onChange={e => setFechaLimite(e.target.value)} className="n-input sm:w-40" />
           <button
             onClick={() => {
               if (!nuevoCompromiso.trim() || !fechaLimite) return

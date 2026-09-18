@@ -123,8 +123,8 @@ export default function BodegaClient({ items }: { items: Item[] }) {
         className="n-input"
       />
 
-      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
-        <table className="w-full text-sm">
+      <div className="rounded-xl overflow-x-auto" style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)' }}>
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--n-border)' }}>
               {['Ítem', 'Stock', 'Mínimo', 'P. Ref.', 'Acciones'].map(h => (

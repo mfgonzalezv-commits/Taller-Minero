@@ -13,6 +13,7 @@ const ROLES: { value: RolUsuario; label: string }[] = [
   { value: 'BODEGA', label: 'Bodeguero' },
   { value: 'COMPRAS', label: 'Compras' },
   { value: 'GERENCIA', label: 'Gerencia' },
+  { value: 'OPERADOR', label: 'Operador' },
 ]
 
 const ESPECIALIDADES = ['Motor', 'Hidráulica', 'Eléctrico', 'Transmisión', 'Neumáticos', 'Estructuras']

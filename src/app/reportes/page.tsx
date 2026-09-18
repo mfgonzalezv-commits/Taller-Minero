@@ -92,7 +92,7 @@ export default async function ReportesPage({
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-4 py-6">
-        <h1 className="mb-6 text-2xl font-bold text-slate-900">Reportes de Costo</h1>
+        <h1 className="mb-6 text-2xl font-black text-white uppercase tracking-tight">Reportes de Costo</h1>
 
         <ReportesClient
           equipos={equipos}

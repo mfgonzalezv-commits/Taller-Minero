@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { serializar } from '@/lib/serialize'
 
 const SALTO_MAX_POR_HORA = 3 // horómetro: ningún equipo debería sumar más de ~3 hrs de uso por hora real transcurrida
 
@@ -167,7 +168,7 @@ export async function corregirLecturaHorometro(data: {
 export async function getEquiposParaHorometro() {
   const sesion = await requireSesion()
 
-  return prisma.equipo.findMany({
+  const equipos = await prisma.equipo.findMany({
     where: { faenaId: sesion.faenaId, activo: true },
     select: {
       id: true,
@@ -180,6 +181,8 @@ export async function getEquiposParaHorometro() {
     },
     orderBy: { codigo: 'asc' },
   })
+
+  return serializar(equipos)
 }
 
 export async function getUltimosHorometros(equipoId: string) {

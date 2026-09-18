@@ -197,7 +197,7 @@ export default function EditarDiagnostico({ otId, diagnostico, trabajoEjecutado,
           className="n-input resize-none text-sm"
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-bold uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--n-text-lt)' }}>Inicio trabajo</label>
           <input type="datetime-local" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="n-input text-sm" />

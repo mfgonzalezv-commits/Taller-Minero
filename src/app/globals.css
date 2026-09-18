@@ -172,6 +172,7 @@
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 .n-input:focus { border-color: var(--n-yellow); }
+.n-input:focus-visible { outline: 2px solid var(--n-yellow); outline-offset: 1px; }
 .n-input::placeholder { color: var(--n-text-lt); }
 .n-input option { background-color: var(--n-card); color: white; }
 
@@ -196,9 +197,15 @@
   border: none;
   cursor: pointer;
   font-family: var(--font-sans), system-ui, sans-serif;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 }
 .n-btn-primary:hover { opacity: 0.9; }
 .n-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.n-btn-primary:focus-visible { outline: 2px solid var(--n-yellow); outline-offset: 2px; }
 
 .n-btn-ghost {
   background-color: transparent;
@@ -211,9 +218,26 @@
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
   font-family: var(--font-sans), system-ui, sans-serif;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 }
 .n-btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: white; }
 .n-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+.n-btn-ghost:focus-visible { outline: 2px solid var(--n-yellow); outline-offset: 2px; }
+
+/* Foco visible genérico para navegación por teclado sobre elementos interactivos
+   que no usan las clases n-btn- o n-input (links, botones custom, filas clicables). */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--n-yellow);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
 
 .n-card {
   background-color: var(--n-surface);

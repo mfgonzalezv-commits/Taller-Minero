@@ -10,7 +10,7 @@ export default async function NuevoEquipoPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-2xl px-4 py-6">
-        <h1 className="mb-6 text-2xl font-bold text-slate-900">Agregar Equipo</h1>
+        <h1 className="mb-6 text-2xl font-black text-white uppercase tracking-tight">Agregar Equipo</h1>
         <NuevoEquipoForm />
       </div>
     </AppShell>
