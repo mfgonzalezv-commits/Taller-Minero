@@ -63,10 +63,15 @@ export async function prepararEstadoPago(faenaId: string, fechaBase?: string) {
     } else {
       // DIA o MES: se factura el periodo completo (o la fracción vigente)
       // y se descuentan proporcionalmente las horas detenidas.
-      const diasPeriodo = Math.round((termino.getTime() - inicio.getTime()) / 86_400_000) + 1
+      // `termino` ya incluye las 23:59:59 del último día del periodo, así que
+      // la diferencia en ms entre `inicio` (00:00:00) y `termino` redondeada
+      // a días YA da el conteo correcto de días calendario — sumar +1 lo
+      // infla en un día (bug encontrado y corregido en la verificación final
+      // con datos de prueba: para 26-ago→25-sep daba 32 días en vez de 31).
+      const diasPeriodo = Math.round((termino.getTime() - inicio.getTime()) / 86_400_000)
       const diasVigentes = Math.min(
         diasPeriodo,
-        Math.round(((a.fechaTermino ?? termino).getTime() - Math.max(a.fechaInicio.getTime(), inicio.getTime())) / 86_400_000) + 1
+        Math.round(((a.fechaTermino ?? termino).getTime() - Math.max(a.fechaInicio.getTime(), inicio.getTime())) / 86_400_000)
       )
       cantidadUnidades = a.modalidadArriendo === 'MES' ? diasVigentes / 30 : diasVigentes
       montoBruto = a.modalidadArriendo === 'MES' ? tarifa * (diasVigentes / 30) : tarifa * diasVigentes
