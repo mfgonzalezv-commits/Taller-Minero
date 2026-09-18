@@ -3,19 +3,23 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { Bell, LogOut, Menu, X } from 'lucide-react'
+import { LogOut, Menu, X, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import type { Notificacion } from '@/actions/notificaciones'
 import { navParaRol } from '@/lib/roles'
+import { NotificacionesBell } from './NotificacionesBell'
 
 const ROL_LABEL: Record<string, string> = {
   ADMINISTRADOR: 'Administrador',
+  JEFE_TALLER_CENTRAL: 'Jefe de Taller Central',
+  PLANIFICADOR_CENTRAL: 'Planificador Central',
   JEFE_TALLER:   'Jefe de Taller',
   PLANIFICADOR:  'Planificador',
   MECANICO:      'Mecánico',
   BODEGA:        'Bodeguero',
   COMPRAS:       'Compras',
   GERENCIA:      'Gerencia',
+  OPERADOR:      'Operador',
 }
 
 interface TopBarProps {
@@ -27,8 +31,11 @@ interface TopBarProps {
 export function TopBar({ userName, userRole, notificaciones = [] }: TopBarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const urgentes = notificaciones.filter((n) => n.urgente).length
+  const [modulosOpen, setModulosOpen] = useState(false)
   const NAV = navParaRol(userRole ?? '')
+  const navPrincipal = NAV.filter(item => item.principal)
+  const navSecundarios = NAV.filter(item => !item.principal)
+  const secundarioActivo = navSecundarios.some(item => pathname === item.href || pathname.startsWith(item.href + '/'))
 
   return (
     <>
@@ -51,9 +58,9 @@ export function TopBar({ userName, userRole, notificaciones = [] }: TopBarProps)
             </div>
           </Link>
 
-          {/* Nav desktop */}
+          {/* Nav desktop — accesos principales en línea, el resto bajo "Módulos" para no competir en una sola barra */}
           <nav className="hidden lg:flex items-center gap-1 flex-1">
-            {NAV.map((item) => {
+            {navPrincipal.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + '/')
               return (
                 <Link
@@ -70,21 +77,51 @@ export function TopBar({ userName, userRole, notificaciones = [] }: TopBarProps)
                 </Link>
               )
             })}
+
+            {navSecundarios.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setModulosOpen(v => !v)}
+                  aria-expanded={modulosOpen}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold tracking-wide transition-colors"
+                  style={{
+                    color: secundarioActivo ? '#FFFFFF' : 'var(--n-text-mid)',
+                    backgroundColor: secundarioActivo ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    borderBottom: secundarioActivo ? '2px solid var(--n-yellow)' : '2px solid transparent',
+                  }}
+                >
+                  Módulos <ChevronDown size={14} className={modulosOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                </button>
+                {modulosOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setModulosOpen(false)} />
+                    <div
+                      className="absolute left-0 top-full mt-2 z-20 w-56 rounded-lg shadow-xl overflow-hidden py-1"
+                      style={{ backgroundColor: 'var(--n-card)', border: '1px solid var(--n-border)' }}
+                    >
+                      {navSecundarios.map(item => {
+                        const active = pathname === item.href || pathname.startsWith(item.href + '/')
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setModulosOpen(false)}
+                            className="block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/5"
+                            style={{ color: active ? 'var(--n-yellow)' : 'var(--n-text-mid)' }}
+                          >
+                            {item.label}
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </nav>
 
           <div className="flex items-center gap-3 ml-auto">
-            {/* Notificaciones */}
-            <button className="relative p-2 rounded-md transition-colors hover:bg-white/10" style={{ color: 'var(--n-text-mid)' }}>
-              <Bell size={18} />
-              {urgentes > 0 && (
-                <span
-                  className="absolute top-1 right-1 h-4 w-4 rounded-full text-white text-xs flex items-center justify-center font-bold"
-                  style={{ backgroundColor: 'var(--n-red)', fontSize: '10px' }}
-                >
-                  {urgentes}
-                </span>
-              )}
-            </button>
+            <NotificacionesBell notificaciones={notificaciones} />
 
             {/* Usuario */}
             <div className="hidden sm:flex items-center gap-2.5">
@@ -104,8 +141,9 @@ export function TopBar({ userName, userRole, notificaciones = [] }: TopBarProps)
 
             <button
               onClick={() => signOut({ callbackUrl: '/login' })}
-              className="p-2 rounded-md transition-colors hover:bg-white/10"
+              className="p-2 rounded-md transition-colors hover:bg-white/10 min-h-11 min-w-11 flex items-center justify-center"
               title="Cerrar sesión"
+              aria-label="Cerrar sesión"
               style={{ color: 'var(--n-text-lt)' }}
             >
               <LogOut size={16} />
@@ -113,8 +151,10 @@ export function TopBar({ userName, userRole, notificaciones = [] }: TopBarProps)
 
             {/* Hamburger mobile */}
             <button
-              className="lg:hidden p-2 rounded-md transition-colors hover:bg-white/10"
+              className="lg:hidden p-2 rounded-md transition-colors hover:bg-white/10 min-h-11 min-w-11 flex items-center justify-center"
               style={{ color: 'var(--n-text-mid)' }}
+              aria-label={mobileOpen ? 'Cerrar menú' : 'Abrir menú'}
+              aria-expanded={mobileOpen}
               onClick={() => setMobileOpen((v) => !v)}
             >
               {mobileOpen ? <X size={18} /> : <Menu size={18} />}
@@ -126,8 +166,8 @@ export function TopBar({ userName, userRole, notificaciones = [] }: TopBarProps)
       {/* Menú mobile desplegable */}
       {mobileOpen && (
         <div
-          className="fixed inset-x-0 top-14 z-30 lg:hidden py-2 px-4 space-y-1"
-          style={{ backgroundColor: 'var(--n-surface)', borderBottom: '1px solid var(--n-border)' }}
+          className="fixed inset-x-0 top-14 z-30 lg:hidden py-2 px-4 space-y-1 overflow-y-auto"
+          style={{ backgroundColor: 'var(--n-surface)', borderBottom: '1px solid var(--n-border)', maxHeight: 'calc(100vh - 3.5rem)' }}
         >
           {NAV.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + '/')

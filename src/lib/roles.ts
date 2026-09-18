@@ -42,12 +42,17 @@ export function requireRol(rol: string | undefined, roles: Rol[]) {
   }
 }
 
-// Items de nav con su control de acceso
-export const NAV_ITEMS: { label: string; href: string; roles: Rol[] | null }[] = [
-  { label: 'Dashboard',  href: '/dashboard',         roles: null },
-  { label: 'OTs',        href: '/ot',                roles: null },
-  { label: 'Fallas',     href: '/fallas',            roles: null },
-  { label: 'Equipos',    href: '/equipos',           roles: null },
+// Items de nav con su control de acceso. `principal: true` marca los accesos
+// directos que van siempre visibles en la barra; el resto se agrupa bajo el
+// menú "Módulos" (ver TopBar.tsx) para que no compitan todos en una sola
+// fila horizontal — es solo una preferencia de presentación, no cambia qué
+// rutas puede ver cada rol (eso lo sigue decidiendo únicamente `roles` acá
+// y RUTAS_PROTEGIDAS/las Server Actions).
+export const NAV_ITEMS: { label: string; href: string; roles: Rol[] | null; principal?: boolean }[] = [
+  { label: 'Dashboard',  href: '/dashboard',         roles: null, principal: true },
+  { label: 'OTs',        href: '/ot',                roles: null, principal: true },
+  { label: 'Fallas',     href: '/fallas',            roles: null, principal: true },
+  { label: 'Equipos',    href: '/equipos',           roles: null, principal: true },
   { label: 'Mantención', href: '/mantenimiento',     roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO'] },
   { label: 'Horómetros', href: '/terreno/horometro', roles: null },
   { label: 'Bodega',     href: '/bodega',            roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'BODEGA', 'COMPRAS'] },
