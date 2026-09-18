@@ -13,7 +13,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         userRole={session?.user?.rol ?? ''}
         notificaciones={notificaciones}
       />
-      <main className="max-w-screen-xl mx-auto px-6 py-6">
+      <main className="max-w-screen-xl mx-auto px-4 py-4 sm:px-6 sm:py-6 overflow-x-hidden">
         {children}
       </main>
     </div>
