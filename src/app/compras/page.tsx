@@ -47,7 +47,7 @@ export default async function ComprasPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {[
           { label: 'OTs bloqueadas', value: otsEspera.length, color: 'var(--n-red)', sub: 'esperando repuesto' },
           { label: 'Items bajo stock', value: itemsBajoStock.length, color: 'var(--n-yellow)', sub: 'necesitan reposición' },
