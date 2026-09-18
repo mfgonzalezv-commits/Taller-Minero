@@ -42,3 +42,6 @@ next-env.d.ts
 
 /src/generated/prisma
 scripts/_tmp_migracion/
+
+# Salida generada por scripts/simulacion-tres-meses.ts (esperado del periodo 3)
+/scripts/salida/
