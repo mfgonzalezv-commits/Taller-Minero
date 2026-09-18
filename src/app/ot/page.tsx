@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { serializar } from '@/lib/serialize'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import OTListaClient from './OTListaClient'
@@ -44,7 +45,7 @@ export default async function OTPage() {
         }
       />
 
-      <OTListaClient ots={ots} />
+      <OTListaClient ots={serializar(ots)} />
     </AppShell>
   )
 }
