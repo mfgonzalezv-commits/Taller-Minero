@@ -53,10 +53,10 @@ export default function ArriendosClient({ rolUsuario, faenaId }: { rolUsuario: s
 
   return (
     <div className="max-w-4xl print:hidden">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-black text-white uppercase tracking-tight">Arriendos — Estado de Pago</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">Arriendos — Estado de Pago</h1>
         {ROLES_PREPARA.includes(rolUsuario) && (
-          <button onClick={() => accion(() => prepararEstadoPago(faenaId))} disabled={isPending} className="n-btn-primary">
+          <button onClick={() => accion(() => prepararEstadoPago(faenaId))} disabled={isPending} className="n-btn-primary sm:self-start">
             {isPending ? 'Preparando...' : 'Preparar periodo actual'}
           </button>
         )}
@@ -68,7 +68,7 @@ export default function ArriendosClient({ rolUsuario, faenaId }: { rolUsuario: s
         {estados.length === 0 && <p style={{ color: 'var(--n-text-lt)' }}>Sin Estados de Pago preparados todavía.</p>}
         {estados.map(ep => (
           <div key={ep.id} className="n-card p-5">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
               <div>
                 <p className="font-bold text-white">
                   {new Date(ep.periodoInicio).toLocaleDateString('es-CL')} — {new Date(ep.periodoTermino).toLocaleDateString('es-CL')}
@@ -79,13 +79,14 @@ export default function ArriendosClient({ rolUsuario, faenaId }: { rolUsuario: s
                   {ep.aprobadoPor && ` · Aprobado por ${ep.aprobadoPor.nombre}`}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <p className="text-xl font-black" style={{ color: 'var(--n-yellow)' }}>{fmt(Number(ep.totalNeto))}</p>
                 <p className="text-xs" style={{ color: 'var(--n-text-lt)' }}>Bruto {fmt(Number(ep.totalBruto))} · Desc. {fmt(Number(ep.totalDescuentos))}</p>
               </div>
             </div>
 
-            <table className="w-full text-xs mb-3">
+            {/* Tabla — desde sm: hacia arriba */}
+            <table className="w-full text-xs mb-3 hidden sm:table">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--n-border)' }}>
                   {['Equipo', 'Modalidad', 'Unidades', 'Bruto', 'Detención', 'Neto'].map(h => (
@@ -106,6 +107,23 @@ export default function ArriendosClient({ rolUsuario, faenaId }: { rolUsuario: s
                 ))}
               </tbody>
             </table>
+
+            {/* Tarjetas por línea — bajo sm: */}
+            <div className="sm:hidden mb-3 space-y-2">
+              {ep.lineas.map(l => (
+                <div key={l.id} className="rounded-lg p-3" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)' }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-white text-sm">{l.equipo.codigo}</span>
+                    <span className="text-xs" style={{ color: 'var(--n-text-lt)' }}>{l.modalidad} · {Number(l.cantidadUnidades).toFixed(1)} un.</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs" style={{ color: 'var(--n-text-mid)' }}>
+                    <span>Bruto {fmt(Number(l.montoBruto))}</span>
+                    {Number(l.horasDetencion) > 0 && <span style={{ color: '#f87171' }}>{Number(l.horasDetencion).toFixed(1)}h detención</span>}
+                  </div>
+                  <p className="text-sm font-bold text-white mt-1">Neto {fmt(Number(l.montoNeto))}</p>
+                </div>
+              ))}
+            </div>
 
             <div className="flex gap-2 flex-wrap">
               <button onClick={() => exportarCSV(ep)} className="n-btn-ghost text-xs px-3 py-1.5">Exportar Excel (CSV)</button>

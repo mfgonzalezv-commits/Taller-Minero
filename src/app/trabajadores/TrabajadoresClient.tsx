@@ -98,8 +98,8 @@ function FormTrabajador({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4" style={{ backgroundColor: 'var(--n-bg)', borderBottom: '1px solid var(--n-border)' }}>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2">
           <label className="text-xs font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--n-text-lt)' }}>Nombre *</label>
           <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required className="n-input" placeholder="Juan Pérez" />
         </div>
@@ -126,7 +126,7 @@ function FormTrabajador({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="text-xs font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--n-text-lt)' }}>Sueldo bruto *</label>
           <input type="number" value={sueldoBruto} onChange={e => setSueldoBruto(e.target.value)} required min="0" className="n-input" placeholder="1200000" />
@@ -231,53 +231,92 @@ export default function TrabajadoresClient({
           Sin trabajadores registrados
         </p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--n-border)' }}>
-              {['Nombre', 'Sueldo bruto', 'Horas/mes', 'Leyes soc.', 'Costo/hr', ''].map(h => (
-                <th key={h} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--n-text-lt)' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {lista.map(t => (
-              <>
-                <tr key={t.id} style={{ borderBottom: editando === t.id ? 'none' : '1px solid var(--n-border)' }}>
-                  <td className="px-4 py-3 font-medium text-white">
-                    {t.nombre}
-                    <span className="block text-xs" style={{ color: 'var(--n-text-lt)' }}>{t.cargo ?? ''}{t.rut ? ` · ${t.rut}` : ''}</span>
-                  </td>
-                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--n-text-mid)' }}>{fmt(t.sueldoBruto)}</td>
-                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--n-text-mid)' }}>{t.horasMensuales} h</td>
-                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--n-text-mid)' }}>{pct(t.tasaLeyesSociales)}</td>
-                  <td className="px-4 py-3 font-bold" style={{ color: 'var(--n-yellow)' }}>{fmt(costoEmpresaHora(t))}/hr</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button onClick={() => setEditando(editando === t.id ? null : t.id)} style={{ color: 'var(--n-text-lt)' }} className="hover:opacity-80">
-                        {editando === t.id ? <X size={14} /> : <Pencil size={14} />}
-                      </button>
-                      <button onClick={() => handleEliminar(t.id)} disabled={isPending} style={{ color: 'var(--n-text-lt)' }} className="hover:opacity-80">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {editando === t.id && (
-                  <tr key={`${t.id}-edit`} style={{ borderBottom: '1px solid var(--n-border)' }}>
-                    <td colSpan={6} className="p-0">
-                      <FormTrabajador
-                        inicial={t}
-                        onGuardar={(data) => handleActualizar(t.id, data)}
-                        onCancelar={() => setEditando(null)}
-                        isPending={isPending}
-                      />
+        <>
+          {/* Tabla — desde sm: hacia arriba, donde hay espacio para 6 columnas */}
+          <table className="w-full text-sm hidden sm:table">
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--n-border)' }}>
+                {['Nombre', 'Sueldo bruto', 'Horas/mes', 'Leyes soc.', 'Costo/hr', ''].map(h => (
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--n-text-lt)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {lista.map(t => (
+                <>
+                  <tr key={t.id} style={{ borderBottom: editando === t.id ? 'none' : '1px solid var(--n-border)' }}>
+                    <td className="px-4 py-3 font-medium text-white">
+                      {t.nombre}
+                      <span className="block text-xs" style={{ color: 'var(--n-text-lt)' }}>{t.cargo ?? ''}{t.rut ? ` · ${t.rut}` : ''}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--n-text-mid)' }}>{fmt(t.sueldoBruto)}</td>
+                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--n-text-mid)' }}>{t.horasMensuales} h</td>
+                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--n-text-mid)' }}>{pct(t.tasaLeyesSociales)}</td>
+                    <td className="px-4 py-3 font-bold" style={{ color: 'var(--n-yellow)' }}>{fmt(costoEmpresaHora(t))}/hr</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditando(editando === t.id ? null : t.id)} style={{ color: 'var(--n-text-lt)' }} className="hover:opacity-80 p-1">
+                          {editando === t.id ? <X size={14} /> : <Pencil size={14} />}
+                        </button>
+                        <button onClick={() => handleEliminar(t.id)} disabled={isPending} style={{ color: 'var(--n-text-lt)' }} className="hover:opacity-80 p-1">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
+                  {editando === t.id && (
+                    <tr key={`${t.id}-edit`} style={{ borderBottom: '1px solid var(--n-border)' }}>
+                      <td colSpan={6} className="p-0">
+                        <FormTrabajador
+                          inicial={t}
+                          onGuardar={(data) => handleActualizar(t.id, data)}
+                          onCancelar={() => setEditando(null)}
+                          isPending={isPending}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Tarjetas — bajo sm:, en vez de una tabla de 6 columnas apretada */}
+          <div className="sm:hidden">
+            {lista.map(t => (
+              <div key={t.id}>
+                <div className="flex items-start justify-between gap-3 px-4 py-3" style={{ borderBottom: editando === t.id ? 'none' : '1px solid var(--n-border)' }}>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-white truncate">{t.nombre}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--n-text-lt)' }}>{t.cargo ?? ''}{t.rut ? ` · ${t.rut}` : ''}</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs" style={{ color: 'var(--n-text-mid)' }}>
+                      <span>{fmt(t.sueldoBruto)}</span>
+                      <span>{t.horasMensuales} h/mes</span>
+                      <span>{pct(t.tasaLeyesSociales)} leyes soc.</span>
+                    </div>
+                    <p className="text-sm font-bold mt-1" style={{ color: 'var(--n-yellow)' }}>{fmt(costoEmpresaHora(t))}/hr</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => setEditando(editando === t.id ? null : t.id)} style={{ color: 'var(--n-text-lt)' }} className="hover:opacity-80 p-2 min-h-11 min-w-11 flex items-center justify-center">
+                      {editando === t.id ? <X size={16} /> : <Pencil size={16} />}
+                    </button>
+                    <button onClick={() => handleEliminar(t.id)} disabled={isPending} style={{ color: 'var(--n-text-lt)' }} className="hover:opacity-80 p-2 min-h-11 min-w-11 flex items-center justify-center">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                {editando === t.id && (
+                  <FormTrabajador
+                    inicial={t}
+                    onGuardar={(data) => handleActualizar(t.id, data)}
+                    onCancelar={() => setEditando(null)}
+                    isPending={isPending}
+                  />
                 )}
-              </>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </>
       )}
     </div>
   )
@@ -285,20 +324,20 @@ export default function TrabajadoresClient({
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tight">Trabajadores</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">Trabajadores</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--n-text-mid)' }}>Costos de personal y cálculo de overhead</p>
         </div>
         {!mostrarForm && (
-          <button onClick={() => setMostrarForm(true)} className="n-btn-primary flex items-center gap-2">
+          <button onClick={() => setMostrarForm(true)} className="n-btn-primary flex items-center gap-2 sm:self-start">
             <Plus size={14} /> Agregar trabajador
           </button>
         )}
       </div>
 
       {/* KPIs overhead */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[
           { label: 'Personal directo', value: `${directos.length} personas`, sub: `${horasDirectasTotal} hrs/mes disponibles` },
           { label: 'Costo indirecto mensual', value: fmt(costoIndirectoTotal), sub: `${indirectos.length} personas indirectas` },
@@ -326,8 +365,8 @@ export default function TrabajadoresClient({
         </div>
       )}
 
-      {/* Grupos lado a lado */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Grupos lado a lado desde lg:, apilados antes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {renderGrupo('DIRECTO', directos)}
         {renderGrupo('INDIRECTO', indirectos)}
       </div>

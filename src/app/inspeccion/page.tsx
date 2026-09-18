@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/layout/AppShell'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getAlertas, getInspecciones } from '@/actions/inspeccion'
@@ -35,36 +36,26 @@ export default async function InspeccionPage() {
 
   return (
     <AppShell>
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tight">Inspección Diaria</h1>
-          <div className="flex items-center gap-3 mt-1">
-            {criticos > 0 && (
-              <p className="text-sm font-bold" style={{ color: 'var(--n-red)' }}>
-                🔴 {criticos} crítico{criticos > 1 ? 's' : ''} pendiente{criticos > 1 ? 's' : ''}
-              </p>
-            )}
-            {pendientes > 0 && (
-              <p className="text-sm font-bold" style={{ color: 'var(--n-yellow)' }}>
-                {pendientes} alerta{pendientes > 1 ? 's' : ''} activa{pendientes > 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/inspeccion/plantillas"
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--n-surface)', border: '1px solid var(--n-border)', color: 'var(--n-text-lt)' }}>
-            <Settings size={12} /> Plantillas
-          </Link>
-          <Link href="/inspeccion/nueva"
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--n-yellow)', color: '#1A1A1A' }}>
-            <Plus size={13} /> Nueva inspección
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Inspección Diaria"
+        indicadores={[
+          ...(criticos > 0 ? [{ label: `crítico${criticos > 1 ? 's' : ''} pendiente${criticos > 1 ? 's' : ''}`, value: `🔴 ${criticos}`, color: 'var(--n-red)' }] : []),
+          ...(pendientes > 0 ? [{ label: `alerta${pendientes > 1 ? 's' : ''} activa${pendientes > 1 ? 's' : ''}`, value: pendientes, color: 'var(--n-yellow)' }] : []),
+        ]}
+        actions={
+          <>
+            <Link href="/inspeccion/plantillas"
+              className="n-btn-ghost">
+              <Settings size={12} /> Plantillas
+            </Link>
+            <Link href="/inspeccion/nueva"
+              className="flex items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-opacity hover:opacity-80 min-h-11"
+              style={{ backgroundColor: 'var(--n-yellow)', color: '#1A1A1A' }}>
+              <Plus size={13} /> Nueva inspección
+            </Link>
+          </>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Alertas activas */}
