@@ -16,10 +16,12 @@ describe('Horómetro: delta por periodo', () => {
   it('cada línea HORA esperada = última - primera lectura del periodo (sin divisiones arbitrarias)', () => {
     for (const per of esc.esperados) {
       for (const l of per.lineas.filter(x => x.modalidad === 'HORA')) {
-        const lecturas = lect(l.codigo).filter(x => x.fecha >= per.inicio && x.fecha <= per.termino).sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
+        // ventana efectiva = periodo ∩ vigencia de la asignación
+        const desde = new Date(Math.max(per.inicio.getTime(), eq(l.codigo).inicioAsig.getTime()))
+        const lecturas = lect(l.codigo).filter(x => x.fecha >= desde && x.fecha <= per.termino).sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
         const manual = lecturas.at(-1)!.horometro - lecturas[0].horometro
         expect(l.horasTrabajadas).toBeCloseTo(manual, 6)
-        expect(l.horasTrabajadas).toBe(deltaHorometro(lect(l.codigo), per.inicio, per.termino))
+        expect(l.horasTrabajadas).toBe(deltaHorometro(lect(l.codigo), desde, per.termino))
         expect(l.cantidadUnidades).toBeCloseTo(manual, 6) // la línea factura exactamente el delta
       }
     }

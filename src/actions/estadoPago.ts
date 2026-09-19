@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 import { calcularPeriodo } from '@/lib/periodo-pago'
-import { calcularLineaArriendo } from '@/lib/calculo-estado-pago'
+import { calcularLineaAsignacion, type LineaCalculada } from '@/lib/linea-estado-pago'
+import { ventanaEfectiva } from '@/lib/detencion-periodo'
 
 // Prepara el Estado de Pago del periodo: solo arriendo, según la asignación
 // vigente de cada equipo (Fase 2) en la faena, con descuento de detenciones.
@@ -33,84 +34,48 @@ export async function prepararEstadoPago(faenaId: string, fechaBase?: string) {
     include: { equipo: true },
   })
 
-  const lineas: {
-    equipoId: string
-    asignacionId: string
-    modalidad: 'HORA' | 'DIA' | 'MES'
-    tarifa: number
-    cantidadUnidades: number
-    montoBruto: number
-    horasDetencion: number
-    descuentoDetencion: number
-    montoNeto: number
-  }[] = []
-
-  // `termino` ya incluye las 23:59:59 del último día del periodo, así que la
-  // diferencia en ms entre `inicio` (00:00:00) y `termino` redondeada a días
-  // ya da el conteo correcto de días calendario reales del periodo (28-31).
-  const diasPeriodo = Math.round((termino.getTime() - inicio.getTime()) / 86_400_000)
+  const periodo = { inicio, termino }
+  const lineas: LineaCalculada[] = []
 
   for (const a of asignaciones) {
-    const tarifa = Number(a.tarifa)
     const modalidad = a.modalidadArriendo!
+    const v = ventanaEfectiva(periodo, a)
 
-    let horasTrabajadas = 0
-    if (modalidad === 'HORA') {
-      // Horas trabajadas = delta de horómetro en el periodo (ya excluye
-      // naturalmente el tiempo detenido: el horómetro no avanza detenido).
-      const lecturas = await prisma.horometroKm.findMany({
-        where: { equipoId: a.equipoId, fechaRegistro: { gte: inicio, lte: termino }, horometro: { not: null } },
-        orderBy: { fechaRegistro: 'asc' },
-      })
-      if (lecturas.length >= 2) {
-        horasTrabajadas = Math.max(0, Number(lecturas[lecturas.length - 1].horometro) - Number(lecturas[0].horometro))
-      }
-    }
+    // Solo datos del mismo equipo Y de la misma faena, dentro de la ventana
+    // efectiva (periodo ∩ vigencia de la asignación), sin OT anuladas.
+    const [ots, lecturas] = v
+      ? await Promise.all([
+          prisma.ordenTrabajo.findMany({
+            where: {
+              equipoId: a.equipoId,
+              faenaId,
+              estado: { not: 'ANULADA' },
+              fechaCreacion: { lte: v.termino },
+              OR: [{ fechaTerminoTrabajo: null }, { fechaTerminoTrabajo: { gte: v.inicio } }],
+            },
+            select: { equipoId: true, faenaId: true, estado: true, fechaCreacion: true, fechaTerminoTrabajo: true, fechaCierre: true },
+          }),
+          modalidad === 'HORA'
+            ? prisma.horometroKm.findMany({
+                where: { equipoId: a.equipoId, faenaId, fechaRegistro: { gte: v.inicio, lte: v.termino }, horometro: { not: null } },
+                orderBy: { fechaRegistro: 'asc' },
+                select: { equipoId: true, faenaId: true, fechaRegistro: true, horometro: true },
+              })
+            : Promise.resolve([]),
+        ])
+      : [[], []]
 
-    const diasVigentes = Math.min(
-      diasPeriodo,
-      Math.round(((a.fechaTermino ?? termino).getTime() - Math.max(a.fechaInicio.getTime(), inicio.getTime())) / 86_400_000)
+    lineas.push(
+      calcularLineaAsignacion(
+        {
+          id: a.id, equipoId: a.equipoId, faenaId: a.faenaId, fechaInicio: a.fechaInicio, fechaTermino: a.fechaTermino,
+          modalidad, tarifa: Number(a.tarifa), politicaProrateo: a.politicaProrateo, reglaDescuentoDetencion: a.reglaDescuentoDetencion,
+        },
+        periodo,
+        ots,
+        lecturas.map(l => ({ equipoId: l.equipoId, faenaId: l.faenaId, fecha: l.fechaRegistro, horometro: l.horometro === null ? null : Number(l.horometro) })),
+      )
     )
-
-    // Horas de detención reales EN ESTE PERIODO (de OT del equipo cuya
-    // ventana de detención se solapa con [inicio, termino]).
-    const ots = await prisma.ordenTrabajo.findMany({
-      where: {
-        equipoId: a.equipoId,
-        estado: { not: 'ANULADA' },
-        fechaCreacion: { lte: termino },
-        OR: [{ fechaTerminoTrabajo: null }, { fechaTerminoTrabajo: { gte: inicio } }],
-      },
-      select: { tiempoDetenidoMin: true },
-    })
-    const horasDetencion = ots.reduce((acc, o) => acc + o.tiempoDetenidoMin, 0) / 60
-
-    const porcentajeDescuentoDetencion = a.reglaDescuentoDetencion
-      ? parseFloat(a.reglaDescuentoDetencion.replace('%', '')) || 0
-      : 0
-
-    const resultado = calcularLineaArriendo({
-      modalidad,
-      tarifa,
-      politicaProrateo: a.politicaProrateo,
-      diasPeriodo,
-      diasVigentes,
-      horasTrabajadas,
-      horasDetencion,
-      porcentajeDescuentoDetencion,
-    })
-
-    lineas.push({
-      equipoId: a.equipoId,
-      asignacionId: a.id,
-      modalidad,
-      tarifa,
-      cantidadUnidades: resultado.cantidadUnidades,
-      montoBruto: resultado.montoBruto,
-      horasDetencion,
-      descuentoDetencion: resultado.descuentoDetencion,
-      montoNeto: resultado.montoNeto,
-    })
   }
 
   const totalBruto = lineas.reduce((acc, l) => acc + l.montoBruto, 0)

@@ -81,6 +81,9 @@ aquí en el mismo PR, no solo en el código.
     `AsignacionEquipoFaena.politicaProrateo`, configurable por contrato:
     - `DIAS_REALES`: tarifa diaria implícita = `tarifa / díasReales del periodo`.
     - `BASE_30`: tarifa diaria implícita = `tarifa / 30` (base comercial fija).
+  - **Detención del periodo** (`src/lib/detencion-periodo.ts`): por equipo y asignación, solo OT de la misma faena no anuladas;
+    cada OT detiene de `fechaCreacion` a `fechaTerminoTrabajo` (abierta: hasta el límite del periodo; cerrada sin término técnico: hasta `fechaCierre`);
+    las ventanas se recortan a periodo ∩ vigencia de la asignación y se unen (cada minuto cuenta una vez). En HORA no hay descuento adicional.
   - El descuento por detención usa siempre la **misma** tarifa diaria implícita que generó el
     monto bruto, para que bruto y descuento queden coherentes entre sí bajo cualquier
     política.

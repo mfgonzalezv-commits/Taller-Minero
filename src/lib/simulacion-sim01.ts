@@ -10,6 +10,7 @@
 import { createHash } from 'crypto'
 import { calcularPeriodo } from './periodo-pago'
 import { calcularLineaArriendo } from './calculo-estado-pago'
+import { minutosDetencionEnPeriodo, ventanaEfectiva, type Intervalo } from './detencion-periodo'
 
 export const SIM_FAENA_CODIGO = 'SIM-01'
 export const SIM_SEED = 20260918
@@ -20,33 +21,8 @@ export const SIM_DIAS = 92 // 26-jun .. 25-sep
 
 type Row = Record<string, unknown>
 
-// ── Intervalos de detención ─────────────────────────────────────────────────
-export interface Intervalo { ini: Date; fin: Date }
-
-export function recortarIntervalo(i: Intervalo, ini: Date, fin: Date): Intervalo | null {
-  const a = Math.max(i.ini.getTime(), ini.getTime())
-  const b = Math.min(i.fin.getTime(), fin.getTime())
-  return b > a ? { ini: new Date(a), fin: new Date(b) } : null
-}
-
-/** Une intervalos que se superponen o se tocan, para no contar dos veces el mismo tiempo. */
-export function unirIntervalos(is: Intervalo[]): Intervalo[] {
-  const orden = [...is].sort((x, y) => x.ini.getTime() - y.ini.getTime())
-  const out: Intervalo[] = []
-  for (const i of orden) {
-    const ult = out[out.length - 1]
-    if (ult && i.ini.getTime() <= ult.fin.getTime()) {
-      if (i.fin.getTime() > ult.fin.getTime()) ult.fin = new Date(i.fin.getTime())
-    } else out.push({ ini: new Date(i.ini.getTime()), fin: new Date(i.fin.getTime()) })
-  }
-  return out
-}
-
-/** Minutos de detención dentro de [ini, fin]: cada ventana se recorta a los límites y luego se unen. */
-export function minutosDetencionEnPeriodo(ventanas: Intervalo[], ini: Date, fin: Date): number {
-  const recortadas = ventanas.map(v => recortarIntervalo(v, ini, fin)).filter((x): x is Intervalo => x !== null)
-  return unirIntervalos(recortadas).reduce((a, i) => a + (i.fin.getTime() - i.ini.getTime()) / 60_000, 0)
-}
+// Intervalos de detención: lógica genérica compartida con producción (ver detencion-periodo.ts).
+export { recortarIntervalo, unirIntervalos, minutosDetencionEnPeriodo, type Intervalo } from './detencion-periodo'
 
 // ── Horómetro ───────────────────────────────────────────────────────────────
 export interface Lectura { fecha: Date; horometro: number }
@@ -158,7 +134,7 @@ export interface LineaEsperada {
   codigo: string; modalidad: string; politica: string; diasVigentes: number; horasTrabajadas: number
   minutosDetencion: number; horasDetencion: number; cantidadUnidades: number
   montoBruto: number; descuentoDetencion: number; montoNeto: number
-  /** Lo que producirá prepararEstadoPago() con su regla ACTUAL (suma completa de tiempoDetenidoMin de cada OT que cruza el periodo). */
+  /** Lo que producía la regla ANTERIOR de prepararEstadoPago() (suma completa de tiempoDetenidoMin, ya corregida); se conserva como referencia de regresión. */
   horasDetencionLogicaActual: number
 }
 export interface PeriodoEsperado {
@@ -380,10 +356,11 @@ export function generarEscenario(passwordHash: string) {
       const asig = asignaciones.find(a => a.equipoId === e.id)!
       const diasVigentes = Math.min(diasPeriodo, Math.round((termino.getTime() - Math.max(asig.fechaInicio.getTime(), inicio.getTime())) / DIA_MS))
       if (diasVigentes <= 0) continue
-      const minDet = minutosDetencionEnPeriodo(ventanasPorEquipo.get(e.id) ?? [], inicio, termino)
-      const horasTrab = e.modalidad === 'HORA' ? deltaHorometro(lecturasPorEquipo.get(e.id)!, inicio, termino) : 0
+      const v = ventanaEfectiva({ inicio, termino }, { fechaInicio: asig.fechaInicio, fechaTermino: null })
+      const minDet = v ? minutosDetencionEnPeriodo(ventanasPorEquipo.get(e.id) ?? [], v.inicio, v.termino) : 0
+      const horasTrab = v && e.modalidad === 'HORA' ? deltaHorometro(lecturasPorEquipo.get(e.id)!, v.inicio, v.termino) : 0
       const r = calcularLineaArriendo({ modalidad: e.modalidad, tarifa: e.tarifa, politicaProrateo: e.politica, diasPeriodo, diasVigentes, horasTrabajadas: horasTrab, horasDetencion: minDet / 60, porcentajeDescuentoDetencion: 100 })
-      // Regla actual de prepararEstadoPago(): suma completa de tiempoDetenidoMin de toda OT con creación <= termino y término técnico null o >= inicio.
+      // Regla ANTERIOR de prepararEstadoPago() (corregida): suma completa de tiempoDetenidoMin de toda OT con creación <= termino y término técnico null o >= inicio.
       const minActual = otVentanas.filter(o => o.equipoId === e.id && o.creada.getTime() <= termino.getTime() && (o.fechaTerminoTrabajo === null || o.fechaTerminoTrabajo.getTime() >= inicio.getTime())).reduce((a, o) => a + o.tiempoDetenidoMin, 0)
       lineas.push({ codigo: e.codigo, modalidad: e.modalidad, politica: e.politica, diasVigentes, horasTrabajadas: horasTrab, minutosDetencion: minDet, horasDetencion: minDet / 60, cantidadUnidades: r.cantidadUnidades, montoBruto: r.montoBruto, descuentoDetencion: r.descuentoDetencion, montoNeto: r.montoNeto, horasDetencionLogicaActual: minActual / 60 })
     }
