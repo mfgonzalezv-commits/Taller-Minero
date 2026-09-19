@@ -42,3 +42,16 @@ Calcular la detención por equipo como la **unión** de las ventanas `[creación
 `risk:high` (Estado de Pago / cálculo de costos). Requiere **autorización explícita del propietario** antes de modificar `prepararEstadoPago()`,
 con pruebas nuevas (periodo cruzado, OT simultáneas, OT abiertas) y comparación contra `esperado-sim01.json`.
 Pendiente aparte: el Estado de Pago del periodo 3 quedó preparado (PREPARADO) en `erp_minera_dev`; no está aprobado ni es un documento oficial.
+
+## Resolución (autorizada por el propietario, 2026-09-19)
+`prepararEstadoPago()` ahora delega en lógica de dominio pura y probada (`src/lib/detencion-periodo.ts`, `src/lib/linea-estado-pago.ts`),
+que la simulación también reutiliza (producción no importa desde la simulación):
+- Ventana efectiva = periodo ∩ vigencia de la asignación. Solo OT del mismo equipo y misma faena, no anuladas y cruzadas con esa ventana.
+- Cada OT detiene desde `fechaCreacion` hasta `fechaTerminoTrabajo`; si sigue abierta, hasta el límite efectivo. Ventanas recortadas y **unidas**: cada minuto se cuenta una vez.
+- Respaldo justificado: una OT cerrada directamente (sin pasar por EN_VALIDACION) no tiene `fechaTerminoTrabajo`; su detención termina en `fechaCierre`
+  en lugar de tratarse como "abierta" hasta fin de periodo (habría sobrecobrado).
+- HORA: horómetro filtrado por equipo, faena y ventana efectiva (última − primera lectura); las horas detenidas se guardan como información, sin descuento adicional.
+
+Validación en `erp_minera_dev` (reset solo de SIM-01, 3er Estado de Pago preparado por la interfaz real): **12/12 líneas coinciden** con `esperado-sim01.json`,
+descuento $5.208.293 y neto $115.540.207 exactos (antes: $5.426.056 y $115.322.444). Captura: `docs/auditoria/sim01-arriendos-periodo3-corregido.png`.
+No se recalculan ni modifican Estados de Pago existentes en producción; no hay migración ni cambio de schema.
