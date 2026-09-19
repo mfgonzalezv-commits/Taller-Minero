@@ -1,0 +1,92 @@
+[
+  {
+    "paso": "Operador registra horómetro",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador reporta falla",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe convierte reporte en OT",
+    "ok": false,
+    "detalle": "equipo quedó DETENIDO_PENDIENTE_VALIDACION, se esperaba DETENIDO"
+  },
+  {
+    "paso": "Jefe asigna técnico",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico agrega bitácora",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico solicita repuesto",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador autoriza solicitud (no debería poder)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega entrega repuesto (FIFO)",
+    "ok": false,
+    "detalle": "stock 18 vs lotes 20 (esperado 18)"
+  },
+  {
+    "paso": "Salida de bodega mayor al stock es rechazada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Doble clic: dos cambios idénticos a EN_REPARACION",
+    "ok": false,
+    "detalle": "2 historiales duplicados de EN_REPARACION"
+  },
+  {
+    "paso": "Salto de estado inválido EN_REPARACION → ABIERTA",
+    "ok": false,
+    "detalle": "permitió retroceder sin validación de transición"
+  },
+  {
+    "paso": "Cierre directo sin validación técnica",
+    "ok": false,
+    "detalle": "permitió CERRADA sin pasar por EN_VALIDACION"
+  },
+  {
+    "paso": "Reabrir OT",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Pasar a EN_VALIDACION",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Validar técnicamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Cerrar OT",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Anular OT ya cerrada",
+    "ok": false,
+    "detalle": "No se puede anular una OT en estado CERRADA"
+  },
+  {
+    "paso": "Auditoría registrada del flujo",
+    "ok": true,
+    "detalle": "ok"
+  }
+]
