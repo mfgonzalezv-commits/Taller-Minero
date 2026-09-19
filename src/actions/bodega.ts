@@ -10,6 +10,7 @@ import type { Rol } from '@/lib/roles'
 const ROLES_MOVER_STOCK: Rol[] = [...ROLES_GESTION_OT, 'BODEGA']
 import { CriticidadItemBodega } from '@prisma/client'
 import { consumirFIFO } from '@/lib/fifo'
+import { entradaStockConLote, salidaStockFIFO } from '@/lib/stock'
 
 export async function getItemsBodega() {
   const sesion = await requireSesion()
@@ -107,57 +108,37 @@ export async function registrarMovimiento(data: {
     const ot = await prisma.ordenTrabajo.findUnique({ where: { id: data.otId }, select: { faenaId: true } })
     if (!ot || ot.faenaId !== item.faenaId) throw new ErrorAutorizacion('Sin permisos: la OT no pertenece a la faena del ítem')
   }
-  const stockAntes = Number(item.stockActual)
-  const stockDespues =
-    data.tipo === 'ENTRADA'
-      ? stockAntes + data.cantidad
-      : data.tipo === 'SALIDA'
-      ? stockAntes - data.cantidad
-      : data.cantidad // AJUSTE = valor directo
+  if (!(data.cantidad >= 0) || (data.tipo !== 'AJUSTE' && !(data.cantidad > 0))) throw new Error('La cantidad debe ser mayor a cero')
 
-  if (stockDespues < 0) throw new Error('Stock insuficiente')
-
-  await prisma.$transaction(async (tx) => {
-    const mov = await tx.movimientoBodega.create({
-      data: {
-        itemId: data.itemId,
-        faenaId: item.faenaId,
-        tipo: data.tipo,
-        cantidad: data.cantidad,
-        stockAntes,
-        stockDespues,
-        otId: data.otId,
-        usuarioId: sesion.userId,
-        observacion: data.observacion,
-      },
-    })
-
-    if (data.tipo === 'ENTRADA') {
-      const lote = await tx.loteBodega.create({
-        data: {
-          itemId: data.itemId,
-          cantidad: data.cantidad,
-          cantidadSaldo: data.cantidad,
-          costoUnitario: data.costoUnitario ?? Number(item.precioRef),
-          documento: data.documento ?? null,
-        },
-      })
-      await tx.consumoLoteBodega.create({
-        data: { loteId: lote.id, movimientoId: mov.id, cantidad: data.cantidad, costoUnitario: Number(lote.costoUnitario) },
-      })
-    } else if (data.tipo === 'SALIDA') {
-      const consumos = await consumirFIFO(tx, data.itemId, data.cantidad)
-      for (const c of consumos) {
-        await tx.consumoLoteBodega.create({
-          data: { loteId: c.loteId, movimientoId: mov.id, cantidad: c.cantidad, costoUnitario: c.costoUnitario },
-        })
-      }
+  // Todo en una transacción y con el stock leído/condicionado dentro de ella: dos movimientos
+  // simultáneos no pisan el stock ni dejan lotes desalineados.
+  const { stockAntes, stockDespues } = await prisma.$transaction(async (tx) => {
+    if (data.tipo === 'SALIDA') {
+      return salidaStockFIFO(tx, { itemId: data.itemId, faenaId: item.faenaId, cantidad: data.cantidad, usuarioId: sesion.userId, otId: data.otId, observacion: data.observacion })
     }
-
-    await tx.itemBodega.update({
-      where: { id: data.itemId },
-      data: { stockActual: stockDespues },
+    if (data.tipo === 'ENTRADA') {
+      return entradaStockConLote(tx, {
+        itemId: data.itemId, faenaId: item.faenaId, cantidad: data.cantidad, usuarioId: sesion.userId, otId: data.otId, observacion: data.observacion,
+        costoUnitario: data.costoUnitario ?? Number(item.precioRef), documento: data.documento,
+      })
+    }
+    // AJUSTE = valor directo. Los lotes se ajustan por la diferencia para que sigan sumando el stock.
+    const actual = await tx.itemBodega.findUniqueOrThrow({ where: { id: data.itemId }, select: { stockActual: true } })
+    const antes = Number(actual.stockActual)
+    const diff = data.cantidad - antes
+    const mov = await tx.movimientoBodega.create({
+      data: { itemId: data.itemId, faenaId: item.faenaId, tipo: 'AJUSTE', cantidad: data.cantidad, stockAntes: antes, stockDespues: data.cantidad, otId: data.otId, usuarioId: sesion.userId, observacion: data.observacion },
     })
+    if (diff < 0) {
+      for (const c of await consumirFIFO(tx, data.itemId, -diff)) {
+        await tx.consumoLoteBodega.create({ data: { loteId: c.loteId, movimientoId: mov.id, cantidad: c.cantidad, costoUnitario: c.costoUnitario } })
+      }
+    } else if (diff > 0) {
+      const lote = await tx.loteBodega.create({ data: { itemId: data.itemId, cantidad: diff, cantidadSaldo: diff, costoUnitario: Number(item.precioRef), documento: data.documento ?? null } })
+      await tx.consumoLoteBodega.create({ data: { loteId: lote.id, movimientoId: mov.id, cantidad: diff, costoUnitario: Number(item.precioRef) } })
+    }
+    await tx.itemBodega.update({ where: { id: data.itemId }, data: { stockActual: data.cantidad } })
+    return { stockAntes: antes, stockDespues: data.cantidad }
   })
 
   await auditar({

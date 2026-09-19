@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { requireSesion, requireAlcanceFaena, requireRolPermitido, ErrorAutorizacion } from '@/lib/authz'
 import { ROLES_AUTORIZAR_REPUESTO } from '@/lib/permisos-roles'
 import type { Rol } from '@/lib/roles'
+import { entradaStockConLote, salidaStockFIFO } from '@/lib/stock'
 
 // Quién mueve stock hacia una OT: gestión de la faena o BODEGA.
 const ROLES_ENTREGA: Rol[] = [...ROLES_AUTORIZAR_REPUESTO, 'BODEGA']
@@ -79,52 +80,34 @@ export async function agregarRepuesto(data: {
   const total = data.cantidad * data.precioUnit
 
   if (data.itemBodegaId) {
-    const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: data.itemBodegaId } })
-    requireAlcanceFaena(sesion, item.faenaId)
-    await requireItemDeFaena(data.itemBodegaId, ot.faenaId)
-    const stockAntes = Number(item.stockActual)
-    const stockDespues = stockAntes - data.cantidad
+    const itemBodegaId = data.itemBodegaId
+    await requireItemDeFaena(itemBodegaId, ot.faenaId)
 
-    await prisma.$transaction([
-      prisma.repuestoOT.create({
+    // Una sola transacción: stock, lotes FIFO, movimiento, consumo, repuesto y bitácora.
+    await prisma.$transaction(async (tx) => {
+      const salida = await salidaStockFIFO(tx, { itemId: itemBodegaId, faenaId: ot.faenaId, cantidad: data.cantidad, usuarioId: sesion.userId, otId: data.otId, observacion: 'Entrega a OT' })
+      await tx.repuestoOT.create({
         data: {
           otId: data.otId,
           faenaId: ot.faenaId,
           descripcion: data.descripcion,
           cantidad: data.cantidad,
           unidad: data.unidad,
-          precioUnit: data.precioUnit,
-          total,
+          precioUnit: salida.costoUnitario, // costo real FIFO, no el informado a mano
+          total: salida.costoTotal,
           estadoSolicitud: 'ENTREGADO',
           registradoById: sesion.userId,
-          itemBodegaId: data.itemBodegaId,
+          itemBodegaId,
         },
-      }),
-      prisma.itemBodega.update({
-        where: { id: data.itemBodegaId },
-        data: { stockActual: stockDespues },
-      }),
-      prisma.movimientoBodega.create({
-        data: {
-          itemId: data.itemBodegaId,
-          faenaId: ot.faenaId,
-          tipo: 'SALIDA',
-          cantidad: data.cantidad,
-          stockAntes,
-          stockDespues,
-          otId: data.otId,
-          usuarioId: sesion.userId,
-          observacion: 'Entrega a OT',
-        },
-      }),
-      prisma.bitacoraOT.create({
+      })
+      await tx.bitacoraOT.create({
         data: {
           otId: data.otId,
           descripcion: `Repuesto entregado desde bodega: ${data.descripcion} × ${data.cantidad} ${data.unidad}`,
           usuarioId: sesion.userId,
         },
-      }),
-    ])
+      })
+    })
   } else {
     // Compra externa
     await prisma.$transaction([
@@ -279,25 +262,33 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
 
   const cantSolicitada = Number(repuesto.cantidad)
   const cantEntregada = data.cantidadEntregada ?? cantSolicitada
+  if (!(cantEntregada > 0) || cantEntregada > cantSolicitada) throw new Error('La cantidad entregada debe ser mayor a cero y no superar lo solicitado')
   const cantResto = Math.max(0, cantSolicitada - cantEntregada)
   const esParcia = cantResto > 0
-
-  const total = cantEntregada * data.precioUnit
   const bodegaId = data.itemBodegaId ?? repuesto.itemBodegaId
+  if (bodegaId) await requireItemDeFaena(bodegaId, repuesto.faenaId)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ops: any[] = [
-    prisma.repuestoOT.update({
+  // Todo o nada: si falta stock, o dos personas entregan la misma solicitud a la vez, no queda nada a medias.
+  await prisma.$transaction(async (tx) => {
+    // El UPDATE condicionado es el candado de idempotencia: solo una ejecución pasa de AUTORIZADO a ENTREGADO.
+    const cambio = await tx.repuestoOT.updateMany({ where: { id: repuestoId, estadoSolicitud: 'AUTORIZADO' }, data: { estadoSolicitud: 'ENTREGADO' } })
+    if (cambio.count === 0) throw new Error('Esta solicitud ya fue entregada o cambió de estado')
+
+    let precioUnit = data.precioUnit
+    let total = cantEntregada * data.precioUnit
+    if (bodegaId) {
+      const salida = await salidaStockFIFO(tx, {
+        itemId: bodegaId, faenaId: repuesto.faenaId, cantidad: cantEntregada, usuarioId: sesion.userId, otId,
+        observacion: esParcia ? `Entrega parcial OT (quedan ${cantResto})` : 'Entrega de solicitud OT',
+      })
+      precioUnit = salida.costoUnitario // costo real FIFO
+      total = salida.costoTotal
+    }
+    await tx.repuestoOT.update({
       where: { id: repuestoId },
-      data: {
-        estadoSolicitud: 'ENTREGADO',
-        cantidad: cantEntregada,
-        precioUnit: data.precioUnit,
-        total,
-        itemBodegaId: bodegaId ?? null,
-      },
-    }),
-    prisma.bitacoraOT.create({
+      data: { cantidad: cantEntregada, precioUnit, total, itemBodegaId: bodegaId ?? null },
+    })
+    await tx.bitacoraOT.create({
       data: {
         otId,
         descripcion: esParcia
@@ -305,54 +296,15 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
           : `Bodega entregó: ${repuesto.descripcion} × ${cantEntregada} ${repuesto.unidad}`,
         usuarioId: sesion.userId,
       },
-    }),
-  ]
-
-  // Descontar stock si viene de bodega
-  if (bodegaId) {
-    const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: bodegaId } })
-    requireAlcanceFaena(sesion, item.faenaId)
-    await requireItemDeFaena(bodegaId, repuesto.faenaId)
-    const stockAntes = Number(item.stockActual)
-    const stockDespues = stockAntes - cantEntregada
-    ops.push(
-      prisma.itemBodega.update({ where: { id: bodegaId }, data: { stockActual: stockDespues } }),
-      prisma.movimientoBodega.create({
-        data: {
-          itemId: bodegaId,
-          faenaId: repuesto.faenaId,
-          tipo: 'SALIDA',
-          cantidad: cantEntregada,
-          stockAntes,
-          stockDespues,
-          otId,
-          usuarioId: sesion.userId,
-          observacion: esParcia ? `Entrega parcial OT (quedan ${cantResto})` : 'Entrega de solicitud OT',
-        },
+    })
+    if (esParcia) {
+      const notaDestino = data.destinoResto === 'COMPRAS' ? ' [Solicitar a Compras]' : ' [Solicitar a Bodega Central]'
+      await tx.repuestoOT.create({
+        data: { otId, faenaId: repuesto.faenaId, descripcion: repuesto.descripcion + notaDestino, cantidad: cantResto, unidad: repuesto.unidad, estadoSolicitud: 'SOLICITADO' },
       })
-    )
-  }
+    }
+  })
 
-  // Si es entrega parcial, crear nuevo registro SOLICITADO por el resto
-  if (esParcia) {
-    const notaDestino = data.destinoResto === 'COMPRAS'
-      ? ' [Solicitar a Compras]'
-      : ' [Solicitar a Bodega Central]'
-    ops.push(
-      prisma.repuestoOT.create({
-        data: {
-          otId,
-          faenaId: repuesto.faenaId,
-          descripcion: repuesto.descripcion + notaDestino,
-          cantidad: cantResto,
-          unidad: repuesto.unidad,
-          estadoSolicitud: 'SOLICITADO',
-        },
-      })
-    )
-  }
-
-  await prisma.$transaction(ops)
   revalidatePath(`/ot/${otId}`)
   revalidatePath('/bodega')
 }
@@ -364,35 +316,18 @@ export async function eliminarRepuesto(id: string, otId: string) {
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id } })
   requireAlcanceFaena(sesion, repuesto.faenaId)
 
-  // Solo devolver stock si fue entregado desde bodega
-  if (repuesto.itemBodegaId && repuesto.estadoSolicitud === 'ENTREGADO') {
-    const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: repuesto.itemBodegaId } })
-    const stockAntes = Number(item.stockActual)
-    const stockDespues = stockAntes + Number(repuesto.cantidad)
-
-    await prisma.$transaction([
-      prisma.repuestoOT.delete({ where: { id } }),
-      prisma.itemBodega.update({
-        where: { id: repuesto.itemBodegaId },
-        data: { stockActual: stockDespues },
-      }),
-      prisma.movimientoBodega.create({
-        data: {
-          itemId: repuesto.itemBodegaId,
-          faenaId: repuesto.faenaId,
-          tipo: 'ENTRADA',
-          cantidad: Number(repuesto.cantidad),
-          stockAntes,
-          stockDespues,
-          otId,
-          usuarioId: sesion.userId,
-          observacion: 'Devolución por eliminación en OT',
-        },
-      }),
-    ])
-  } else {
-    await prisma.repuestoOT.delete({ where: { id } })
-  }
+  await prisma.$transaction(async (tx) => {
+    const borrado = await tx.repuestoOT.deleteMany({ where: { id } })
+    if (borrado.count === 0) throw new Error('El repuesto ya fue eliminado')
+    // Solo devolver stock si fue entregado desde bodega: vuelve como lote nuevo al costo con que salió.
+    if (repuesto.itemBodegaId && repuesto.estadoSolicitud === 'ENTREGADO') {
+      await entradaStockConLote(tx, {
+        itemId: repuesto.itemBodegaId, faenaId: repuesto.faenaId, cantidad: Number(repuesto.cantidad),
+        costoUnitario: Number(repuesto.precioUnit), usuarioId: sesion.userId, otId,
+        observacion: 'Devolución por eliminación en OT',
+      })
+    }
+  })
 
   revalidatePath(`/ot/${otId}`)
   revalidatePath('/bodega')

@@ -134,3 +134,20 @@ aquí en el mismo PR, no solo en el código.
 | Estado de Pago | PREPARADO → APROBADO o RECHAZADO; ambos terminales |
 
 OPERADOR y MECANICO reportan fallas; no crean OT. Nadie eleva su propio rol.
+
+## Estados de la OT, horómetro y bodega (decisiones definitivas)
+
+- **OT:** la máquina de estados vive en `src/lib/maquina-ot.ts`. No se cierra sin pasar por
+  `EN_VALIDACION` y sin la validación técnica del Jefe; el cierre administrativo lo hace Jefe o
+  Planificador después. `EN_REPARACION → ABIERTA` no existe. Una OT cerrada solo se reabre con
+  `reabrirOT` (Jefe/Admin, motivo obligatorio, auditoría con valor anterior y nuevo). La
+  bitácora no puede cerrar ni saltarse estados: si el tipo de intervención propone un estado no
+  válido, la entrada se guarda y el estado no cambia.
+- **Horómetro** (`src/lib/horometro-politica.ts`): una lectura menor queda bloqueada y se
+  corrige solo con `corregirLecturaHorometro` (rol autorizado, motivo, auditoría). Un salto
+  anómalo (umbral actual: 3 por hora real, parametrizable a futuro por faena/equipo) queda
+  pendiente (`validado = false`) y no se usa —ni en el equipo ni en el Estado de Pago— hasta que
+  un Jefe o Planificador lo confirme.
+- **Bodega:** toda salida por OT consume lotes FIFO dentro de una transacción
+  (`src/lib/stock.ts`); el costo del repuesto es el costo FIFO real. Devoluciones y ajustes
+  también mantienen los lotes alineados con el stock.

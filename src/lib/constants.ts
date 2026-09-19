@@ -26,18 +26,8 @@ export const PRIORIDAD_CONFIG = {
   CRITICA: { label: 'Crítica', color: 'bg-red-900/60 text-red-300',      orden: 1 },
 } as const
 
-export const TRANSICIONES_OT: Record<string, string[]> = {
-  PROGRAMADA: ['ABIERTA'],
-  ABIERTA: ['CERRADA'],
-  EN_DIAGNOSTICO: ['DIAGNOSTICADO', 'CERRADA'],
-  DIAGNOSTICADO:         ['EN_REPARACION', 'REPARACION_PROGRAMADA', 'ESPERA_REPUESTO'],
-  REPARACION_PROGRAMADA: ['EN_REPARACION', 'LISTO_PARA_REPARAR'],
-  LISTO_PARA_REPARAR:    ['EN_REPARACION', 'REPARACION_PROGRAMADA'],
-  EN_REPARACION:         ['ESPERA_REPUESTO', 'EN_VALIDACION'],
-  ESPERA_REPUESTO:       ['LISTO_PARA_REPARAR'],
-  EN_VALIDACION: ['CERRADA', 'EN_REPARACION'],
-  CERRADA: ['ABIERTA'],
-}
+// La máquina de estados vive en maquina-ot.ts (fuente única, con pruebas).
+export { TRANSICIONES_OT } from './maquina-ot'
 
 export const RESPONSABLE_POR_ESTADO: Record<string, string | null> = {
   ABIERTA: 'JEFE_TALLER',
