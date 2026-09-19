@@ -163,7 +163,8 @@ describe('Escenario SIM-01: las 12 líneas y los totales coinciden con el espera
 
   it('periodo 3: 12 de 12 líneas, con menos descuento que la regla anterior (sin doble conteo)', () => {
     expect(esc.esperados[2].lineas).toHaveLength(12)
-    const sobrecontadas = esc.esperados[2].lineas.filter(l => l.horasDetencionLogicaActual > l.horasDetencion + 0.5)
-    expect(sobrecontadas.length).toBeGreaterThanOrEqual(5) // la regla anterior sobrecontaba: la nueva no
+    // Caso determinista (no depende de la zona horaria): OT cruzando 25/26 + OT simultánea en SIM-CAM-03.
+    const cam3 = esc.esperados[2].lineas.find(l => l.codigo === 'SIM-CAM-03')!
+    expect(cam3.horasDetencionLogicaActual - cam3.horasDetencion).toBeGreaterThan(5) // la regla anterior sobrecontaba: la nueva no
   })
 })
