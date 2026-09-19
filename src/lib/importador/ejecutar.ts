@@ -13,11 +13,12 @@ import { verificarApply, type ArgsApply } from './guardia'
 const TOL = 0.005
 
 export function leerPlanillas(dir: string): DatosPlanilla {
-  const d: DatosPlanilla = { encabezados: {}, faenas: [], usuarios: [], equipos: [], asignaciones: [], items_bodega: [], lotes: [] }
+  const d: DatosPlanilla = { encabezados: {}, faenas: [], usuarios: [], equipos: [], asignaciones: [], items_bodega: [], lotes: [], problemasCsv: [] }
   for (const h of HOJAS as readonly Hoja[]) {
     const ruta = path.join(dir, `${h}.csv`)
     if (!fs.existsSync(ruta)) continue
-    const { encabezados, filas } = parsearCsv(fs.readFileSync(ruta, 'utf8'))
+    const { encabezados, filas, problemas } = parsearCsv(fs.readFileSync(ruta, 'utf8'))
+    for (const p of problemas) d.problemasCsv?.push({ hoja: h, linea: p.linea, mensaje: p.mensaje })
     d.encabezados[h] = encabezados
     ;(d[h] as unknown[]) = filas
   }
@@ -28,11 +29,11 @@ export function leerPlanillas(dir: string): DatosPlanilla {
 export async function leerExistente(prisma: PrismaClient, d: DatosPlanilla, faenaCodigo: string): Promise<Existente> {
   const cod = faenaCodigo.toUpperCase()
   const ex: Existente = { faenas: new Map(), usuarios: new Map(), equipos: new Map(), asignaciones: new Map(), items: new Map() }
-  const faena = await prisma.faena.findUnique({ where: { codigo: cod } })
+  const faena = await prisma.faena.findFirst({ where: { codigo: { equals: cod, mode: 'insensitive' } } })
   if (faena) ex.faenas.set(cod, { nombre: faena.nombre, empresa: faena.empresa, ubicacion: faena.ubicacion })
 
   const emails = d.usuarios.map(u => (u.email ?? '').toLowerCase()).filter(Boolean)
-  for (const u of await prisma.usuario.findMany({ where: { email: { in: emails } }, include: { faena: { select: { codigo: true } } } })) {
+  for (const u of await prisma.usuario.findMany({ where: { OR: emails.map(e => ({ email: { equals: e, mode: 'insensitive' as const } })) }, include: { faena: { select: { codigo: true } } } })) {
     ex.usuarios.set(u.email.toLowerCase(), { nombre: u.nombre, rol: u.rol, faena: u.faena.codigo })
   }
   if (faena) {
@@ -56,7 +57,7 @@ export async function leerExistente(prisma: PrismaClient, d: DatosPlanilla, faen
 export interface ResultadoAplicacion { credenciales: { email: string; passwordTemporal: string }[]; creados: Record<string, number> }
 
 /** Inserta el plan completo en UNA transacción y verifica los invariantes antes de confirmar. */
-export async function aplicarPlan(prisma: PrismaClient, plan: Plan, opts: { simularFalla?: boolean } = {}): Promise<ResultadoAplicacion> {
+export async function aplicarPlan(prisma: PrismaClient, plan: Plan, opts: { simularFalla?: boolean; antesDeConfirmar?: (c: ResultadoAplicacion['credenciales']) => void; siFalla?: () => void } = {}): Promise<ResultadoAplicacion> {
   const credenciales: ResultadoAplicacion['credenciales'] = []
   const hashes = new Map<string, string>()
   for (const u of plan.usuarios) {
@@ -65,8 +66,9 @@ export async function aplicarPlan(prisma: PrismaClient, plan: Plan, opts: { simu
     hashes.set(u.email, await hash(pw, 10))
   }
 
+  opts.antesDeConfirmar?.(credenciales)
   const creados = await prisma.$transaction(async (tx) => {
-    let faena = await tx.faena.findUnique({ where: { codigo: plan.faenaCodigo } })
+    let faena = await tx.faena.findFirst({ where: { codigo: { equals: plan.faenaCodigo, mode: 'insensitive' } } })
     if (plan.faena) faena = await tx.faena.create({ data: { codigo: plan.faena.codigo, nombre: plan.faena.nombre, empresa: plan.faena.empresa, ubicacion: plan.faena.ubicacion } })
     if (!faena) throw new Error(`La faena ${plan.faenaCodigo} no existe`)
     const faenaId = faena.id
@@ -116,7 +118,7 @@ export async function aplicarPlan(prisma: PrismaClient, plan: Plan, opts: { simu
     await tx.registroAuditoria.create({ data: { faenaId, entidad: 'Faena', entidadId: faenaId, accion: 'CARGA_INICIAL', valorNuevo: creados, motivo: 'Importador de datos reales' } })
     if (opts.simularFalla) throw new Error('Falla simulada (prueba de rollback)')
     return creados
-  }, { timeout: 120_000, maxWait: 20_000 })
+  }, { timeout: 120_000, maxWait: 20_000 }).catch((e) => { opts.siFalla?.(); throw e })
 
   return { credenciales, creados }
 }
@@ -143,14 +145,15 @@ export async function ejecutarCarga(prisma: PrismaClient, o: OpcionesCarga): Pro
   if (!informe.plan) return { informe, texto, aplicado: false, rechazo: 'La validación tiene errores: no se escribe nada', archivoInforme }
 
   const p = informe.plan
+  let archivoCredenciales: string | undefined
   const hayNuevos = p.faena || p.usuarios.length || p.equipos.length || p.asignaciones.length || p.items.length
   if (!hayNuevos) return { informe, texto, aplicado: false, rechazo: 'Nada nuevo que cargar (la carga ya está aplicada: idempotente)', archivoInforme }
 
-  const resultado = await aplicarPlan(prisma, p, { simularFalla: o.simularFalla })
-  let archivoCredenciales: string | undefined
-  if (resultado.credenciales.length && o.carpetaSalida) {
-    archivoCredenciales = path.join(o.carpetaSalida, `credenciales-${o.faena.toUpperCase()}.csv`)
-    fs.writeFileSync(archivoCredenciales, 'email;password_temporal\n' + resultado.credenciales.map(c => `${c.email};${c.passwordTemporal}`).join('\n') + '\n')
-  }
+  // Las contraseñas generadas se guardan ANTES de confirmar la carga, para no perderlas si el disco falla después.
+  const resultado = await aplicarPlan(prisma, p, {
+    simularFalla: o.simularFalla,
+    antesDeConfirmar: (creds) => { if (creds.length && o.carpetaSalida) { fs.mkdirSync(o.carpetaSalida, { recursive: true }); archivoCredenciales = path.join(o.carpetaSalida, `credenciales-${o.faena.toUpperCase()}.csv`); fs.writeFileSync(archivoCredenciales, 'email;password_temporal\n' + creds.map(c => `${c.email};${c.passwordTemporal}`).join('\n') + '\n') } },
+    siFalla: () => { if (archivoCredenciales) fs.rmSync(archivoCredenciales, { force: true }) },
+  })
   return { informe, texto, aplicado: true, resultado, archivoInforme, archivoCredenciales }
 }

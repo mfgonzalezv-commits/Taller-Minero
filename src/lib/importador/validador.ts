@@ -25,6 +25,8 @@ const CRITICIDADES = ['BAJA', 'MEDIA', 'ALTA']
 const TOLERANCIA = 0.005
 
 export interface DatosPlanilla {
+  /** Problemas de formato detectados al leer los CSV (columnas de más o de menos, comillas sin cerrar). */
+  problemasCsv?: { hoja: Hoja; linea: number | null; mensaje: string }[]
   encabezados: Partial<Record<Hoja, string[]>>
   faenas: Fila[]; usuarios: Fila[]; equipos: Fila[]; asignaciones: Fila[]; items_bodega: Fila[]; lotes: Fila[]
 }
@@ -68,6 +70,8 @@ export function validarCarga(d: DatosPlanilla, existente: Existente, faenaObjeti
   const aviso = (hoja: Mensaje['hoja'], f: Fila | null, mensaje: string) => advertencias.push({ hoja, linea: f ? +f.__linea : null, mensaje })
   const nuevos = cero(), sinCambios = cero()
   const plan: Plan = { faena: null, faenaCodigo: faenaObjetivo, usuarios: [], equipos: [], asignaciones: [], items: [] }
+
+  for (const p of d.problemasCsv ?? []) errores.push({ hoja: p.hoja, linea: p.linea, mensaje: p.mensaje })
 
   // ── Encabezados ────────────────────────────────────────────────────────────
   for (const h of HOJAS) {

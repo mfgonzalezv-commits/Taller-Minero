@@ -43,6 +43,22 @@ describe('lector CSV', () => {
   })
 })
 
+describe('formato del CSV (P1 de la revisión)', () => {
+  it('una fila con más o menos columnas que el encabezado se reporta', () => {
+    expect(parsearCsv('a,b,c\n1,2,3\nFiltro, aceite,3,4').problemas.some(p => /columnas/.test(p.mensaje))).toBe(true)
+    expect(parsearCsv('a,b,c\n1,2').problemas.length).toBe(1)
+    expect(parsearCsv('a,b\n1,2').problemas).toEqual([])
+  })
+  it('una comilla sin cerrar se reporta', () => {
+    expect(parsearCsv('a,b\n"abc,2\n3,4').problemas.some(p => /sin cerrar/.test(p.mensaje))).toBe(true)
+  })
+  it('los problemas de formato bloquean la carga', () => {
+    const d = planillas({ usuarios: 'email,nombre,rol,faena\na@x.cl,A,JEFE_TALLER,PIL-01,extra', equipos: 'faena,codigo,nombre,tipo\nPIL-01,E1,A,CAMION' })
+    d.problemasCsv = [{ hoja: 'usuarios', linea: 2, mensaje: 'La fila tiene 5 columnas y el encabezado 4' }]
+    expect(validarCarga(d, vacio(), 'PIL-01', HOY).errores.length).toBeGreaterThan(0)
+  })
+})
+
 describe('planilla de ejemplo del piloto', () => {
   it('es válida en una base vacía y no tiene stock sin lotes', () => {
     const i = validarCarga(leerPlanillas(EJEMPLO), vacio(), 'PIL-01', HOY)

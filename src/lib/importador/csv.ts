@@ -10,7 +10,9 @@ function detectarSeparador(primeraLinea: string): string {
 }
 
 /** Divide el texto en registros respetando comillas ("" = comilla literal, saltos de línea dentro de comillas). */
-export function parsearCsv(texto: string): { encabezados: string[]; filas: Fila[] } {
+export interface ProblemaCsv { linea: number | null; mensaje: string }
+
+export function parsearCsv(texto: string): { encabezados: string[]; filas: Fila[]; problemas: ProblemaCsv[] } {
   const t = texto.replace(/^﻿/, '').replace(/\r\n?/g, '\n')
   const primera = t.split('\n').find(l => l.trim() !== '') ?? ''
   const sep = detectarSeparador(primera)
@@ -31,19 +33,22 @@ export function parsearCsv(texto: string): { encabezados: string[]; filas: Fila[
     else if (ch === '\n') { cerrarRegistro(); linea++; lineaInicio = linea }
     else campo += ch
   }
+  const problemas: ProblemaCsv[] = []
+  if (enComillas) problemas.push({ linea: lineaInicio, mensaje: 'Hay una comilla (") sin cerrar: el archivo puede estar truncado o mal escapado' })
   if (campo !== '' || campos.length) cerrarRegistro()
-  if (registros.length === 0) return { encabezados: [], filas: [] }
+  if (registros.length === 0) return { encabezados: [], filas: [], problemas }
 
   const encabezados = registros[0].campos.map(h => h.trim().toLowerCase())
   const filas = registros.slice(1)
     // las filas que empiezan con # son comentarios de la plantilla
     .filter(r => !(r.campos[0] ?? '').trim().startsWith('#'))
     .map(r => {
+      if (r.campos.length !== encabezados.length) problemas.push({ linea: r.linea, mensaje: `La fila tiene ${r.campos.length} columnas y el encabezado ${encabezados.length}: revisa comas o separadores dentro de un texto (usa comillas)` })
       const f: Record<string, string> = { __linea: String(r.linea) }
       encabezados.forEach((h, i) => { f[h] = (r.campos[i] ?? '').trim() })
       return f as Fila
     })
-  return { encabezados, filas }
+  return { encabezados, filas, problemas }
 }
 
 /**
