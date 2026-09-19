@@ -59,7 +59,7 @@ export async function prepararEstadoPago(faenaId: string, fechaBase?: string) {
           }),
           modalidad === 'HORA'
             ? prisma.horometroKm.findMany({
-                where: { equipoId: a.equipoId, faenaId, fechaRegistro: { gte: v.inicio, lte: v.termino }, horometro: { not: null } },
+                where: { equipoId: a.equipoId, faenaId, fechaRegistro: { gte: v.inicio, lte: v.termino }, horometro: { not: null }, OR: [{ validado: null }, { validado: true }] },
                 orderBy: { fechaRegistro: 'asc' },
                 select: { equipoId: true, faenaId: true, fechaRegistro: true, horometro: true },
               })

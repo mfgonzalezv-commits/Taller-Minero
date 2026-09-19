@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { EstadoOT, OrigenFalla, PrioridadOT, TipoIntervencionOT, TipoMantenimiento } from '@prisma/client'
-import { TRANSICIONES_OT } from '@/lib/constants'
+import { ESTADOS_CON_ACCION_PROPIA, puedeTransicionarOT, validarTransicionOT } from '@/lib/maquina-ot'
 import { calcularTasaOverhead } from './trabajadores'
 import { crearChecklistDesdePauta } from './pautas'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion, type SesionAutenticada } from '@/lib/authz'
@@ -22,7 +22,6 @@ async function requireAccesoBitacoraOT(sesion: SesionAutenticada, otId: string) 
   return ot
 }
 
-// TRANSICIONES_OT se mantiene solo para los botones rápidos del header — la bitácora no tiene restricciones
 
 export async function getOTs(filtros?: { estado?: EstadoOT; equipoId?: string }) {
   const session = await auth()
@@ -253,18 +252,22 @@ export async function cambiarEstadoOT(
   requireAlcanceFaena(sesion, ot.faenaId)
 
   if (nuevoEstado === 'CERRADA') {
-    requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'])
+    // Cierre administrativo: Jefe o Planificador, DESPUÉS de la validación técnica del Jefe.
+    requireRolPermitido(sesion, ROLES_GESTION_OT)
   }
+  // Doble clic / repetición: si ya está en ese estado no se vuelve a registrar nada.
+  if (ot.estado === nuevoEstado) return ot
+  const error = validarTransicionOT(ot.estado, nuevoEstado, { validadaTecnicamente: !!ot.fechaValidacionTecnica })
+  if (error) throw new Error(error)
 
   const ahora = new Date()
   const inicioEstadoActual = ot.historial[0]?.fechaCambio ?? ot.fechaCreacion
   const minutos = Math.round((ahora.getTime() - inicioEstadoActual.getTime()) / 60000)
   const nuevoTiempoMin = ot.tiempoDetenidoMin + minutos
-  const esReapertura = ot.estado === 'CERRADA' && nuevoEstado === 'ABIERTA'
   // El equipo vuelve a operativo y el contador de detención se congela al
   // terminar el trabajo técnico (EN_VALIDACION), no al cierre administrativo
   // (CERRADA) — pueden pasar días entre uno y otro.
-  const terminaDetencion = nuevoEstado === 'EN_VALIDACION' && ot.estado !== 'EN_VALIDACION'
+  const terminaDetencion = nuevoEstado === 'EN_VALIDACION'
   const costoDetencion = terminaDetencion
     ? (Number(ot.costoHoraSnapshot) * nuevoTiempoMin) / 60
     : Number(ot.costoDetencion)
@@ -272,51 +275,76 @@ export async function cambiarEstadoOT(
   const horometroCierre = nuevoEstado === 'CERRADA'
     ? (await prisma.equipo.findUnique({ where: { id: ot.equipoId }, select: { horometroActual: true } }))?.horometroActual
     : undefined
+  // Volver de validación a reparación (retrabajo) deja sin efecto la validación técnica anterior.
+  const invalidaValidacion = ot.estado === 'EN_VALIDACION' && nuevoEstado === 'EN_REPARACION'
 
-  const updated = await prisma.$transaction([
-    prisma.historialEstadoOT.create({
-      data: {
-        otId,
-        faenaId: sesion.faenaId,
-        estadoAnterior: ot.estado,
-        estadoNuevo: nuevoEstado,
-        usuarioId: sesion.userId,
-        observacion: observacion ?? (esReapertura ? 'OT reabierta' : undefined),
-        tiempoEnEstadoMin: minutos,
-      },
-    }),
-    prisma.ordenTrabajo.update({
-      where: { id: otId },
+  const aplicado = await prisma.$transaction(async (tx) => {
+    // Candado: el UPDATE solo aplica si la OT sigue en el estado que leímos. Si otra petición
+    // la cambió en medio, no se duplica el historial.
+    const cambio = await tx.ordenTrabajo.updateMany({
+      where: { id: otId, estado: ot.estado },
       data: {
         estado: nuevoEstado,
         tiempoDetenidoMin: nuevoTiempoMin,
         costoDetencion,
-        ...(nuevoEstado === 'EN_REPARACION' && !ot.fechaInicioTrabajo
-          ? { fechaInicioTrabajo: ahora }
-          : {}),
+        ...(nuevoEstado === 'EN_REPARACION' && !ot.fechaInicioTrabajo ? { fechaInicioTrabajo: ahora } : {}),
         ...(terminaDetencion ? { fechaTerminoTrabajo: ahora } : {}),
         ...(nuevoEstado === 'CERRADA' ? { fechaCierre: ahora, cerradoPorId: sesion.userId, horometroCierre } : {}),
-        ...(esReapertura ? { fechaCierre: null, cerradoPorId: null } : {}),
+        ...(invalidaValidacion ? { validadoTecnicamentePorId: null, fechaValidacionTecnica: null } : {}),
       },
-    }),
-  ])
+    })
+    if (cambio.count === 0) return false
+    await tx.historialEstadoOT.create({
+      data: { otId, faenaId: ot.faenaId, estadoAnterior: ot.estado, estadoNuevo: nuevoEstado, usuarioId: sesion.userId, observacion, tiempoEnEstadoMin: minutos },
+    })
+    if (terminaDetencion) await tx.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
+    return true
+  })
 
-  if (terminaDetencion) {
-    await prisma.equipo.update({
-      where: { id: ot.equipoId },
-      data: { estado: 'OPERATIVO' },
-    })
-  }
-  if (esReapertura) {
-    await prisma.equipo.update({
-      where: { id: ot.equipoId },
-      data: { estado: 'DETENIDO' },
-    })
+  if (!aplicado) {
+    const actual = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId } })
+    if (actual.estado === nuevoEstado) return actual // otra petición idéntica ya lo hizo
+    throw new Error('La OT cambió de estado mientras se procesaba; recarga e intenta de nuevo')
   }
 
   revalidatePath('/ot')
   revalidatePath(`/ot/${otId}`)
-  return updated[1]
+  return prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId } })
+}
+
+// Reapertura de una OT cerrada: acción específica (no se hace con cambiarEstadoOT).
+// Solo Jefe/Administrador, con motivo obligatorio y auditoría completa.
+export async function reabrirOT(otId: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  if (!motivo?.trim()) throw new Error('Debe indicar el motivo de la reapertura')
+
+  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId } })
+  requireAlcanceFaena(sesion, ot.faenaId)
+  if (ot.estado !== 'CERRADA') throw new Error('Solo se puede reabrir una OT cerrada')
+
+  const ahora = new Date()
+  await prisma.$transaction(async (tx) => {
+    const cambio = await tx.ordenTrabajo.updateMany({
+      where: { id: otId, estado: 'CERRADA' },
+      data: { estado: 'ABIERTA', fechaCierre: null, cerradoPorId: null, validadoTecnicamentePorId: null, fechaValidacionTecnica: null, fechaTerminoTrabajo: null },
+    })
+    if (cambio.count === 0) throw new Error('La OT ya fue reabierta')
+    await tx.historialEstadoOT.create({
+      data: { otId, faenaId: ot.faenaId, estadoAnterior: 'CERRADA', estadoNuevo: 'ABIERTA', usuarioId: sesion.userId, observacion: `OT reabierta: ${motivo.trim()}`, tiempoEnEstadoMin: 0 },
+    })
+    await tx.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'DETENIDO' } })
+    await tx.registroAuditoria.create({
+      data: {
+        faenaId: ot.faenaId, entidad: 'OrdenTrabajo', entidadId: otId, accion: 'REABRIR', usuarioId: sesion.userId, motivo: motivo.trim(),
+        valorAnterior: { estado: 'CERRADA', fechaCierre: ot.fechaCierre, cerradoPorId: ot.cerradoPorId, fechaValidacionTecnica: ot.fechaValidacionTecnica, validadoTecnicamentePorId: ot.validadoTecnicamentePorId },
+        valorNuevo: { estado: 'ABIERTA', reabiertaEn: ahora },
+      },
+    })
+  })
+
+  revalidatePath('/ot')
+  revalidatePath(`/ot/${otId}`)
 }
 
 // Validación técnica del Jefe de Taller — distinta del cierre administrativo.
@@ -406,20 +434,21 @@ export async function agregarBitacora(otId: string, data: {
 }) {
   const sesion = await requireSesion()
   const ot = await requireAccesoBitacoraOT(sesion, otId)
-  if (data.estado === 'CERRADA' || data.estado === 'ANULADA') requireRolPermitido(sesion, ROLES_GESTION_OT)
+  // La bitácora propone un estado según el tipo de intervención, pero no puede saltarse la máquina
+  // de estados ni cerrar/validar/anular (tienen su propia acción): si la transición no es válida,
+  // la entrada se guarda igual y el estado de la OT no cambia.
+  const estadoAplicable = data.estado && data.estado !== ot.estado && !ESTADOS_CON_ACCION_PROPIA.includes(data.estado) && puedeTransicionarOT(ot.estado, data.estado)
+    ? data.estado
+    : undefined
   const ahora = new Date()
 
   const otUpdate: Record<string, unknown> = {}
-  if (data.estado && data.estado !== ot.estado) {
+  if (estadoAplicable) {
     const minutosTransicion = Math.round((ahora.getTime() - ot.updatedAt.getTime()) / 60000)
     const nuevoTiempoMin = ot.tiempoDetenidoMin + minutosTransicion
-    otUpdate.estado = data.estado
+    otUpdate.estado = estadoAplicable
     otUpdate.tiempoDetenidoMin = nuevoTiempoMin
-    if (data.estado === 'EN_REPARACION' && !ot.fechaInicioTrabajo) otUpdate.fechaInicioTrabajo = ahora
-    if (data.estado === 'CERRADA') {
-      otUpdate.fechaCierre = ahora
-      otUpdate.costoDetencion = (Number(ot.costoHoraSnapshot) * nuevoTiempoMin) / 60
-    }
+    if (estadoAplicable === 'EN_REPARACION' && !ot.fechaInicioTrabajo) otUpdate.fechaInicioTrabajo = ahora
   }
   if (data.setEspera !== undefined) otUpdate.enEsperaRepuesto = data.setEspera
   if (data.repuestos?.length) otUpdate.enEsperaRepuesto = true
@@ -438,7 +467,7 @@ export async function agregarBitacora(otId: string, data: {
         personal: data.personal ?? [],
         tipoIntervencion: data.tipoIntervencion ?? null,
         notaRepuesto: data.notaRepuesto ?? null,
-        estado: data.estado ?? null,
+        estado: estadoAplicable ?? null,
         setEspera: data.repuestos?.length ? true : (data.setEspera ?? null),
         usuarioId,
         ...(data.fechaHora ? { fechaHora: new Date(data.fechaHora + 'T12:00:00') } : {}),
@@ -469,10 +498,6 @@ export async function agregarBitacora(otId: string, data: {
       await tx.ordenTrabajo.update({ where: { id: otId }, data: otUpdate })
     }
   })
-
-  if (data.estado === 'CERRADA') {
-    await prisma.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
-  }
 
   // ── Auto mano de obra desde bitácora ─────────────────────────────────────
   if (data.horaInicio && data.horaTermino && data.personal?.length) {

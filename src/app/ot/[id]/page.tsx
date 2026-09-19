@@ -11,6 +11,7 @@ import ChecklistOT from './ChecklistOT'
 import ChecklistPM from './ChecklistPM'
 import PrintButton from './PrintButton'
 import AnularOT from './AnularOT'
+import ReabrirOT from './ReabrirOT'
 import ValidacionOT from './ValidacionOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
 import AsignarTecnico from './AsignarTecnico'
@@ -113,7 +114,7 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
   const ESTADOS_REQUIEREN_AUTORIZACION = ['DIAGNOSTICADO', 'REPARACION_PROGRAMADA', 'LISTO_PARA_REPARAR']
   const transiciones = ESTADOS_REQUIEREN_AUTORIZACION.includes(ot.estado) && rolUsuario === 'MECANICO'
     ? []
-    : TRANSICIONES_OT[ot.estado] ?? []
+    : (TRANSICIONES_OT[ot.estado] ?? []).filter(t => t !== 'CERRADA' || !!ot.fechaValidacionTecnica) // el cierre exige la validación técnica previa
 
   // Costo detención en tiempo real: acumulado guardado + tiempo en estado actual
   const estaAbierta = ot.estado !== 'CERRADA'
@@ -444,6 +445,9 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
               {(rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER' || rolUsuario === 'PLANIFICADOR') &&
                 ot.estado !== 'ANULADA' && ot.estado !== 'CERRADA' && (
                 <AnularOT otId={ot.id} />
+              )}
+              {(rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER_CENTRAL' || rolUsuario === 'JEFE_TALLER') && ot.estado === 'CERRADA' && (
+                <ReabrirOT otId={ot.id} />
               )}
             </div>
           </div>

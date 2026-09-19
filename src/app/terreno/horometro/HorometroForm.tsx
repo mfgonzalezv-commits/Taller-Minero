@@ -37,7 +37,7 @@ export default function HorometroForm() {
         })
         setHorometro('')
         setKilometraje('')
-        setOk(true)
+        setOk(!res.pendiente)
         if (res.advertencia) setAdvertencia(res.advertencia)
         const lista = await getEquiposParaHorometro()
         setEquipos(lista)
@@ -89,7 +89,7 @@ export default function HorometroForm() {
         {ok && <p className="text-xs font-bold" style={{ color: 'var(--n-yellow)' }}>✓ Registrado correctamente</p>}
         {advertencia && (
           <p className="text-xs font-bold px-3 py-2 rounded" style={{ backgroundColor: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
-            ⚠️ {advertencia} — se guardó igual, quedó marcado para revisión.
+            ⚠️ {advertencia} — la lectura NO se usa hasta que un Jefe o Planificador la confirme.
           </p>
         )}
 
