@@ -1,0 +1,327 @@
+[
+  {
+    "paso": "Operador NO crea plantilla",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe crea plantilla",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Inspección todo OK",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Todo OK: sin alertas y equipo operativo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Hallazgo crítico (clave K1)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Crítico: 1 reporte vinculado, equipo detenido pendiente de validación",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Repetir la misma operación (K1)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La repetición devuelve la misma inspección y el mismo reporte, sin duplicar",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Doble clic simultáneo (K2): ambas OK, 1 inspección y 1 reporte",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El reporte de la 2ª inspección crítica es reincidencia del primero",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Nueva inspección crítica (sin clave)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Una nueva inspección crea un reporte nuevo marcado como reincidencia",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Rollback: si falla a mitad no queda inspección ni alerta a medias",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador SIM-02 NO inspecciona equipo de SIM-01",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El equipo de SIM-01 conserva su estado y no recibe alertas nuevas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador SIM-01 NO inspecciona equipo de SIM-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ítem que no es de la plantilla se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega NO inspecciona",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO cambia estado de alerta",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO convierte alerta en OT",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe de OTRA faena (SIM-01) no convierte la alerta",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Dos conversiones simultáneas: 1 sola OT y ambas devuelven la misma",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tercera conversión (secuencial)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sigue habiendo 1 OT para la alerta y se devuelve la misma",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bitácora con estado que salta la máquina se rechaza con mensaje",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bitácora que intenta cerrar se rechaza con mensaje",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bitácora sin estado se guarda normalmente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO crea SR",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico crea SR (2 unidades de bodega)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico NO cambia estado de la SR",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "No se salta de ENVIADA a EN_ADQUISICIONES",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR → EN_BODEGA_CENTRAL",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR → EN_ADQUISICIONES",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR → ESPERANDO_LLEGADA",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR → RECIBIDA_FAENA",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entrega doble simultánea: ambas OK, stock descontado UNA vez (-2) y lotes alineados",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un solo historial ENTREGADA y un solo repuesto entregado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entregar otra vez (secuencial) no falla ni descuenta",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Stock intacto tras la 3ª entrega",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "ENTREGADA es terminal (→ ENVIADA)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR de 999 unidades",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR gigante → RECIBIDA_FAENA",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entregar más de lo que hay se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Rollback: la SR sigue RECIBIDA_FAENA, sin repuestos y stock intacto",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "RECIBIDA_FAENA no se puede rechazar (solo avanza)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR nueva para cancelar",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Rechazar (cancelar) la SR",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "RECHAZADA es terminal",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR para compra directa",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar antes de marcar compra directa se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador NO marca compra directa",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Compra directa sin motivo se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marcar compra directa es idempotente (doble clic)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega NO regulariza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar sin cotización se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar sin comprobante se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar sin motivo se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un monto informado bajo (1) no evade el límite: se controla con lo estimado de la SR",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sobre el límite de faena exige aprobación central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe de faena NO da la aprobación central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Central aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularización doble simultánea: ambas OK, se aplica una sola vez con su respaldo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar de nuevo con otros datos no cambia nada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El respaldo original se conserva (idempotente)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ningún correo se envió (solo cola/outbox)",
+    "ok": true,
+    "detalle": "ok"
+  }
+]

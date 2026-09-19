@@ -1,0 +1,102 @@
+[
+  {
+    "paso": "Jefe de faena NO prepara Estado de Pago",
+    "ok": true,
+    "detalle": "rechazado: Sin permisos para esta acción"
+  },
+  {
+    "paso": "Planificador central prepara EP SIM-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Volver a preparar mismo periodo se rechaza",
+    "ok": true,
+    "detalle": "rechazado: Ya existe un Estado de Pago preparado para este periodo"
+  },
+  {
+    "paso": "Planificador central NO aprueba",
+    "ok": true,
+    "detalle": "rechazado: Sin permisos para esta acción"
+  },
+  {
+    "paso": "Ajuste manual por central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Administrador aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Doble aprobación rechazada",
+    "ok": true,
+    "detalle": "rechazado: No se puede aprobar un Estado de Pago aprobado"
+  },
+  {
+    "paso": "Ajuste manual sobre EP aprobado rechazado",
+    "ok": true,
+    "detalle": "rechazado: No se puede ajustar un Estado de Pago aprobado"
+  },
+  {
+    "paso": "Rechazar EP ya aprobado rechazado",
+    "ok": true,
+    "detalle": "rechazado: No se puede rechazar un Estado de Pago aprobado"
+  },
+  {
+    "paso": "Preparar EP sobre periodo aprobado se rechaza",
+    "ok": true,
+    "detalle": "rechazado: Ya existe un Estado de Pago preparado para este periodo"
+  },
+  {
+    "paso": "Horómetro normal 1001",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Horómetro menor a la anterior se bloquea",
+    "ok": true,
+    "detalle": "rechazado: Lectura de horómetro menor a la anterior (1001 → 500). Para corregir un error usa la corrección con motivo."
+  },
+  {
+    "paso": "Horómetro con salto enorme queda pendiente y no cambia el equipo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Crear plan preventivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Generar OT preventiva 1",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Generar OT preventiva 2 (duplicado) rechazada",
+    "ok": true,
+    "detalle": "rechazado: Ya existe una OT activa para este plan"
+  },
+  {
+    "paso": "Operador NO crea plan de mantención",
+    "ok": true,
+    "detalle": "rechazado: Sin permisos para esta acción"
+  },
+  {
+    "paso": "Informe diario coincide con tablas fuente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Claves del informe diario",
+    "ok": true,
+    "detalle": "OT abiertas en BD=2; claves=fecha,flota,ot,bodega"
+  },
+  {
+    "paso": "Correos en cola de SIM-02 (no se envió ninguno)",
+    "ok": true,
+    "detalle": "12"
+  }
+]

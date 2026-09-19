@@ -154,7 +154,7 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
       })
     }
     return true
-  })
+  }, { timeout: 20_000, maxWait: 10_000 })
 
   if (!aplicado) {
     const actual = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId }, select: { estado: true } })
@@ -184,6 +184,11 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
 
 // Compra directa/urgente autorizada por el jefe de taller, fuera del flujo
 // normal — debe regularizarse después (Compras completa cotizaciones/orden).
+async function montoEstimadoSR(srId: string): Promise<number> {
+  const items = await prisma.itemSolicitudRepuesto.findMany({ where: { srId }, select: { cantidad: true, precioEstimado: true } })
+  return items.reduce((a, i) => a + Number(i.cantidad) * Number(i.precioEstimado ?? 0), 0)
+}
+
 export async function marcarCompraDirecta(srId: string, motivo: string) {
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
@@ -209,7 +214,7 @@ export async function marcarCompraDirecta(srId: string, motivo: string) {
 }
 
 // Sobre el límite de faena, la compra directa necesita la aprobación del nivel central antes de regularizarse.
-export async function aprobarCompraDirectaCentral(srId: string) {
+export async function aprobarCompraDirectaCentral(srId: string, montoAprobado?: number) {
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'])
 
@@ -217,10 +222,13 @@ export async function aprobarCompraDirectaCentral(srId: string) {
   requireAlcanceFaena(sesion, sr.faenaId)
   if (!sr.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
   if (sr.aprobadaCentralPorId) return // idempotente
+  const tope = montoAprobado ?? (await montoEstimadoSR(srId))
+  if (!(tope >= 0) || !Number.isFinite(tope)) throw new Error('El monto aprobado no es válido')
 
+  // La aprobación fija el monto tope: no vale para cualquier monto posterior.
   const r = await prisma.solicitudRepuesto.updateMany({
     where: { id: srId, aprobadaCentralPorId: null },
-    data: { aprobadaCentralPorId: sesion.userId, fechaAprobacionCentral: new Date() },
+    data: { aprobadaCentralPorId: sesion.userId, fechaAprobacionCentral: new Date(), montoCompraDirecta: tope },
   })
   if (r.count === 0) return
 
@@ -241,8 +249,13 @@ export async function regularizarCompraDirecta(srId: string, datos: { cotizacion
 
   const error = validarRegularizacion(datos)
   if (error) throw new Error(error)
-  if (requiereAprobacionCentral(datos.monto) && !sr.aprobadaCentralPorId) {
+  // El monto lo informa el cliente, así que el control usa el mayor entre lo informado y lo estimado en los ítems de la SR.
+  const montoControl = Math.max(datos.monto, await montoEstimadoSR(srId))
+  if (requiereAprobacionCentral(montoControl) && !sr.aprobadaCentralPorId) {
     throw new Error('La compra supera el límite de faena: requiere aprobación central antes de regularizarse')
+  }
+  if (sr.aprobadaCentralPorId && sr.montoCompraDirecta != null && datos.monto > Number(sr.montoCompraDirecta)) {
+    throw new Error('El monto supera el monto aprobado por el nivel central')
   }
 
   // El UPDATE condicionado es el candado: solo una regularización se aplica.

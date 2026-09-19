@@ -82,3 +82,13 @@ Cierra AUD-013, 014, 015, 016, 018 (y 017/019 según las decisiones):
 
 ## Confirmación de producción
 Ningún script ni prueba se ejecutó contra producción: todos usan `impedirEjecucionEnProduccion()` y la base local apunta a `erp_minera_dev`. No hubo migraciones ni cambios de configuración. No se envió ningún correo ni WhatsApp. El Estado de Pago productivo histórico ($0) no se modificó. Las únicas acciones sobre producción fueron los despliegues automáticos por fusión a `main` y una lectura de la página `/login`.
+
+## Cierre de AUD-013 a AUD-019 (PR #11)
+
+Todos quedan **BLOQUEADOS o CORRECTOS** (evidencia en `docs/evidencia-auditoria/tras-pr11/`): AUD-013 inspección entre faenas bloqueada; AUD-014 SR con máquina de estados y descuento FIFO único; AUD-015 una alerta = una OT; AUD-016 reporte crítico idempotente y nueva inspección marcada como reincidencia; AUD-017 regularización con comprobante, motivo, ≥1 cotización, aprobación central sobre el límite e idempotente; AUD-018 inspección transaccional; AUD-019 bitácora rechaza estados inválidos con mensaje.
+
+**Revisiones independientes** (dos revisores en contexto separado):
+- *Retrospectiva de #8:* sin P0. P1 corregido en #11: `cambiarEstadoOT` no validaba rol (ahora gestión o mecánico asignado). P2 corregido: ítems de bodega de la bitácora validados por faena. Quedan como P2 conocidos: un JEFE_TALLER/central no puede editar su propio usuario (falta vía de autoedición de perfil), `solicitarRepuesto` abierto a cualquier rol de la faena y algunos cambios de estado de repuestos sin candado atómico.
+- *De #11:* sin P0. P1 corregidos: el monto de la regularización lo informa el cliente (ahora se controla con el mayor entre lo informado y lo estimado en la SR, y la aprobación central fija el monto tope) y timeout de 20 s en las transacciones largas. Pendiente: no existe pantalla para regularizar/aprobar compras directas (solo API); la reincidencia entre dos inspecciones simultáneas con claves distintas no es atómica (impacto bajo).
+
+**Pendiente por decisión:** reemplazo de un Estado de Pago rechazado (nueva versión vinculada), configuración del límite de compra directa por faena (valor inicial provisorio: $500.000, `src/lib/compra-directa.ts`) y del umbral de horómetro por faena/equipo.

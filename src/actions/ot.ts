@@ -245,11 +245,12 @@ export async function cambiarEstadoOT(
 ) {
   const sesion = await requireSesion()
 
+  // Gestión de la faena, o el mecánico asignado a la OT (nadie más cambia el estado de una OT).
+  await requireAccesoBitacoraOT(sesion, otId)
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: otId },
     include: { historial: { orderBy: { fechaCambio: 'desc' }, take: 1 } },
   })
-  requireAlcanceFaena(sesion, ot.faenaId)
 
   if (nuevoEstado === 'CERRADA') {
     // Cierre administrativo: Jefe o Planificador, DESPUÉS de la validación técnica del Jefe.
@@ -441,6 +442,12 @@ export async function agregarBitacora(otId: string, data: {
     if (!puedeTransicionarOT(ot.estado, data.estado)) throw new Error(`Transición no permitida: ${ot.estado} → ${data.estado}`)
   }
   const estadoAplicable = data.estado && data.estado !== ot.estado ? data.estado : undefined
+  if (data.repuestos?.length) {
+    const ids = [...new Set(data.repuestos.map(r => r.itemBodegaId).filter((x): x is string => !!x))]
+    if (ids.length && (await prisma.itemBodega.count({ where: { id: { in: ids }, faenaId: ot.faenaId } })) !== ids.length) {
+      throw new ErrorAutorizacion('Sin permisos: algún ítem de bodega no pertenece a la faena de la OT')
+    }
+  }
   const ahora = new Date()
 
   const otUpdate: Record<string, unknown> = {}

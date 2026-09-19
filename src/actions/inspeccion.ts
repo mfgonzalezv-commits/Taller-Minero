@@ -190,7 +190,7 @@ export async function crearInspeccion(data: {
       }
 
       return { inspeccionId: inspeccion.id, alertas: conProblema.length, criticos: criticos.length, reporteId, repetida: false }
-    }).then(r => { revalidatePath('/inspeccion'); revalidatePath('/fallas'); revalidatePath('/equipos'); return r })
+    }, { timeout: 20_000, maxWait: 10_000 }) // plantillas largas contra Neon pueden pasar los 5 s por defecto.then(r => { revalidatePath('/inspeccion'); revalidatePath('/fallas'); revalidatePath('/equipos'); return r })
   } catch (e) {
     // Dos envíos simultáneos con la misma clave: el segundo choca con el índice único y devuelve lo del primero.
     if (data.claveIdempotencia && e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {

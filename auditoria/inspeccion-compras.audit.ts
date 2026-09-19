@@ -157,6 +157,7 @@ describe('inspecciones, SR y compras (regresión AUD-013 a AUD-019)', () => {
     await espera('Regularizar sin cotización se rechaza', S.C, () => regularizarCompraDirecta(sr2.id, { ...datos, cotizaciones: [] }), /cotización/)
     await espera('Regularizar sin comprobante se rechaza', S.C, () => regularizarCompraDirecta(sr2.id, { ...datos, comprobante: '' }), /comprobante/)
     await espera('Regularizar sin motivo se rechaza', S.C, () => regularizarCompraDirecta(sr2.id, { ...datos, motivo: '' }), /motivo/)
+    await espera('Un monto informado bajo (1) no evade el límite: se controla con lo estimado de la SR', S.C, () => regularizarCompraDirecta(sr2.id, { ...datos, monto: 1 }), /aprobación central/)
     await espera('Sobre el límite de faena exige aprobación central', S.C, () => regularizarCompraDirecta(sr2.id, datos), /aprobación central/)
     await espera('El Jefe de faena NO da la aprobación central', S.jefe, () => aprobarCompraDirectaCentral(sr2.id), /Sin permisos/)
     await exito('Central aprueba', S.central, () => aprobarCompraDirectaCentral(sr2.id))
