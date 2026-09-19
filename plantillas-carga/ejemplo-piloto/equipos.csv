@@ -1,0 +1,7 @@
+faena,codigo,nombre,tipo,marca,modelo,patente,anio,costo_hora_detencion,horometro_inicial
+PIL-01,CAM-01,Camión tolva 1,CAMION,Marca A,T-400,AB1234,2020,85000,4210.5
+PIL-01,CAM-02,Camión tolva 2,CAMION,Marca A,T-400,AB1235,2020,85000,3987
+PIL-01,EXC-01,Excavadora 1,MAQUINARIA,Marca B,E-320,,2019,140000,6100
+PIL-01,CAR-01,Cargador frontal,MAQUINARIA,Marca C,C-950,,2021,110000,2200
+PIL-01,CAM-03,Camioneta de apoyo,LIVIANO,Marca D,D-Max,CD5678,2022,25000,58000
+PIL-01,GEN-01,Generador,OTRO,Marca E,G-100,,2018,30000,9800

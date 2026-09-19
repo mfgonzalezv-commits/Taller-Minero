@@ -1,0 +1,292 @@
+[
+  {
+    "paso": "Dry-run: informe sin errores y no escribe nada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Dry-run informa lo que va a crear",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Apply sin base ni frase de confirmación se rechaza y no escribe",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Apply con la base equivocada se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Apply con stock ≠ suma de lotes se rechaza (validación previa) y no escribe",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Apply: carga aplicada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se crearon 9 usuarios, 2 técnicos, 6 equipos, 5 asignaciones, 12 ítems y 14 lotes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se generaron contraseñas temporales (9) en un archivo fuera de git",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La contraseña temporal entrega acceso (hash correcto) y no se guardó en texto plano",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras la carga: stock = suma de lotes = entradas para los 12 ítems",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ítem sin stock inicial se carga con 0 y sin lotes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Repetir la carga: idempotente (nada nuevo, nada cambia)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un dato distinto de lo existente es conflicto: no se modifica nada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Rollback (fila inválida): se rechaza antes de escribir y no queda nada de PIL-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Rollback (falla a mitad de la escritura): no queda NADA de PIL-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras el rollback, la misma carga se aplica sin problemas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador registra horómetro normal (EXC-01)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Salto anómalo queda pendiente y no cambia el horómetro del equipo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador no confirma el salto",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe ve y rechaza... (confirma) la lectura pendiente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador reporta falla de CAM-01 con detención",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El equipo queda detenido pendiente de validación",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe valida la detención",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO crea OT directamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador convierte el reporte en OT",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO asigna técnico",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe asigna a Mecánico Uno",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico no asignado NO escribe en la bitácora",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico asignado agrega bitácora",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico solicita 10 filtros (abarca 2 lotes)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega NO autoriza solicitudes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico NO autoriza solicitudes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador autoriza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega entrega (doble clic): una sola entrega, costo FIFO 8×18.000 + 2×19.500 = $183.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico: DIAGNOSTICADO",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe: EN_REPARACION",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico: EN_VALIDACION (equipo vuelve a operar)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "CAM-01 vuelve a OPERATIVO",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Cierre sin validación técnica se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe valida técnicamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador cierra administrativamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe crea plantilla de inspección de CAM-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Inspección crítica (doble clic): 1 sola inspección y 1 reporte, equipo detenido",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La alerta genera una sola OT (doble clic)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico crea SR de 4 mangueras (2 lotes)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe: SR → RECIBIDA_FAENA",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega entrega la SR",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR entregada: FIFO 3×44.000 + 1×47.000 = $179.000 y stock 1",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico NO crea ítems de bodega",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO crea usuarios",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe NO crea un ADMINISTRADOR",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Administrador prepara el Estado de Pago con las tarifas cargadas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Estado de Pago tiene una línea por asignación vigente (5) y monto bruto > 0",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador NO aprueba el Estado de Pago",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras TODAS las operaciones: stock = suma de lotes, sin negativos, entradas − salidas = stock, consumos FIFO completos",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Monitoreo: sin diferencias stock/lotes ni alertas sin OT ni horómetros pendientes ni SR inconsistentes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Monitoreo: los intentos rechazados por permisos quedaron registrados",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Monitoreo: pasados 10 días detecta las OT abiertas sin movimiento y las alertas",
+    "ok": true,
+    "detalle": "ok"
+  }
+]

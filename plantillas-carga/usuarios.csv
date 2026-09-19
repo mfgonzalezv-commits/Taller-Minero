@@ -1,0 +1,2 @@
+email,nombre,rol,faena,password_temporal,especialidades,turno,tarifa_hora,tarifa_hora_extra
+# correo único,Nombre completo,ADMINISTRADOR|JEFE_TALLER_CENTRAL|PLANIFICADOR_CENTRAL|JEFE_TALLER|PLANIFICADOR|MECANICO|BODEGA|COMPRAS|GERENCIA|OPERADOR,codigo de faena,(opcional; vacío = se genera),(mecánico) Motor|Hidráulica,Día|Noche,$ por hora,$ por hora extra

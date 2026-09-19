@@ -10,7 +10,7 @@ type Fk = { hija: string; col: string; padre: string }
 
 export async function borrarFaenaSimulada(codigo: string) {
   impedirEjecucionEnProduccion('auditoria/borrar-faena')
-  if (!/^SIM-\d+$/.test(codigo)) throw new Error(`Solo se pueden borrar faenas simuladas (SIM-nn); recibido: ${codigo}`)
+  if (!/^(SIM|PIL)-\d+$/.test(codigo)) throw new Error(`Solo se pueden borrar faenas simuladas (SIM-nn / PIL-nn, solo en dev); recibido: ${codigo}`)
   const faena = await prisma.faena.findUnique({ where: { codigo } })
   if (!faena) return false
 

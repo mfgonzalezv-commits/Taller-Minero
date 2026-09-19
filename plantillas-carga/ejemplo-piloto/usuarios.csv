@@ -1,0 +1,10 @@
+email,nombre,rol,faena,password_temporal,especialidades,turno,tarifa_hora,tarifa_hora_extra
+admin@piloto.local,Admin Piloto,ADMINISTRADOR,PIL-01,,,,,
+jefe@piloto.local,Jefe Taller Piloto,JEFE_TALLER,PIL-01,,,,,
+planificador@piloto.local,Planificador Piloto,PLANIFICADOR,PIL-01,,,,,
+mecanico1@piloto.local,Mecánico Uno,MECANICO,PIL-01,,Motor|Hidráulica,Día,9500,14250
+mecanico2@piloto.local,Mecánico Dos,MECANICO,PIL-01,,Eléctrico,Noche,9000,13500
+operador@piloto.local,Operador Piloto,OPERADOR,PIL-01,,,,,
+bodega@piloto.local,Bodeguero Piloto,BODEGA,PIL-01,,,,,
+compras@piloto.local,Compras Piloto,COMPRAS,PIL-01,,,,,
+gerencia@piloto.local,Gerencia Piloto,GERENCIA,PIL-01,,,,,

@@ -1,0 +1,13 @@
+faena,codigo,descripcion,unidad,stock_actual,stock_minimo,stock_maximo,criticidad,precio_ref,categoria
+PIL-01,FIL-ACE-01,Filtro de aceite motor,un,12,4,20,ALTA,18500,Filtros
+PIL-01,FIL-AIR-01,Filtro de aire primario,un,6,2,10,MEDIA,32000,Filtros
+PIL-01,ACE-15W40,Aceite motor 15W40,lt,400,100,800,ALTA,4200,Lubricantes
+PIL-01,ACE-HID-68,Aceite hidráulico 68,lt,220,60,500,MEDIA,3900,Lubricantes
+PIL-01,MAN-HID-01,Manguera hidráulica 1/2",un,5,2,8,ALTA,45000,Hidráulica
+PIL-01,PAS-FRE-01,Pastillas de freno delanteras,juego,4,2,6,ALTA,89000,Frenos
+PIL-01,NEU-295-01,Neumático 295/80R22.5,un,8,4,12,MEDIA,410000,Neumáticos
+PIL-01,COR-DEN-01,Correa dentada,un,3,1,5,BAJA,27000,Motor
+PIL-01,BAT-12V-01,Batería 12V 200Ah,un,2,1,4,MEDIA,185000,Eléctrico
+PIL-01,RET-SEL-01,Kit de sellos de cilindro,kit,3,2,6,ALTA,64000,Hidráulica
+PIL-01,GRA-EP2-01,Grasa EP2 (balde 18 kg),un,6,2,10,BAJA,78000,Lubricantes
+PIL-01,BUJ-CAL-01,Repuesto sin stock inicial,un,0,2,6,BAJA,15000,Motor

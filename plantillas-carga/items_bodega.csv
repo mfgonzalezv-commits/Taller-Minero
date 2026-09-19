@@ -1,0 +1,2 @@
+faena,codigo,descripcion,unidad,stock_actual,stock_minimo,stock_maximo,criticidad,precio_ref,categoria
+# codigo de faena,código del ítem,Descripción,un|lt|kg,DEBE ser igual a la suma de sus lotes,,,BAJA|MEDIA|ALTA,$ referencia,
