@@ -1,0 +1,97 @@
+[
+  {
+    "paso": "Jefe de faena NO prepara Estado de Pago",
+    "ok": true,
+    "detalle": "rechazado: Sin permisos para esta acción"
+  },
+  {
+    "paso": "Planificador central prepara EP SIM-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Volver a preparar mismo periodo no duplica EP",
+    "ok": false,
+    "detalle": "Ya existe un Estado de Pago preparado para este periodo"
+  },
+  {
+    "paso": "Planificador central NO aprueba",
+    "ok": true,
+    "detalle": "rechazado: Sin permisos para esta acción"
+  },
+  {
+    "paso": "Ajuste manual por central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Administrador aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Doble aprobación rechazada",
+    "ok": false,
+    "detalle": "debía ser rechazado y fue permitido"
+  },
+  {
+    "paso": "Ajuste manual sobre EP aprobado rechazado",
+    "ok": true,
+    "detalle": "rechazado: No se puede ajustar un Estado de Pago ya aprobado"
+  },
+  {
+    "paso": "Rechazar EP ya aprobado rechazado",
+    "ok": false,
+    "detalle": "debía ser rechazado y fue permitido"
+  },
+  {
+    "paso": "Preparar EP sobre periodo aprobado no lo pisa",
+    "ok": false,
+    "detalle": "Ya existe un Estado de Pago preparado para este periodo"
+  },
+  {
+    "paso": "Horómetro retrocede es advertido/rechazado",
+    "ok": false,
+    "detalle": "aceptó horómetro menor sin bloquear (equipo quedó en 500)"
+  },
+  {
+    "paso": "Horómetro absurdo (salto enorme) es advertido",
+    "ok": false,
+    "detalle": "aceptó salto de +899.500 h sin bloquear"
+  },
+  {
+    "paso": "Crear plan preventivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Generar OT preventiva 1",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Generar OT preventiva 2 (duplicado) rechazada",
+    "ok": true,
+    "detalle": "rechazado: Ya existe una OT activa para este plan"
+  },
+  {
+    "paso": "Operador NO crea plan de mantención",
+    "ok": false,
+    "detalle": "debía ser rechazado y fue permitido"
+  },
+  {
+    "paso": "Informe diario coincide con tablas fuente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Claves del informe diario",
+    "ok": true,
+    "detalle": "OT abiertas en BD=2; claves=fecha,flota,ot,bodega"
+  },
+  {
+    "paso": "Correos en cola de SIM-02 (no se envió ninguno)",
+    "ok": true,
+    "detalle": "0"
+  }
+]
