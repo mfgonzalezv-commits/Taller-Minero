@@ -1,0 +1,2 @@
+faena,equipo_codigo,fecha_inicio,fecha_termino,modalidad,tarifa,regla_descuento,politica_prorateo,contrato
+# codigo de faena,código del equipo,AAAA-MM-DD,AAAA-MM-DD (vacío = vigente),HORA|DIA|MES,$ por hora/día/mes,ej. 100%,DIAS_REALES|BASE_30 (solo MES),N° de contrato

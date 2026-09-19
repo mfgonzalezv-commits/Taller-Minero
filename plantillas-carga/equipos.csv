@@ -1,0 +1,2 @@
+faena,codigo,nombre,tipo,marca,modelo,patente,anio,costo_hora_detencion,horometro_inicial
+# codigo de faena,código del equipo,Nombre,CAMION|MAQUINARIA|LIVIANO|OTRO,,,,año,$ por hora detenido,horas actuales del horómetro

@@ -1,0 +1,2 @@
+faena,item_codigo,lote_ref,cantidad,costo_unitario,fecha_recepcion
+# codigo de faena,código del ítem,referencia única del lote (factura/guía),cantidad > 0,$ por unidad,AAAA-MM-DD
