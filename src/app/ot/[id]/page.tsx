@@ -13,6 +13,9 @@ import PrintButton from './PrintButton'
 import AnularOT from './AnularOT'
 import ValidacionOT from './ValidacionOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
+import AsignarTecnico from './AsignarTecnico'
+import EditarDiagnostico from './EditarDiagnostico'
+import { ROLES_ASIGNAR_TECNICO, ROLES_BITACORA } from '@/lib/permisos-roles'
 import Link from 'next/link'
 import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle, ArrowRight } from 'lucide-react'
 import type { OrigenFalla } from '@prisma/client'
@@ -95,9 +98,18 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
 
   if (!ot) notFound()
 
+  const tecnicosDisponibles = await prisma.tecnico.findMany({
+    where: { faenaId: ot.faenaId, disponible: true },
+    select: { id: true, especialidades: true, usuario: { select: { id: true, nombre: true } } },
+    orderBy: { usuario: { nombre: 'asc' } },
+  })
+
   const ec = ESTADO_OT_CONFIG[ot.estado]
   const pc = PRIORIDAD_CONFIG[ot.prioridad]
   const rolUsuario = session.user?.rol
+  const puedeAsignarTecnico = ROLES_ASIGNAR_TECNICO.includes(rolUsuario as never)
+  const puedeEditarDiagnostico = ROLES_BITACORA.includes(rolUsuario as never) &&
+    (rolUsuario !== 'MECANICO' || ot.tecnico?.usuarioId === session.user?.id)
   const ESTADOS_REQUIEREN_AUTORIZACION = ['DIAGNOSTICADO', 'REPARACION_PROGRAMADA', 'LISTO_PARA_REPARAR']
   const transiciones = ESTADOS_REQUIEREN_AUTORIZACION.includes(ot.estado) && rolUsuario === 'MECANICO'
     ? []
@@ -544,9 +556,29 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
                 <p className="text-sm font-medium text-white">{ot.descripcionFalla}</p>
               </div>
 
-              {/* EditarDiagnostico y AsignarTecnico (más abajo) NO se renderizan a propósito:
-                  sus Server Actions no validan rol/alcance de faena. Ver docs/REGLAS_NEGOCIO.md
-                  → "Deuda técnica documentada" para el detalle antes de volver a exponerlos. */}
+              {/* Diagnóstico + trabajo ejecutado: gestión de la faena, o el mecánico asignado a la OT. El backend lo vuelve a validar. */}
+              {puedeEditarDiagnostico && (
+                <div className="pt-4 space-y-4" style={{ borderTop: '1px solid var(--n-border)' }}>
+                  <EditarDiagnostico
+                    otId={ot.id}
+                    diagnostico={ot.diagnostico}
+                    trabajoEjecutado={ot.trabajoEjecutado}
+                    fechaInicioTrabajo={ot.fechaInicioTrabajo?.toISOString() ?? null}
+                    fechaTerminoTrabajo={ot.fechaTerminoTrabajo?.toISOString() ?? null}
+                    fechaDiagnostico={null}
+                    fechaTrabajo={null}
+                    editable={ot.estado !== 'CERRADA'}
+                    bitacora={bitacoraSerial.map(b => ({
+                      descripcion: b.descripcion,
+                      tipoIntervencion: b.tipoIntervencion,
+                      fechaHora: b.fechaHora,
+                      horaInicio: b.horaInicio,
+                      horaTermino: b.horaTermino,
+                      personal: b.personal,
+                    }))}
+                  />
+                </div>
+              )}
             </div>
 
             {checklistSerial.length > 0 && (
@@ -615,6 +647,15 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
               )
             })}
           </div>
+
+          {/* Técnico asignado: solo roles autorizados (el backend también lo exige) */}
+          {puedeAsignarTecnico && (
+            <AsignarTecnico
+              otId={ot.id}
+              tecnicoActualId={ot.tecnico?.id}
+              tecnicos={tecnicosDisponibles}
+            />
+          )}
 
         </div>
 

@@ -3,10 +3,13 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import NuevaOTForm from './NuevaOTForm'
+import { ROLES_CREAR_OT } from '@/lib/permisos-roles'
 
 export default async function NuevaOTPage({ searchParams }: { searchParams: Promise<{ equipoId?: string; tipo?: string }> }) {
   const session = await auth()
   if (!session) redirect('/login')
+  // Operador y Mecánico reportan fallas; no crean OT directamente.
+  if (!ROLES_CREAR_OT.includes(session.user?.rol as never)) redirect('/fallas')
 
   const { equipoId: equipoIdParam, tipo: tipoParam } = await searchParams
 

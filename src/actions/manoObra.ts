@@ -3,7 +3,8 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { calcularTasaOverhead } from './trabajadores'
-import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_GESTION_OT } from '@/lib/permisos-roles'
 
 async function recalcularCostoManoObra(otId: string, faenaId: string) {
   const entradas = await prisma.manoObraOT.findMany({
@@ -33,12 +34,21 @@ export async function agregarManoObra(data: {
   tarifaExtra: number
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: data.otId },
     select: { faenaId: true },
   })
   requireAlcanceFaena(sesion, ot.faenaId)
+  if (data.trabajadorId) {
+    const t = await prisma.trabajador.findUnique({ where: { id: data.trabajadorId }, select: { faenaId: true } })
+    if (!t || t.faenaId !== ot.faenaId) throw new ErrorAutorizacion('Sin permisos: el trabajador no pertenece a la faena de la OT')
+  }
+  if (data.tecnicoId) {
+    const t = await prisma.tecnico.findUnique({ where: { id: data.tecnicoId }, select: { faenaId: true } })
+    if (!t || t.faenaId !== ot.faenaId) throw new ErrorAutorizacion('Sin permisos: el técnico no pertenece a la faena de la OT')
+  }
 
   const total =
     data.horasNormales * data.tarifaNormal +
@@ -65,12 +75,15 @@ export async function agregarManoObra(data: {
 
 export async function eliminarManoObra(id: string, otId: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: otId },
     select: { faenaId: true },
   })
   requireAlcanceFaena(sesion, ot.faenaId)
+  const entrada = await prisma.manoObraOT.findUnique({ where: { id }, select: { otId: true } })
+  if (!entrada || entrada.otId !== otId) throw new ErrorAutorizacion('Sin permisos: la entrada de mano de obra no pertenece a esa OT')
 
   await prisma.manoObraOT.delete({ where: { id } })
   await recalcularCostoManoObra(otId, ot.faenaId)

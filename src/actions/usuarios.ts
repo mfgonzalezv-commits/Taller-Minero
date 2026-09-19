@@ -5,7 +5,8 @@ import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { RolUsuario } from '@prisma/client'
 import { hash } from 'bcryptjs'
-import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
+import { validarGestionUsuario } from '@/lib/permisos-roles'
 
 export async function getUsuarios() {
   const session = await auth()
@@ -26,11 +27,10 @@ export async function crearUsuario(data: {
   especialidades?: string[]
   turno?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
-  if (session.user.rol !== 'ADMINISTRADOR' && session.user.rol !== 'JEFE_TALLER') {
-    throw new Error('Sin permisos')
-  }
+  const sesion = await requireSesion()
+  const denegado = validarGestionUsuario({ actorId: sesion.userId, actorRol: sesion.rol, rolNuevo: data.rol })
+  if (denegado) throw new ErrorAutorizacion(denegado)
+  const session = { user: { faenaId: sesion.faenaId } }
 
   const passwordHash = await hash(data.password, 10)
 
@@ -76,10 +76,11 @@ export async function actualizarUsuario(id: string, data: {
   password?: string
 }) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER'])
 
-  const objetivo = await prisma.usuario.findUniqueOrThrow({ where: { id }, select: { faenaId: true } })
+  const objetivo = await prisma.usuario.findUniqueOrThrow({ where: { id }, select: { faenaId: true, rol: true } })
   requireAlcanceFaena(sesion, objetivo.faenaId)
+  const denegado = validarGestionUsuario({ actorId: sesion.userId, actorRol: sesion.rol, objetivoId: id, objetivoRolActual: objetivo.rol, rolNuevo: data.rol })
+  if (denegado) throw new ErrorAutorizacion(denegado)
 
   const updateData: Record<string, unknown> = {
     nombre: data.nombre,
@@ -130,10 +131,12 @@ export async function actualizarUsuario(id: string, data: {
 
 export async function toggleUsuarioActivo(id: string) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER'])
 
   const usuario = await prisma.usuario.findUniqueOrThrow({ where: { id } })
   requireAlcanceFaena(sesion, usuario.faenaId)
+  const denegado = validarGestionUsuario({ actorId: sesion.userId, actorRol: sesion.rol, objetivoId: id, objetivoRolActual: usuario.rol })
+  if (denegado) throw new ErrorAutorizacion(denegado)
+  if (id === sesion.userId) throw new ErrorAutorizacion('No puedes desactivarte a ti mismo')
 
   await prisma.usuario.update({
     where: { id },

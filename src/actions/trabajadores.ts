@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { TipoTrabajador } from '@prisma/client'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
 
+const ROLES_TRABAJADORES = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] as const
+
 export async function getTrabajadores() {
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
@@ -25,6 +27,7 @@ export async function crearTrabajador(data: {
   horasMensuales: number
   tasaLeyesSociales: number
 }) {
+  requireRolPermitido(await requireSesion(), [...ROLES_TRABAJADORES])
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -53,6 +56,7 @@ export async function actualizarTrabajador(id: string, data: {
   horasMensuales: number
   tasaLeyesSociales: number
 }) {
+  requireRolPermitido(await requireSesion(), [...ROLES_TRABAJADORES])
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -73,6 +77,7 @@ export async function actualizarTrabajador(id: string, data: {
 }
 
 export async function eliminarTrabajador(id: string) {
+  requireRolPermitido(await requireSesion(), [...ROLES_TRABAJADORES])
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 

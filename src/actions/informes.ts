@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { ROLES_GESTION_OT } from '@/lib/permisos-roles'
 import { encolarCorreo } from '@/lib/correo'
 
 // Informe operacional del día — flota, OT, detenciones, mantenimiento,
@@ -67,6 +68,7 @@ function formatearInformeDiario(faenaNombre: string, informe: InformeDiario): st
 // faena y para central.
 export async function enviarInformeDiario(faenaId: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
   requireAlcanceFaena(sesion, faenaId)
 
   const [faena, informe, destinatarios] = await Promise.all([
@@ -99,6 +101,7 @@ export async function crearCompromiso(data: {
   origenReunion?: string
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
   requireAlcanceFaena(sesion, data.faenaId)
 
   const compromiso = await prisma.compromiso.create({
@@ -118,6 +121,7 @@ export async function crearCompromiso(data: {
 
 export async function marcarCompromisoCumplido(compromisoId: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
   const c = await prisma.compromiso.findUniqueOrThrow({ where: { id: compromisoId } })
   requireAlcanceFaena(sesion, c.faenaId)
 

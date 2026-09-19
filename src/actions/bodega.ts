@@ -2,7 +2,12 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { requireSesion, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_CREAR_ITEM_BODEGA, ROLES_GESTION_OT } from '@/lib/permisos-roles'
+import type { Rol } from '@/lib/roles'
+
+// Movimientos de stock: gestión de la faena y BODEGA (COMPRAS solo registra entradas).
+const ROLES_MOVER_STOCK: Rol[] = [...ROLES_GESTION_OT, 'BODEGA']
 import { CriticidadItemBodega } from '@prisma/client'
 import { consumirFIFO } from '@/lib/fifo'
 
@@ -27,6 +32,7 @@ export async function crearItem(data: {
   categoria?: string
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_CREAR_ITEM_BODEGA)
 
   const item = await prisma.itemBodega.create({
     data: { ...data, faenaId: sesion.faenaId },
@@ -60,6 +66,7 @@ export async function editarItem(id: string, data: {
   categoria?: string
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_CREAR_ITEM_BODEGA)
 
   await prisma.itemBodega.update({
     where: { id, faenaId: sesion.faenaId },
@@ -92,8 +99,14 @@ export async function registrarMovimiento(data: {
 }) {
   const sesion = await requireSesion()
 
+  requireRolPermitido(sesion, data.tipo === 'ENTRADA' ? [...ROLES_MOVER_STOCK, 'COMPRAS'] : ROLES_MOVER_STOCK)
+
   const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: data.itemId } })
   requireAlcanceFaena(sesion, item.faenaId)
+  if (data.otId) {
+    const ot = await prisma.ordenTrabajo.findUnique({ where: { id: data.otId }, select: { faenaId: true } })
+    if (!ot || ot.faenaId !== item.faenaId) throw new ErrorAutorizacion('Sin permisos: la OT no pertenece a la faena del ítem')
+  }
   const stockAntes = Number(item.stockActual)
   const stockDespues =
     data.tipo === 'ENTRADA'

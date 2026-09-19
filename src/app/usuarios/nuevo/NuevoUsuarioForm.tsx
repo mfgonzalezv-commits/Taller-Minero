@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import { crearUsuario } from '@/actions/usuarios'
 import type { RolUsuario } from '@prisma/client'
 
-const ROLES: { value: RolUsuario; label: string }[] = [
+const TODOS_LOS_ROLES: { value: RolUsuario; label: string }[] = [
   { value: 'ADMINISTRADOR', label: 'Administrador' },
+  { value: 'JEFE_TALLER_CENTRAL', label: 'Jefe de Taller Central' },
+  { value: 'PLANIFICADOR_CENTRAL', label: 'Planificador Central' },
   { value: 'JEFE_TALLER', label: 'Jefe de Taller' },
   { value: 'PLANIFICADOR', label: 'Planificador' },
   { value: 'MECANICO', label: 'Mecánico' },
@@ -18,7 +20,9 @@ const ROLES: { value: RolUsuario; label: string }[] = [
 
 const ESPECIALIDADES = ['Motor', 'Hidráulica', 'Eléctrico', 'Transmisión', 'Neumáticos', 'Estructuras']
 
-export default function NuevoUsuarioForm() {
+// La lista de roles la calcula el servidor según el rol de quien crea; el backend la vuelve a imponer.
+export default function NuevoUsuarioForm({ rolesPermitidos }: { rolesPermitidos: RolUsuario[] }) {
+  const ROLES = TODOS_LOS_ROLES.filter((r) => rolesPermitidos.includes(r.value))
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -26,7 +30,7 @@ export default function NuevoUsuarioForm() {
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rol, setRol] = useState<RolUsuario>('MECANICO')
+  const [rol, setRol] = useState<RolUsuario>(rolesPermitidos.includes('MECANICO') ? 'MECANICO' : rolesPermitidos[0])
   const [turno, setTurno] = useState('')
   const [especialidades, setEspecialidades] = useState<string[]>([])
 
