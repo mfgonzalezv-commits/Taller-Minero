@@ -5,12 +5,18 @@ import { prisma } from '@/lib/prisma'
 import BodegaClient from './BodegaClient'
 import NuevoItemForm from './NuevoItemForm'
 import SolicitudesPendientes from './SolicitudesPendientes'
+import { ROLES_CREAR_ITEM_BODEGA, ROLES_GESTION_OT } from '@/lib/permisos-roles'
 
 export default async function BodegaPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
   const faena = await prisma.faena.findFirst()
+  const rol = session.user?.rol as never
+  const puedeEditar = ROLES_CREAR_ITEM_BODEGA.includes(rol)
+  const tiposMovimiento: ('ENTRADA' | 'SALIDA' | 'AJUSTE')[] = ROLES_GESTION_OT.includes(rol) || rol === ('BODEGA' as never)
+    ? ['ENTRADA', 'SALIDA', 'AJUSTE']
+    : rol === ('COMPRAS' as never) ? ['ENTRADA'] : []
 
   const [items, solicitudes] = await Promise.all([
     prisma.itemBodega.findMany({
@@ -84,10 +90,10 @@ export default async function BodegaPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <BodegaClient items={items} />
+            <BodegaClient items={items} puedeEditar={puedeEditar} tiposMovimiento={tiposMovimiento} />
           </div>
           <div>
-            <NuevoItemForm />
+            {puedeEditar && <NuevoItemForm />}
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { puedeTransicionarOT } from '@/lib/maquina-ot'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { agregarBitacora } from '@/actions/ot'
@@ -137,7 +138,9 @@ function ModalNuevaEntrada({
     setError('')
     startTransition(async () => {
       try {
-        const estadoAuto = tipoIntervencion ? ESTADO_POR_TIPO[tipoIntervencion as TipoIntervencionOT] : undefined
+        const propuesto = tipoIntervencion ? ESTADO_POR_TIPO[tipoIntervencion as TipoIntervencionOT] : undefined
+        // Solo se propone el cambio de estado si es una transición válida desde el estado actual; si no, la entrada se guarda sin cambiarlo.
+        const estadoAuto = propuesto && puedeTransicionarOT(estadoActual, propuesto) ? propuesto : undefined
         await agregarBitacora(otId, {
           fechaHora: fecha,
           horaInicio: horaInicio || undefined,
