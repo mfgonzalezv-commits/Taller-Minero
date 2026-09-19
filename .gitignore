@@ -45,3 +45,6 @@ scripts/_tmp_migracion/
 
 # Salida generada por scripts/simulacion-tres-meses.ts (esperado del periodo 3)
 /scripts/salida/
+
+# Salida de la auditoría dinámica
+/auditoria/salida/
