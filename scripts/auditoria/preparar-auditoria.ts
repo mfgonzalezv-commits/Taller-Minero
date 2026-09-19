@@ -6,7 +6,7 @@ import { createHash } from 'crypto'
 import { hash } from 'bcryptjs'
 import { prisma } from '../../src/lib/prisma'
 import { impedirEjecucionEnProduccion } from '../../src/lib/db-guard'
-import { planLimpieza } from '../../src/lib/simulacion-sim01'
+import { borrarFaenaSimulada } from './borrar-faena'
 
 impedirEjecucionEnProduccion('auditoria/preparar-auditoria (SIM-02 y usuarios por rol)')
 
@@ -39,13 +39,7 @@ async function main() {
   }
 
   // SIM-02: se recrea completa
-  const previa = await prisma.faena.findUnique({ where: { codigo: 'SIM-02' } })
-  if (previa) {
-    const db = prisma as unknown as Record<string, { deleteMany: (a: { where: unknown }) => Promise<unknown> }>
-    for (const p of planLimpieza(previa.id)) await db[p.modelo].deleteMany({ where: p.where })
-    await prisma.registroAuditoria.deleteMany({ where: { faenaId: previa.id } })
-    await prisma.faena.delete({ where: { id: previa.id } })
-  }
+  await borrarFaenaSimulada('SIM-02')
   const faenaId = id()
   await prisma.faena.create({ data: { id: faenaId, codigo: 'SIM-02', nombre: 'Faena Simulada 2 (aislamiento)', empresa: 'Empresa Ficticia S.A.', ubicacion: 'Simulación' } })
   const us = [

@@ -3,7 +3,12 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { EstadoSR } from '@prisma/client'
-import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_BITACORA, ROLES_GESTION_OT } from '@/lib/permisos-roles'
+import type { Rol } from '@/lib/roles'
+
+const ROLES_CREAR_SR: Rol[] = [...ROLES_BITACORA, 'BODEGA']
+const ROLES_GESTIONAR_SR: Rol[] = [...ROLES_GESTION_OT, 'BODEGA', 'COMPRAS']
 import { consumirFIFO } from '@/lib/fifo'
 import { encolarCorreo } from '@/lib/correo'
 
@@ -13,8 +18,14 @@ export async function crearSR(otId: string, data: {
   observacion?: string
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_CREAR_SR)
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
   requireAlcanceFaena(sesion, ot.faenaId)
+  const idsItems = data.items.map(i => i.itemBodegaId).filter((x): x is string => !!x)
+  if (idsItems.length) {
+    const propios = await prisma.itemBodega.count({ where: { id: { in: idsItems }, faenaId: ot.faenaId } })
+    if (propios !== new Set(idsItems).size) throw new ErrorAutorizacion('Sin permisos: algún ítem de bodega no pertenece a la faena de la OT')
+  }
 
   const sr = await prisma.solicitudRepuesto.create({
     data: {
@@ -59,6 +70,7 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
   fechaEstimadaLlegada?: string
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTIONAR_SR)
 
   const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({
     where: { id: srId },

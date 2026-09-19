@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { TipoEquipo, EstadoEquipo } from '@prisma/client'
-import { requireSesion, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_GESTION_OT } from '@/lib/permisos-roles'
 
 export async function getEquipos() {
   const session = await auth()
@@ -51,6 +52,7 @@ export async function crearEquipo(data: {
   ubicacionActual?: string
   costoHoraDetencion?: number
 }) {
+  requireRolPermitido(await requireSesion(), ROLES_GESTION_OT)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -75,11 +77,11 @@ export async function actualizarEquipo(id: string, data: {
   ubicacionActual?: string
   costoHoraDetencion?: number
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
-  if (session.user.rol !== 'ADMINISTRADOR' && session.user.rol !== 'JEFE_TALLER') {
-    throw new Error('Sin permisos')
-  }
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  const existente = await prisma.equipo.findUnique({ where: { id }, select: { faenaId: true } })
+  if (!existente) throw new ErrorAutorizacion('Sin permisos: el equipo no existe o pertenece a otra faena')
+  requireAlcanceFaena(sesion, existente.faenaId)
 
   const equipo = await prisma.equipo.update({
     where: { id },
@@ -100,11 +102,11 @@ export async function actualizarEquipo(id: string, data: {
 }
 
 export async function eliminarEquipo(id: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
-  if (session.user.rol !== 'ADMINISTRADOR' && session.user.rol !== 'JEFE_TALLER') {
-    throw new Error('Sin permisos')
-  }
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  const existente = await prisma.equipo.findUnique({ where: { id }, select: { faenaId: true } })
+  if (!existente) throw new ErrorAutorizacion('Sin permisos: el equipo no existe o pertenece a otra faena')
+  requireAlcanceFaena(sesion, existente.faenaId)
 
   await prisma.equipo.update({ where: { id }, data: { activo: false } })
   revalidatePath('/equipos')
@@ -112,6 +114,7 @@ export async function eliminarEquipo(id: string) {
 
 export async function actualizarEstadoEquipo(id: string, estado: EstadoEquipo) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
 
   const actual = await prisma.equipo.findUniqueOrThrow({
     where: { id },

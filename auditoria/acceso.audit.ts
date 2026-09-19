@@ -1,19 +1,23 @@
 // Fase 2: acceso y seguridad. Actores de SIM-02 (y roles bajos de SIM-01) intentan acciones sobre datos ajenos.
-import { afterAll, describe, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { prisma } from '../src/lib/prisma'
-import { guardar, probar, sesionDe } from './helpers'
+import { guardar, probar, resultados, sesionDe } from './helpers'
 import { crearUsuario, actualizarUsuario } from '../src/actions/usuarios'
 import { asignarTecnico, actualizarDiagnostico, anularOT, cambiarEstadoOT, agregarBitacora, crearOT } from '../src/actions/ot'
 import { registrarMovimiento, crearItem } from '../src/actions/bodega'
 import { crearReporteFalla } from '../src/actions/fallas'
 import { solicitarRepuesto } from '../src/actions/repuestos'
-import { actualizarEstadoEquipo } from '../src/actions/equipos'
+import { actualizarEstadoEquipo, actualizarEquipo, eliminarEquipo } from '../src/actions/equipos'
 import { registrarHorometro } from '../src/actions/horometro'
 import { getInformeDiario, crearCompromiso } from '../src/actions/informes'
 import { aprobarEstadoPago } from '../src/actions/estadoPago'
 
 describe('acceso', () => {
-  afterAll(() => guardar('acceso'))
+  afterAll(async () => {
+    await prisma.tecnico.deleteMany({ where: { usuario: { email: { startsWith: 'audit.' } } } })
+    await prisma.usuario.deleteMany({ where: { email: { startsWith: 'audit.' } } })
+    guardar('acceso')
+  })
   it('matriz de probes', async () => {
     const s1 = await prisma.faena.findUniqueOrThrow({ where: { codigo: 'SIM-01' } })
     const ot1 = await prisma.ordenTrabajo.findFirstOrThrow({ where: { faenaId: s1.id, estado: { notIn: ['CERRADA', 'ANULADA'] } } })
@@ -64,5 +68,25 @@ describe('acceso', () => {
       await P(k, s, 'crearItem (bodega)', 'propia faena', k === 'BODEGA' ? 'PERMITIDO' : 'BLOQUEADO', () => crearItem({ codigo: `AUD-${k}`, descripcion: 'AUDIT', unidad: 'un', stockActual: 0, stockMinimo: 0, precioRef: 1 }))
     }
     await P('OPERADOR', await sesionDe('operador@sim.local'), 'crearOT', 'propia faena SIM-01', 'BLOQUEADO', () => crearOT({ equipoId: eq1.id, descripcionFalla: 'AUDIT operador' }))
+
+    // D) Reglas nuevas de administración de usuarios y de vínculos entre entidades
+    await P('JEFE_TALLER', S.jefe2, 'crearUsuario PLANIFICADOR (rol de su competencia)', 'SIM-02', 'PERMITIDO', () => crearUsuario({ nombre: 'AUDIT ok', email: 'audit.ok1@sim2.local', password: 'password123', rol: 'PLANIFICADOR' }))
+    await P('JEFE_TALLER', S.jefe2, 'crearUsuario JEFE_TALLER (par)', 'SIM-02', 'BLOQUEADO', () => crearUsuario({ nombre: 'AUDIT par', email: 'audit.par@sim2.local', password: 'password123', rol: 'JEFE_TALLER' }))
+    await P('JEFE_TALLER', S.jefe2, 'autoelevarse a ADMINISTRADOR', 'usuario propio', 'BLOQUEADO', () => actualizarUsuario(S.jefe2.user.id, { nombre: 'Sim2 jefe2', email: 'jefe2@sim2.local', rol: 'ADMINISTRADOR' }))
+    const cen = await sesionDe('jefecentral@sim.local'), adm = await sesionDe('admin@sim.local')
+    await P('JEFE_TALLER_CENTRAL', cen, 'crearUsuario ADMINISTRADOR', 'SIM-01', 'BLOQUEADO', () => crearUsuario({ nombre: 'AUDIT c', email: 'audit.c1@sim.local', password: 'password123', rol: 'ADMINISTRADOR' }))
+    await P('JEFE_TALLER_CENTRAL', cen, 'crearUsuario JEFE_TALLER (rol de faena)', 'SIM-01', 'PERMITIDO', () => crearUsuario({ nombre: 'AUDIT c', email: 'audit.c2@sim.local', password: 'password123', rol: 'JEFE_TALLER' }))
+    await P('ADMINISTRADOR', adm, 'crearUsuario PLANIFICADOR_CENTRAL', 'SIM-01', 'PERMITIDO', () => crearUsuario({ nombre: 'AUDIT a', email: 'audit.a1@sim.local', password: 'password123', rol: 'PLANIFICADOR_CENTRAL' }))
+    await P('JEFE_TALLER', S.jefe2, 'asignarTecnico con técnico de otra faena', 'OT propia + técnico SIM-01', 'BLOQUEADO', () => asignarTecnico(ot2.id, tec1.id))
+    await P('MECANICO', await sesionDe('mecanico1@sim.local'), 'agregarBitacora OT de otra faena', 'SIM-01→SIM-02', 'BLOQUEADO', () => agregarBitacora(ot2.id, { descripcion: 'AUDIT' }))
+    await P('MECANICO', S.mec2, 'agregarBitacora OT donde está asignado', 'propia faena', 'PERMITIDO', () => agregarBitacora(ot2.id, { descripcion: 'AUDIT mecánico asignado' }))
+    await P('JEFE_TALLER', S.jefe2, 'registrarMovimiento con OT de otra faena', 'ítem propio + OT SIM-01', 'BLOQUEADO', async () => {
+      const item2 = await prisma.itemBodega.findFirstOrThrow({ where: { faena: { codigo: 'SIM-02' } } })
+      return registrarMovimiento({ itemId: item2.id, tipo: 'ENTRADA', cantidad: 1, otId: ot1.id })
+    })
+    await P('JEFE_TALLER', S.jefe2, 'actualizarEquipo de otra faena', `${X} equipo`, 'BLOQUEADO', () => actualizarEquipo(eq1.id, { nombre: 'AUDIT', tipo: 'MAQUINARIA' }))
+    await P('JEFE_TALLER', S.jefe2, 'eliminarEquipo de otra faena', `${X} equipo`, 'BLOQUEADO', () => eliminarEquipo(eq1.id))
+    // Regresión: ninguna prueba con resultado esperado BLOQUEADO puede quedar permitida
+    expect(resultados.filter(r => r.hallazgo), 'hallazgos abiertos: ' + JSON.stringify(resultados.filter(r => r.hallazgo).map(r => `${r.id} ${r.accion} ${r.mensaje.slice(0, 60)}`))).toEqual([])
   })
 })

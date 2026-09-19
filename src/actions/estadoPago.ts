@@ -7,6 +7,7 @@ import { calcularPeriodo } from '@/lib/periodo-pago'
 import { calcularLineaAsignacion, type LineaCalculada } from '@/lib/linea-estado-pago'
 import { ventanaEfectiva } from '@/lib/detencion-periodo'
 import { serializar } from '@/lib/serialize'
+import { admiteAjustes, puedeTransicionarEP, type EstadoEP } from '@/lib/estado-pago-maquina'
 
 // Prepara el Estado de Pago del periodo: solo arriendo, según la asignación
 // vigente de cada equipo (Fase 2) en la faena, con descuento de detenciones.
@@ -117,7 +118,7 @@ export async function agregarAjusteManual(lineaId: string, monto: number, motivo
     include: { estadoPago: true },
   })
   requireAlcanceFaena(sesion, linea.estadoPago.faenaId)
-  if (linea.estadoPago.estado === 'APROBADO') throw new Error('No se puede ajustar un Estado de Pago ya aprobado')
+  if (!admiteAjustes(linea.estadoPago.estado as EstadoEP)) throw new Error(`No se puede ajustar un Estado de Pago ${linea.estadoPago.estado.toLowerCase()}`)
 
   await prisma.$transaction([
     prisma.ajusteEstadoPagoLinea.create({
@@ -149,10 +150,13 @@ export async function aprobarEstadoPago(estadoPagoId: string) {
   const ep = await prisma.estadoPago.findUniqueOrThrow({ where: { id: estadoPagoId } })
   requireAlcanceFaena(sesion, ep.faenaId)
 
-  await prisma.estadoPago.update({
-    where: { id: estadoPagoId },
+  if (!puedeTransicionarEP(ep.estado as EstadoEP, 'APROBADO')) throw new Error(`No se puede aprobar un Estado de Pago ${ep.estado.toLowerCase()}`)
+  // Condición en el UPDATE: dos aprobaciones simultáneas no pueden pasar las dos.
+  const aprobado = await prisma.estadoPago.updateMany({
+    where: { id: estadoPagoId, estado: ep.estado },
     data: { estado: 'APROBADO', aprobadoPorId: sesion.userId, fechaAprobacion: new Date() },
   })
+  if (aprobado.count === 0) throw new Error('El Estado de Pago cambió de estado mientras se aprobaba; recarga e intenta de nuevo')
 
   await auditar({
     faenaId: ep.faenaId, entidad: 'EstadoPago', entidadId: estadoPagoId,
@@ -170,10 +174,12 @@ export async function rechazarEstadoPago(estadoPagoId: string, motivo: string) {
   const ep = await prisma.estadoPago.findUniqueOrThrow({ where: { id: estadoPagoId } })
   requireAlcanceFaena(sesion, ep.faenaId)
 
-  await prisma.estadoPago.update({
-    where: { id: estadoPagoId },
+  if (!puedeTransicionarEP(ep.estado as EstadoEP, 'RECHAZADO')) throw new Error(`No se puede rechazar un Estado de Pago ${ep.estado.toLowerCase()}`)
+  const rechazado = await prisma.estadoPago.updateMany({
+    where: { id: estadoPagoId, estado: ep.estado },
     data: { estado: 'RECHAZADO', motivoRechazo: motivo.trim() },
   })
+  if (rechazado.count === 0) throw new Error('El Estado de Pago cambió de estado mientras se rechazaba; recarga e intenta de nuevo')
 
   await auditar({
     faenaId: ep.faenaId, entidad: 'EstadoPago', entidadId: estadoPagoId,

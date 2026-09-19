@@ -7,8 +7,21 @@ import { EstadoOT, OrigenFalla, PrioridadOT, TipoIntervencionOT, TipoMantenimien
 import { TRANSICIONES_OT } from '@/lib/constants'
 import { calcularTasaOverhead } from './trabajadores'
 import { crearChecklistDesdePauta } from './pautas'
-import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion, type SesionAutenticada } from '@/lib/authz'
+import { ROLES_ASIGNAR_TECNICO, ROLES_BITACORA, ROLES_CREAR_OT, ROLES_GESTION_OT } from '@/lib/permisos-roles'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
+// Bitácora/diagnóstico: roles de gestión de la faena de la OT; un MECANICO solo si es el técnico asignado.
+async function requireAccesoBitacoraOT(sesion: SesionAutenticada, otId: string) {
+  requireRolPermitido(sesion, ROLES_BITACORA)
+  const ot = await prisma.ordenTrabajo.findUnique({ where: { id: otId }, include: { tecnico: { select: { usuarioId: true } } } })
+  if (!ot) throw new ErrorAutorizacion('Sin permisos: la OT no existe o pertenece a otra faena')
+  requireAlcanceFaena(sesion, ot.faenaId)
+  if (sesion.rol === 'MECANICO' && ot.tecnico?.usuarioId !== sesion.userId) {
+    throw new ErrorAutorizacion('Sin permisos: el mecánico solo puede intervenir OT que tiene asignadas')
+  }
+  return ot
+}
+
 // TRANSICIONES_OT se mantiene solo para los botones rápidos del header — la bitácora no tiene restricciones
 
 export async function getOTs(filtros?: { estado?: EstadoOT; equipoId?: string }) {
@@ -61,11 +74,13 @@ export async function crearOT(data: {
   cicloPM?: number
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_CREAR_OT)
 
-  const equipo = await prisma.equipo.findUniqueOrThrow({
+  const equipo = await prisma.equipo.findFirst({
     where: { id: data.equipoId, faenaId: sesion.faenaId },
     select: { costoHoraDetencion: true, horometroActual: true },
   })
+  if (!equipo) throw new ErrorAutorizacion('Sin permisos: el equipo no existe o pertenece a otra faena')
 
   if ((data.tipoMantenimiento ?? 'CORRECTIVO') === 'PREVENTIVO' && (await hayOTPreventivaActiva(data.equipoId))) {
     throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
@@ -135,13 +150,16 @@ export async function crearOT(data: {
 }
 
 export async function asignarTecnico(otId: string, tecnicoId: string) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_ASIGNAR_TECNICO)
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: otId },
     include: { historial: { orderBy: { fechaCambio: 'desc' }, take: 1 } },
   })
+  requireAlcanceFaena(sesion, ot.faenaId)
+  const tecnico = await prisma.tecnico.findUnique({ where: { id: tecnicoId }, select: { faenaId: true } })
+  if (!tecnico || tecnico.faenaId !== ot.faenaId) throw new ErrorAutorizacion('Sin permisos: el técnico no pertenece a la faena de la OT')
   const iniciarDiagnostico = ot.estado === 'ABIERTA' || ot.estado === 'PROGRAMADA'
   const ahora = new Date()
   const inicioEstadoActual = ot.historial[0]?.fechaCambio ?? ot.fechaCreacion
@@ -158,10 +176,10 @@ export async function asignarTecnico(otId: string, tecnicoId: string) {
       prisma.historialEstadoOT.create({
         data: {
           otId,
-          faenaId: session.user.faenaId,
+          faenaId: ot.faenaId,
           estadoAnterior: ot.estado,
           estadoNuevo: 'EN_DIAGNOSTICO',
-          usuarioId: session.user.id,
+          usuarioId: sesion.userId,
           observacion: 'Mecánico asignado — inicio diagnóstico',
           tiempoEnEstadoMin: Math.round((ahora.getTime() - inicioEstadoActual.getTime()) / 60000),
         },
@@ -184,8 +202,11 @@ export async function getTecnicosDisponibles() {
 }
 
 export async function actualizarManoObra(otId: string, costoManoObra: number) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
+  const ot = await prisma.ordenTrabajo.findUnique({ where: { id: otId }, select: { faenaId: true } })
+  if (!ot) throw new ErrorAutorizacion('Sin permisos: la OT no existe o pertenece a otra faena')
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   await prisma.ordenTrabajo.update({
     where: { id: otId },
@@ -203,9 +224,10 @@ export async function actualizarDiagnostico(data: {
   fechaTerminoTrabajo?: string
 }) {
   const sesion = await requireSesion()
+  const ot = await requireAccesoBitacoraOT(sesion, data.otId)
 
   await prisma.ordenTrabajo.update({
-    where: { id: data.otId, faenaId: sesion.faenaId },
+    where: { id: ot.id },
     data: {
       diagnostico: data.diagnostico || null,
       trabajoEjecutado: data.trabajoEjecutado || null,
@@ -353,8 +375,11 @@ export async function actualizarOrigenFalla(otId: string, data: {
   origenFalla?: OrigenFalla | null
   reportadaPorNombre?: string | null
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_GESTION_OT)
+  const ot = await prisma.ordenTrabajo.findUnique({ where: { id: otId }, select: { faenaId: true } })
+  if (!ot) throw new ErrorAutorizacion('Sin permisos: la OT no existe o pertenece a otra faena')
+  requireAlcanceFaena(sesion, ot.faenaId)
 
   await prisma.ordenTrabajo.update({
     where: { id: otId },
@@ -379,10 +404,9 @@ export async function agregarBitacora(otId: string, data: {
   setEspera?: boolean
   repuestos?: { descripcion: string; cantidad: number; unidad: string; itemBodegaId?: string }[]
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
-
-  const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId } })
+  const sesion = await requireSesion()
+  const ot = await requireAccesoBitacoraOT(sesion, otId)
+  if (data.estado === 'CERRADA' || data.estado === 'ANULADA') requireRolPermitido(sesion, ROLES_GESTION_OT)
   const ahora = new Date()
 
   const otUpdate: Record<string, unknown> = {}
@@ -400,8 +424,8 @@ export async function agregarBitacora(otId: string, data: {
   if (data.setEspera !== undefined) otUpdate.enEsperaRepuesto = data.setEspera
   if (data.repuestos?.length) otUpdate.enEsperaRepuesto = true
 
-  const usuarioId = session.user!.id
-  const faenaId = session.user!.faenaId!
+  const usuarioId = sesion.userId
+  const faenaId = ot.faenaId
 
   // Usamos transacción callback para obtener el ID de la entrada creada
   await prisma.$transaction(async (tx) => {
@@ -457,7 +481,7 @@ export async function agregarBitacora(otId: string, data: {
     const horasTotales = Math.max(0, (hFin * 60 + mFin - (hIni * 60 + mIni)) / 60)
     if (horasTotales > 0) {
       const trabajadores = await prisma.trabajador.findMany({
-        where: { faenaId: session.user.faenaId!, nombre: { in: data.personal }, activo: true },
+        where: { faenaId: ot.faenaId, nombre: { in: data.personal }, activo: true },
         select: { id: true, nombre: true, sueldoBruto: true, horasMensuales: true, tasaLeyesSociales: true },
       })
       for (const nombre of data.personal) {
@@ -468,7 +492,7 @@ export async function agregarBitacora(otId: string, data: {
         await prisma.manoObraOT.create({
           data: {
             otId,
-            faenaId: session.user.faenaId!,
+            faenaId: ot.faenaId,
             nombre,
             trabajadorId: t?.id ?? null,
             horasNormales: horasTotales,
@@ -485,7 +509,7 @@ export async function agregarBitacora(otId: string, data: {
       })
       const costoManoObra = entradas.reduce((a, e) => a + Number(e.total), 0)
       const totalHoras = entradas.reduce((a, e) => a + Number(e.horasNormales) + Number(e.horasExtra), 0)
-      const tasaOverhead = await calcularTasaOverhead(session.user.faenaId!)
+      const tasaOverhead = await calcularTasaOverhead(ot.faenaId)
       const costoOverhead = Math.round(totalHoras * tasaOverhead)
       await prisma.ordenTrabajo.update({ where: { id: otId }, data: { costoManoObra, costoOverhead } })
     }
@@ -557,15 +581,17 @@ export async function anularOT(otId: string, motivo: string) {
 }
 
 export async function toggleChecklistItem(itemId: string, completado: boolean) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  const existente = await prisma.checklistItemOT.findUnique({ where: { id: itemId }, select: { otId: true } })
+  if (!existente) throw new ErrorAutorizacion('Sin permisos: el ítem no existe o pertenece a otra faena')
+  await requireAccesoBitacoraOT(sesion, existente.otId)
 
   const item = await prisma.checklistItemOT.update({
     where: { id: itemId },
     data: {
       completado,
       completadoAt: completado ? new Date() : null,
-      completadoPor: completado ? session.user.id : null,
+      completadoPor: completado ? sesion.userId : null,
     },
     select: { otId: true },
   })

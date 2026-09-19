@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
-import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_BITACORA, ROLES_CREAR_PLAN } from '@/lib/permisos-roles'
 
 export type EstadoPM = 'VENCIDA' | 'PROXIMA' | 'OT_ACTIVA' | 'OK'
 
@@ -111,6 +112,7 @@ export async function getPautasDisponibles() {
 }
 
 export async function vincularPautaEquipo(equipoId: string, pautaId: string | null) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
   await prisma.equipo.update({
@@ -137,6 +139,7 @@ export async function getPautaEquipo(equipoId: string) {
 
 export async function crearChecklistDesdePauta(otId: string, pautaId: string, ciclo: number) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_CREAR_PLAN)
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
   requireAlcanceFaena(sesion, ot.faenaId)
 
@@ -192,6 +195,7 @@ export async function programarPM(data: {
   fechaPlanificada: string
   observacion?: string
 }) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
 
@@ -246,8 +250,12 @@ export async function marcarChecklistItem(
   resultado: 'OK' | 'NA' | 'OBSERVACION',
   observacion?: string
 ) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_BITACORA)
+  const existente = await prisma.checklistItemOT.findUnique({ where: { id: itemId }, select: { ot: { select: { faenaId: true, tecnico: { select: { usuarioId: true } } } } } })
+  if (!existente) throw new ErrorAutorizacion('Sin permisos: el ítem no existe o pertenece a otra faena')
+  requireAlcanceFaena(sesion, existente.ot.faenaId)
+  if (sesion.rol === 'MECANICO' && existente.ot.tecnico?.usuarioId !== sesion.userId) throw new ErrorAutorizacion('Sin permisos: el mecánico solo puede intervenir OT que tiene asignadas')
 
   await prisma.checklistItemOT.update({
     where: { id: itemId },
@@ -256,7 +264,7 @@ export async function marcarChecklistItem(
       resultado,
       observacion: observacion || null,
       completadoAt: new Date(),
-      completadoPor: session.user.id,
+      completadoPor: sesion.userId,
     },
   })
 }

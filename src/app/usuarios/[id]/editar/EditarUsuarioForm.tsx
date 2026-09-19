@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import { actualizarUsuario } from '@/actions/usuarios'
 import type { RolUsuario } from '@prisma/client'
 
-const ROLES: { value: RolUsuario; label: string }[] = [
+const TODOS_LOS_ROLES: { value: RolUsuario; label: string }[] = [
   { value: 'ADMINISTRADOR', label: 'Administrador' },
+  { value: 'JEFE_TALLER_CENTRAL', label: 'Jefe de Taller Central' },
+  { value: 'PLANIFICADOR_CENTRAL', label: 'Planificador Central' },
   { value: 'JEFE_TALLER', label: 'Jefe de Taller' },
   { value: 'PLANIFICADOR', label: 'Planificador' },
   { value: 'MECANICO', label: 'Mecánico' },
@@ -23,7 +25,9 @@ type Usuario = {
   tecnico: { especialidades: string[]; turno: string | null } | null
 }
 
-export default function EditarUsuarioForm({ usuario }: { usuario: Usuario }) {
+// La lista de roles la calcula el servidor según el rol de quien edita; el backend la vuelve a imponer.
+export default function EditarUsuarioForm({ usuario, rolesPermitidos }: { usuario: Usuario; rolesPermitidos: RolUsuario[] }) {
+  const ROLES = TODOS_LOS_ROLES.filter((r) => rolesPermitidos.includes(r.value))
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')

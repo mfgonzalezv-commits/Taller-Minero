@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { CriticidadInspeccion, ResultadoItem, TurnoInspeccion } from '@prisma/client'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { ROLES_CREAR_PLAN, ROLES_CREAR_OT } from '@/lib/permisos-roles'
 
 // ─── Plantillas ───────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ export async function crearPlantilla(data: {
   nombre: string
   items: { categoria: string; descripcion: string; criticidadBase: CriticidadInspeccion; orden: number }[]
 }) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -58,6 +60,7 @@ export async function crearPlantilla(data: {
 }
 
 export async function eliminarPlantilla(id: string) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -189,6 +192,7 @@ export async function getAlertas(soloActivas = true) {
 }
 
 export async function actualizarEstadoAlerta(alertaId: string, estado: 'EN_PROCESO' | 'RESUELTA' | 'DESCARTADA') {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -204,6 +208,7 @@ export async function actualizarEstadoAlerta(alertaId: string, estado: 'EN_PROCE
 }
 
 export async function generarOTDesdeAlerta(alertaId: string) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_OT)
   const session = await auth()
   if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
 

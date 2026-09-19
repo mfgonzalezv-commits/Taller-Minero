@@ -13,7 +13,7 @@ export async function sesionDe(email: string) {
 }
 export const como = (s: unknown) => { (globalThis as { __SESION?: unknown }).__SESION = s }
 
-const BLOQ = /Sin permisos|Sin sesión|otra faena|no autorizad/i
+const BLOQ = /Sin permisos|Sin sesión|otra faena|no autorizad|propio rol|No puedes|no pertenece/i
 export async function probar(p: { id: string; actor: string; sesion: Awaited<ReturnType<typeof sesionDe>>; accion: string; objetivo: string; esperado: 'BLOQUEADO' | 'PERMITIDO'; fn: () => Promise<unknown> }) {
   como(p.sesion)
   let veredicto: Veredicto = 'PERMITIDO', mensaje = 'ok'

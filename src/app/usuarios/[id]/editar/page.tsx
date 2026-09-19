@@ -5,17 +5,20 @@ import { getUsuarioById } from '@/actions/usuarios'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import EditarUsuarioForm from './EditarUsuarioForm'
+import { rolesAdministrables } from '@/lib/permisos-roles'
+import type { Rol } from '@/lib/roles'
 
 export default async function EditarUsuarioPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) redirect('/login')
-  if (session.user?.rol !== 'ADMINISTRADOR' && session.user?.rol !== 'JEFE_TALLER') {
-    redirect('/usuarios')
-  }
+  const rolesPermitidos = rolesAdministrables(session.user?.rol as Rol)
+  if (rolesPermitidos.length === 0) redirect('/usuarios')
 
   const { id } = await params
   const usuario = await getUsuarioById(id)
   if (!usuario) notFound()
+  // Un usuario cuyo rol el actor no puede administrar (p. ej. un Jefe editando a otro Jefe) no se edita.
+  if (!rolesPermitidos.includes(usuario.rol as Rol)) redirect('/usuarios')
 
   return (
     <AppShell>
@@ -28,7 +31,7 @@ export default async function EditarUsuarioPage({ params }: { params: Promise<{ 
       <h1 className="text-2xl font-black text-white uppercase tracking-tight mb-6">Editar usuario</h1>
 
       <div className="max-w-xl">
-        <EditarUsuarioForm usuario={usuario} />
+        <EditarUsuarioForm usuario={usuario} rolesPermitidos={rolesPermitidos as never} />
       </div>
     </AppShell>
   )

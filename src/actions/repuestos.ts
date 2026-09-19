@@ -2,7 +2,19 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { requireSesion, requireAlcanceFaena } from '@/lib/authz'
+import { requireSesion, requireAlcanceFaena, requireRolPermitido, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_AUTORIZAR_REPUESTO } from '@/lib/permisos-roles'
+import type { Rol } from '@/lib/roles'
+
+// Quién mueve stock hacia una OT: gestión de la faena o BODEGA.
+const ROLES_ENTREGA: Rol[] = [...ROLES_AUTORIZAR_REPUESTO, 'BODEGA']
+const ROLES_RECEPCION_COMPRAS: Rol[] = [...ROLES_ENTREGA, 'COMPRAS']
+
+// El ítem de bodega debe ser de la misma faena que la OT/solicitud (aunque el actor tenga alcance central).
+async function requireItemDeFaena(itemId: string, faenaId: string) {
+  const item = await prisma.itemBodega.findUnique({ where: { id: itemId }, select: { faenaId: true } })
+  if (!item || item.faenaId !== faenaId) throw new ErrorAutorizacion('Sin permisos: el ítem de bodega no pertenece a la faena de la OT')
+}
 
 // Solicitud a bodega — sin descontar stock, queda pendiente
 export async function solicitarRepuesto(data: {
@@ -15,6 +27,7 @@ export async function solicitarRepuesto(data: {
   const sesion = await requireSesion()
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: data.otId }, select: { faenaId: true } })
   requireAlcanceFaena(sesion, ot.faenaId)
+  if (data.itemBodegaId) await requireItemDeFaena(data.itemBodegaId, ot.faenaId)
 
   await prisma.$transaction([
     prisma.repuestoOT.create({
@@ -59,6 +72,7 @@ export async function agregarRepuesto(data: {
   itemBodegaId?: string
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_ENTREGA)
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: data.otId }, select: { faenaId: true } })
   requireAlcanceFaena(sesion, ot.faenaId)
 
@@ -67,6 +81,7 @@ export async function agregarRepuesto(data: {
   if (data.itemBodegaId) {
     const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: data.itemBodegaId } })
     requireAlcanceFaena(sesion, item.faenaId)
+    await requireItemDeFaena(data.itemBodegaId, ot.faenaId)
     const stockAntes = Number(item.stockActual)
     const stockDespues = stockAntes - data.cantidad
 
@@ -143,6 +158,7 @@ export async function agregarRepuesto(data: {
 // Jefe/Planificador autoriza una solicitud de repuesto
 export async function autorizarSolicitud(repuestoId: string, otId: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_AUTORIZAR_REPUESTO)
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
   requireAlcanceFaena(sesion, repuesto.faenaId)
@@ -169,6 +185,7 @@ export async function autorizarSolicitud(repuestoId: string, otId: string) {
 // Jefe/Planificador rechaza una solicitud de repuesto
 export async function rechazarSolicitud(repuestoId: string, otId: string, motivo?: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_AUTORIZAR_REPUESTO)
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
   requireAlcanceFaena(sesion, repuesto.faenaId)
@@ -195,6 +212,7 @@ export async function rechazarSolicitud(repuestoId: string, otId: string, motivo
 // Bodega deriva a Compras por falta de stock
 export async function derivarACompras(repuestoId: string, otId: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_ENTREGA)
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
   requireAlcanceFaena(sesion, repuesto.faenaId)
@@ -221,6 +239,7 @@ export async function derivarACompras(repuestoId: string, otId: string) {
 // Bodega recibe el stock de Compras — vuelve a AUTORIZADO para ser entregado
 export async function recibirDeCompras(repuestoId: string, otId: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_RECEPCION_COMPRAS)
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
   requireAlcanceFaena(sesion, repuesto.faenaId)
@@ -252,6 +271,7 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
   destinoResto?: 'BODEGA_CENTRAL' | 'COMPRAS'
 }) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_ENTREGA)
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id: repuestoId } })
   requireAlcanceFaena(sesion, repuesto.faenaId)
@@ -292,6 +312,7 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
   if (bodegaId) {
     const item = await prisma.itemBodega.findUniqueOrThrow({ where: { id: bodegaId } })
     requireAlcanceFaena(sesion, item.faenaId)
+    await requireItemDeFaena(bodegaId, repuesto.faenaId)
     const stockAntes = Number(item.stockActual)
     const stockDespues = stockAntes - cantEntregada
     ops.push(
@@ -338,6 +359,7 @@ export async function entregarSolicitud(repuestoId: string, otId: string, data: 
 
 export async function eliminarRepuesto(id: string, otId: string) {
   const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_AUTORIZAR_REPUESTO)
 
   const repuesto = await prisma.repuestoOT.findUniqueOrThrow({ where: { id } })
   requireAlcanceFaena(sesion, repuesto.faenaId)

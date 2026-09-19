@@ -114,27 +114,23 @@ aquí en el mismo PR, no solo en el código.
   `risk:low`, porque cambia qué datos ve cada usuario.
 - Dependencias con vulnerabilidades conocidas (`next`, `next-auth`, `prisma`, `vitest`) no se
   han actualizado — requieren su propia tanda de pruebas dedicada (ver `npm audit`).
-- **`AsignarTecnico` y `EditarDiagnostico` (`src/app/ot/[id]/`) existen como componentes
-  completos pero deliberadamente NO están renderizados en `src/app/ot/[id]/page.tsx`**
-  (revisión de Codex, 2026-09-18, sobre PR de mejoras frontend). Bloqueo de seguridad
-  detectado antes de exponerlos en pantalla:
-  - `asignarTecnico()` (`src/actions/ot.ts`) no valida rol del usuario que llama ni que el
-    técnico pertenezca a la misma faena de la OT — cualquier usuario autenticado podría
-    asignar cualquier técnico a cualquier OT.
-  - `actualizarDiagnostico()` (`src/actions/ot.ts`) valida `requireSesion()` y aislamiento de
-    faena, pero no define qué roles pueden editar diagnóstico/trabajo ejecutado de una OT.
-  - Ninguno de los dos se corrigió en el PR de frontend porque es `risk:low` (solo UI) y no
-    puede tocar Server Actions/RBAC. Corregir estas dos funciones y luego volver a exponer
-    los componentes en la ficha de OT debe hacerse en un PR `risk:high` aparte, auditado por
-    Codex antes de fusionar.
-- **Los selectores de rol en `/usuarios/nuevo` y `/usuarios/[id]/editar` no ofrecen
-  `JEFE_TALLER_CENTRAL` ni `PLANIFICADOR_CENTRAL`** (revertido tras revisión de Codex,
-  2026-09-18). Motivo: `crearUsuario()` y `actualizarUsuario()` (`src/actions/usuarios.ts`)
-  solo validan que quien llama sea `ADMINISTRADOR`/`JEFE_TALLER` — no restringen qué
-  `RolUsuario` se le puede asignar al usuario nuevo/editado. Con el selector completo, un
-  `JEFE_TALLER` (alcance de una sola faena) podría haberse asignado a sí mismo o a otro
-  usuario un rol de alcance central. La administración segura de creación de roles centrales
-  debe resolverse en un PR `risk:high` aparte (validar en la Server Action quién puede
-  otorgar qué rol, no solo en el formulario). Las etiquetas de estos roles siguen existiendo
-  donde son puramente informativas (`TopBar.tsx`, listado de `/usuarios`) porque ahí solo
-  muestran el rol de un usuario ya existente, no permiten asignarlo.
+- **Resuelto (PR de seguridad `fix/seguridad-roles-faena`):** `AsignarTecnico` y
+  `EditarDiagnostico` vuelven a la ficha de OT, con sus Server Actions protegidas (rol, faena
+  de la OT y faena del técnico). Los selectores de rol de `/usuarios` muestran solo los roles
+  que el usuario actual puede otorgar, y el backend lo impone (`src/lib/permisos-roles.ts`).
+- **Pendiente de negocio:** un Estado de Pago RECHAZADO es terminal y el periodo ya tiene su
+  registro (restricción única faena+periodo), así que hoy no puede volver a prepararse. Hace
+  falta un procedimiento de reemplazo/anulación con motivo, documento reemplazante y auditoría.
+
+## Matriz de roles (decisión definitiva, implementada en `src/lib/permisos-roles.ts`)
+
+| Acción | Roles |
+|---|---|
+| Asignar técnico, crear OT, autorizar solicitudes de repuesto, crear planes de mantención | ADMINISTRADOR, JEFE_TALLER_CENTRAL, PLANIFICADOR_CENTRAL, JEFE_TALLER, PLANIFICADOR |
+| Bitácora y diagnóstico | Los anteriores + MECANICO solo si está asignado a la OT (misma faena) |
+| Crear/editar ítems del maestro de bodega | ADMINISTRADOR, BODEGA |
+| Otorgar ADMINISTRADOR, roles centrales, GERENCIA | Solo ADMINISTRADOR |
+| Administrar usuarios de faena | JEFE_TALLER_CENTRAL (todos los roles de faena); JEFE_TALLER (PLANIFICADOR, MECANICO, BODEGA, COMPRAS, OPERADOR, solo su faena) |
+| Estado de Pago | PREPARADO → APROBADO o RECHAZADO; ambos terminales |
+
+OPERADOR y MECANICO reportan fallas; no crean OT. Nadie eleva su propio rol.

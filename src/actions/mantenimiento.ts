@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { ROLES_CREAR_PLAN, ROLES_BITACORA } from '@/lib/permisos-roles'
 
 // ─── Ciclos ──────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ export async function crearCiclo(data: {
   nombre: string
   descripcion?: string
 }) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -63,6 +65,7 @@ export async function crearCiclo(data: {
 }
 
 export async function eliminarCiclo(id: string) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -176,6 +179,7 @@ export async function crearPlan(data: {
   intervaloDias?: number
   tareas?: { descripcion: string; obligatorio: boolean }[]
 }) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
   if (!data.intervaloHoras && !data.intervaloKm && !data.intervaloDias) {
@@ -227,6 +231,7 @@ export async function crearPlan(data: {
 }
 
 export async function programarParada(planId: string, fechaProgramada: string) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -269,6 +274,7 @@ export async function postergarPlan(planId: string, nuevaFecha: string, motivo: 
 }
 
 export async function generarOT(planId: string) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
 
@@ -326,6 +332,7 @@ export async function generarOT(planId: string) {
 }
 
 export async function registrarEjecucion(planId: string, observacion?: string) {
+  requireRolPermitido(await requireSesion(), ROLES_BITACORA)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -376,6 +383,7 @@ export async function registrarEjecucion(planId: string, observacion?: string) {
 }
 
 export async function eliminarPlan(id: string) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
@@ -399,6 +407,7 @@ export async function importarPauta(data: {
   cicloNombre: string
   filas: FilaTareaImport[]
 }) {
+  requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
 
