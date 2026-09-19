@@ -1,5 +1,5 @@
 // Fases 4, 6 y 7: mantenimiento, Estado de Pago, horómetro y reportes en SIM-02.
-import { afterAll, describe, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { prisma } from '../src/lib/prisma'
@@ -44,28 +44,21 @@ describe('costos, mantención y reportes SIM-02', () => {
       return Math.abs(bruto - desc - neto) < 1 && neto <= bruto ? null : `neto ${neto} != bruto ${bruto} - desc ${desc}`
     })
     const ep = await prisma.estadoPago.findFirst({ where: { faenaId: faena.id }, include: { lineas: true } })
-    await paso('Volver a preparar mismo periodo no duplica EP', central, () => prepararEstadoPago(faena.id, '2026-09-19'), async () => {
-      const n = await prisma.estadoPago.count({ where: { faenaId: faena.id } })
-      return n === 1 ? null : `${n} EP para el mismo periodo`
-    })
+    await paso('Volver a preparar mismo periodo se rechaza', central, () => prepararEstadoPago(faena.id, '2026-09-19'), undefined, true)
     await paso('Planificador central NO aprueba', central, () => aprobarEstadoPago(ep!.id), undefined, true)
     await paso('Ajuste manual por central', central, () => agregarAjusteManual(ep!.lineas[0].id, -1000, 'AUDIT ajuste'))
     await paso('Administrador aprueba', admin, () => aprobarEstadoPago(ep!.id))
     await paso('Doble aprobación rechazada', admin, () => aprobarEstadoPago(ep!.id), undefined, true)
     await paso('Ajuste manual sobre EP aprobado rechazado', central, () => agregarAjusteManual(ep!.lineas[0].id, -1000, 'AUDIT post-aprobación'), undefined, true)
     await paso('Rechazar EP ya aprobado rechazado', admin, () => rechazarEstadoPago(ep!.id, 'AUDIT'), undefined, true)
-    await paso('Preparar EP sobre periodo aprobado no lo pisa', central, () => prepararEstadoPago(faena.id, '2026-09-19'), async () => {
-      const e = await prisma.estadoPago.findUniqueOrThrow({ where: { id: ep!.id } }); return e.estado === 'APROBADO' ? null : `EP aprobado cambió a ${e.estado}`
-    })
+    await paso('Preparar EP sobre periodo aprobado se rechaza', central, () => prepararEstadoPago(faena.id, '2026-09-19'), undefined, true)
 
     // Horómetro
-    await paso('Horómetro retrocede es advertido/rechazado', op, () => registrarHorometro(cast({ equipoId: eq.id, horometro: 500 })), async () => {
+    await paso('Horómetro normal 1001', op, () => registrarHorometro(cast({ equipoId: eq.id, horometro: 1001 })))
+    await paso('Horómetro menor a la anterior se bloquea', op, () => registrarHorometro(cast({ equipoId: eq.id, horometro: 500 })), undefined, true)
+    await paso('Horómetro con salto enorme queda pendiente y no cambia el equipo', op, () => registrarHorometro(cast({ equipoId: eq.id, horometro: 900000 })), async () => {
       const e = await prisma.equipo.findUniqueOrThrow({ where: { id: eq.id } })
-      return Number(e.horometroActual) === 500 ? 'aceptó horómetro menor sin bloquear (equipo quedó en 500)' : null
-    })
-    await paso('Horómetro absurdo (salto enorme) es advertido', op, () => registrarHorometro(cast({ equipoId: eq.id, horometro: 900000 })), async () => {
-      const e = await prisma.equipo.findUniqueOrThrow({ where: { id: eq.id } })
-      return Number(e.horometroActual) === 900000 ? 'aceptó salto de +899.500 h sin bloquear' : null
+      return Number(e.horometroActual) === 900000 ? 'usó un salto de +899.000 h sin confirmar' : null
     })
 
     // Mantención: preventivo duplicado
@@ -82,5 +75,6 @@ describe('costos, mantención y reportes SIM-02', () => {
     pasos.push({ paso: 'Claves del informe diario', ok: true, detalle: `OT abiertas en BD=${abiertas}; claves=${Object.keys(inf).join(',')}` })
     const cola = await prisma.correoSaliente.count({ where: { faenaId: faena.id } }).catch(() => -1)
     pasos.push({ paso: 'Correos en cola de SIM-02 (no se envió ninguno)', ok: true, detalle: String(cola) })
+    expect(pasos.filter(p => !p.ok), JSON.stringify(pasos.filter(p => !p.ok))).toEqual([])
   })
 })
