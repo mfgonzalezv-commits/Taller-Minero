@@ -57,7 +57,7 @@ export async function ejecutarMonitoreo(prisma: PrismaClient, o: OpcionesMonitor
   })
 
   // 5. Intentos rechazados por permisos
-  const denegados = await prisma.registroAuditoria.findMany({ where: { ...fw, accion: 'DENEGADO', createdAt: { gte: new Date(ahora.getTime() - diasPerm * DIA) } }, select: { motivo: true, valorNuevo: true, usuario: { select: { email: true } } } })
+  const denegados = await prisma.registroAuditoria.findMany({ where: { ...fw, accion: 'DENEGADO', createdAt: { gte: new Date(ahora.getTime() - diasPerm * DIA) } }, take: 5000, orderBy: { createdAt: 'desc' }, select: { motivo: true, valorNuevo: true, usuario: { select: { email: true } } } })
   const agrupado = new Map<string, { n: number; email: string; rol: string; motivo: string }>()
   for (const d of denegados) {
     const rol = String((d.valorNuevo as { rol?: string } | null)?.rol ?? '?'), email = d.usuario?.email ?? '?'

@@ -26,6 +26,10 @@ async function main() {
   const i = (n: string) => { const k = process.argv.indexOf(n); return k >= 0 ? process.argv[k + 1] : undefined }
   const snap = i('--snapshot'), ver = i('--verificar')
   if (!snap && !ver) { console.error('Uso: --snapshot <archivo.json>  |  --verificar <archivo.json>'); process.exit(1) }
+  if (ver && nombreBaseDesdeUrl(process.env.DATABASE_URL) === 'erp_minera') {
+    console.error('🚫 --verificar debe apuntar a la RAMA RESTAURADA, no a producción (erp_minera): la comparación no probaría nada.')
+    process.exit(1)
+  }
   const f = await foto()
   if (snap) { fs.writeFileSync(snap, JSON.stringify(f, null, 2)); console.log(`Snapshot de "${f.base}" guardado en ${snap}`); console.log(JSON.stringify(f.conteos)); return }
   const esperado = JSON.parse(fs.readFileSync(ver as string, 'utf8')) as typeof f
