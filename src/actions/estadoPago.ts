@@ -6,6 +6,7 @@ import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from
 import { calcularPeriodo } from '@/lib/periodo-pago'
 import { calcularLineaAsignacion, type LineaCalculada } from '@/lib/linea-estado-pago'
 import { ventanaEfectiva } from '@/lib/detencion-periodo'
+import { serializar } from '@/lib/serialize'
 
 // Prepara el Estado de Pago del periodo: solo arriendo, según la asignación
 // vigente de cada equipo (Fase 2) en la faena, con descuento de detenciones.
@@ -184,7 +185,7 @@ export async function rechazarEstadoPago(estadoPagoId: string, motivo: string) {
 
 export async function getEstadosPago() {
   const sesion = await requireSesion()
-  return prisma.estadoPago.findMany({
+  const estados = await prisma.estadoPago.findMany({
     where: { faenaId: sesion.faenaId },
     include: {
       lineas: { include: { equipo: { select: { codigo: true, nombre: true } } } },
@@ -193,6 +194,7 @@ export async function getEstadosPago() {
     },
     orderBy: { periodoInicio: 'desc' },
   })
+  return serializar(estados)
 }
 
 export async function getEstadoPagoDetalle(id: string) {
@@ -212,5 +214,5 @@ export async function getEstadoPagoDetalle(id: string) {
     },
   })
   requireAlcanceFaena(sesion, ep.faenaId)
-  return ep
+  return serializar(ep)
 }
