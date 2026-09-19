@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { crearInspeccion } from '@/actions/inspeccion'
 import { CheckCircle, AlertTriangle, AlertOctagon, Info, ChevronDown, ChevronUp } from 'lucide-react'
@@ -40,6 +40,7 @@ export default function InspeccionForm({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
+  const claveRef = useRef<string>(crypto.randomUUID())
   const [equipoId, setEquipoId] = useState('')
   const [plantillaId, setPlantillaId] = useState('')
   const [turno, setTurno] = useState<'MAÑANA' | 'TARDE' | 'NOCHE'>('MAÑANA')
@@ -91,6 +92,7 @@ export default function InspeccionForm({
     startTransition(async () => {
       try {
         const res = await crearInspeccion({
+          claveIdempotencia: claveRef.current,
           equipoId,
           plantillaId,
           turno,
@@ -102,6 +104,7 @@ export default function InspeccionForm({
           })),
         })
         setOk({ alertas: res.alertas })
+        claveRef.current = crypto.randomUUID() // la próxima inspección es una operación distinta
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Error al guardar inspección')
       }

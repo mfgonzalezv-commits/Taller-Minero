@@ -4,8 +4,14 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { CriticidadInspeccion, ResultadoItem, TurnoInspeccion } from '@prisma/client'
-import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
-import { ROLES_CREAR_PLAN, ROLES_CREAR_OT } from '@/lib/permisos-roles'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_CREAR_PLAN, ROLES_CREAR_OT, ROLES_GESTION_OT } from '@/lib/permisos-roles'
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
+
+// Quién inspecciona: operación y gestión de la faena (no Bodega/Compras/Gerencia).
+const ROLES_INSPECCION = [...ROLES_GESTION_OT, 'MECANICO', 'OPERADOR'] as const
+const PREFIJO_CRITICO = 'Hallazgo crítico en inspección diaria'
 
 // ─── Plantillas ───────────────────────────────────────────────────────────────
 
@@ -93,83 +99,107 @@ export async function crearInspeccion(data: {
   turno: TurnoInspeccion
   observacion?: string
   resultados: { itemId: string; resultado: ResultadoItem; observacion?: string }[]
+  /** Generada por el formulario: repetir la misma operación (doble clic) devuelve la inspección ya creada. */
+  claveIdempotencia?: string
 }) {
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, [...ROLES_INSPECCION])
 
-  const inspeccion = await prisma.inspeccionDiaria.create({
-    data: {
-      faenaId: session.user.faenaId,
-      equipoId: data.equipoId,
-      plantillaId: data.plantillaId,
-      turno: data.turno,
-      operadorId: session.user.id,
-      completada: true,
-      observacion: data.observacion,
-    },
-  })
+  const resumen = async (inspeccionId: string) => {
+    const [alertas, criticos, reporte] = await Promise.all([
+      prisma.alertaInspeccion.count({ where: { inspeccionId } }),
+      prisma.alertaInspeccion.count({ where: { inspeccionId, criticidad: 'CRITICO' } }),
+      prisma.reporteFalla.findFirst({ where: { inspeccionId }, select: { id: true } }),
+    ])
+    return { inspeccionId, alertas, criticos, reporteId: reporte?.id ?? null, repetida: true }
+  }
 
-  // Crear resultados
-  const resultadosCreados = await Promise.all(
-    data.resultados.map(r =>
-      prisma.resultadoInspeccion.create({
+  // Doble clic / reintento con la misma clave: devolver lo ya creado.
+  if (data.claveIdempotencia) {
+    const previa = await prisma.inspeccionDiaria.findUnique({ where: { faenaId_claveIdempotencia: { faenaId: sesion.faenaId, claveIdempotencia: data.claveIdempotencia } }, select: { id: true } })
+    if (previa) return resumen(previa.id)
+  }
+
+  // Entidades relacionadas: equipo y plantilla deben ser de la faena del operador.
+  const equipo = await prisma.equipo.findUnique({ where: { id: data.equipoId }, select: { faenaId: true } })
+  if (!equipo || equipo.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: el equipo no existe o pertenece a otra faena')
+  const plantilla = await prisma.plantillaInspeccion.findUnique({ where: { id: data.plantillaId }, include: { items: { select: { id: true } } } })
+  if (!plantilla || plantilla.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: la plantilla no existe o pertenece a otra faena')
+  if (plantilla.equipoId && plantilla.equipoId !== data.equipoId) throw new Error('La plantilla no corresponde a ese equipo')
+  const itemsValidos = new Set(plantilla.items.map(i => i.id))
+  const vistos = new Set<string>()
+  for (const r of data.resultados) {
+    if (!itemsValidos.has(r.itemId)) throw new ErrorAutorizacion('Sin permisos: un ítem no pertenece a la plantilla')
+    if (vistos.has(r.itemId)) throw new Error('Un ítem de la inspección viene repetido')
+    vistos.add(r.itemId)
+  }
+
+  try {
+    // Todo o nada: inspección, resultados, alertas, reporte de falla y detención del equipo.
+    return await prisma.$transaction(async (tx) => {
+      const inspeccion = await tx.inspeccionDiaria.create({
         data: {
-          inspeccionId: inspeccion.id,
-          itemId: r.itemId,
-          resultado: r.resultado,
-          observacion: r.observacion,
+          faenaId: sesion.faenaId, equipoId: data.equipoId, plantillaId: data.plantillaId, turno: data.turno,
+          operadorId: sesion.userId, completada: true, observacion: data.observacion, claveIdempotencia: data.claveIdempotencia ?? null,
         },
-        include: { item: true },
       })
-    )
-  )
 
-  // Crear alertas para ítems no-OK
-  const conProblema = resultadosCreados.filter(r => r.resultado !== 'OK')
-  if (conProblema.length) {
-    await prisma.alertaInspeccion.createMany({
-      data: conProblema.map(r => ({
-        faenaId: session.user!.faenaId!,
-        inspeccionId: inspeccion.id,
-        resultadoId: r.id,
-        equipoId: data.equipoId,
-        descripcion: r.item.descripcion + (r.observacion ? ` — ${r.observacion}` : ''),
-        criticidad: r.resultado as CriticidadInspeccion,
-      })),
-    })
+      const resultadosCreados = []
+      for (const r of data.resultados) {
+        resultadosCreados.push(await tx.resultadoInspeccion.create({
+          data: { inspeccionId: inspeccion.id, itemId: r.itemId, resultado: r.resultado, observacion: r.observacion },
+          include: { item: true },
+        }))
+      }
+
+      // Alertas para ítems no-OK
+      const conProblema = resultadosCreados.filter(r => r.resultado !== 'OK')
+      if (conProblema.length) {
+        await tx.alertaInspeccion.createMany({
+          data: conProblema.map(r => ({
+            faenaId: sesion.faenaId, inspeccionId: inspeccion.id, resultadoId: r.id, equipoId: data.equipoId,
+            descripcion: r.item.descripcion + (r.observacion ? ` — ${r.observacion}` : ''),
+            criticidad: r.resultado as CriticidadInspeccion,
+          })),
+        })
+      }
+
+      // Un hallazgo CRÍTICO detiene el equipo y genera un reporte de falla real, pendiente de validación del jefe.
+      // Si ya hay un reporte crítico abierto de ese equipo, el nuevo se marca como reincidencia.
+      const criticos = conProblema.filter(r => r.resultado === 'CRITICO')
+      let reporteId: string | null = null
+      if (criticos.length) {
+        const abierto = await tx.reporteFalla.findFirst({
+          where: {
+            equipoId: data.equipoId, faenaId: sesion.faenaId, descripcion: { startsWith: PREFIJO_CRITICO },
+            OR: [{ estado: { in: ['PENDIENTE', 'EVALUADO'] } }, { estado: 'CONVERTIDO_OT', ot: { estado: { notIn: ['CERRADA', 'ANULADA'] } } }],
+          },
+          orderBy: { createdAt: 'desc' }, select: { id: true },
+        })
+        const descripcionCriticos = criticos.map(r => r.item.descripcion + (r.observacion ? ` — ${r.observacion}` : '')).join('; ')
+        const reporte = await tx.reporteFalla.create({
+          data: {
+            faenaId: sesion.faenaId, equipoId: data.equipoId, reportadoPorId: sesion.userId,
+            descripcion: `${PREFIJO_CRITICO}: ${descripcionCriticos}`,
+            riesgoSeguridad: true, prioridadSugerida: 'CRITICA', prioridad: 'CRITICA', detencionSolicitada: true,
+            reincidenciaDeId: abierto?.id ?? null, inspeccionId: inspeccion.id,
+          },
+        })
+        reporteId = reporte.id
+        await tx.equipo.updateMany({ where: { id: data.equipoId, faenaId: sesion.faenaId }, data: { estado: 'DETENIDO_PENDIENTE_VALIDACION' } })
+      }
+
+      return { inspeccionId: inspeccion.id, alertas: conProblema.length, criticos: criticos.length, reporteId, repetida: false }
+    }, { timeout: 20_000, maxWait: 10_000 }) // plantillas largas contra Neon pueden pasar los 5 s por defecto.then(r => { revalidatePath('/inspeccion'); revalidatePath('/fallas'); revalidatePath('/equipos'); return r })
+  } catch (e) {
+    // Dos envíos simultáneos con la misma clave: el segundo choca con el índice único y devuelve lo del primero.
+    if (data.claveIdempotencia && e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      const previa = await prisma.inspeccionDiaria.findUnique({ where: { faenaId_claveIdempotencia: { faenaId: sesion.faenaId, claveIdempotencia: data.claveIdempotencia } }, select: { id: true } })
+      if (previa) return resumen(previa.id)
+    }
+    throw e
   }
-
-  // Un hallazgo CRÍTICO detiene el equipo de inmediato y genera un reporte
-  // de falla real (no solo una alerta) — queda pendiente de validación del
-  // jefe de taller, igual que una detención pedida desde /fallas.
-  const criticos = conProblema.filter(r => r.resultado === 'CRITICO')
-  if (criticos.length) {
-    const descripcionCriticos = criticos.map(r => r.item.descripcion + (r.observacion ? ` — ${r.observacion}` : '')).join('; ')
-    await prisma.reporteFalla.create({
-      data: {
-        faenaId: session.user!.faenaId!,
-        equipoId: data.equipoId,
-        reportadoPorId: session.user!.id!,
-        descripcion: `Hallazgo crítico en inspección diaria: ${descripcionCriticos}`,
-        riesgoSeguridad: true,
-        prioridadSugerida: 'CRITICA',
-        prioridad: 'CRITICA',
-        detencionSolicitada: true,
-      },
-    })
-    await prisma.equipo.update({
-      where: { id: data.equipoId },
-      data: { estado: 'DETENIDO_PENDIENTE_VALIDACION' },
-    })
-  }
-
-  revalidatePath('/inspeccion')
-  revalidatePath('/fallas')
-  revalidatePath('/equipos')
-  return { inspeccionId: inspeccion.id, alertas: conProblema.length, criticos: criticos.length }
 }
-
-// ─── Alertas ──────────────────────────────────────────────────────────────────
 
 export async function getAlertas(soloActivas = true) {
   const session = await auth()
@@ -208,44 +238,39 @@ export async function actualizarEstadoAlerta(alertaId: string, estado: 'EN_PROCE
 }
 
 export async function generarOTDesdeAlerta(alertaId: string) {
-  requireRolPermitido(await requireSesion(), ROLES_CREAR_OT)
-  const session = await auth()
-  if (!session?.user?.faenaId || !session?.user?.id) throw new Error('Sin sesión')
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_CREAR_OT)
 
-  const alerta = await prisma.alertaInspeccion.findUniqueOrThrow({
-    where: { id: alertaId },
-    include: {
-      equipo: true,
-      inspeccion: { include: { operador: { select: { nombre: true } } } },
-    },
-  })
-  if (alerta.faenaId !== session.user.faenaId) throw new Error('Sin permisos: la alerta pertenece a otra faena')
+  const alerta = await prisma.alertaInspeccion.findUnique({ where: { id: alertaId }, include: { equipo: true } })
+  if (!alerta || alerta.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: la alerta no existe o pertenece a otra faena')
+  // Una alerta solo genera una OT: si ya la tiene, se devuelve esa.
+  if (alerta.otId) return alerta.otId
 
   const prioridad =
     alerta.criticidad === 'CRITICO' ? 'CRITICA' :
     alerta.criticidad === 'ALERTA' ? 'ALTA' :
     alerta.criticidad === 'OBSERVACION' ? 'MEDIA' : 'BAJA'
 
-  const ot = await prisma.ordenTrabajo.create({
-    data: {
-      faenaId: session.user.faenaId,
-      equipoId: alerta.equipoId,
-      tipoMantenimiento: 'CORRECTIVO',
-      estado: 'ABIERTA',
-      prioridad: prioridad as 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA',
-      descripcionFalla: `[Inspección diaria] ${alerta.descripcion}`,
-      creadoPorId: session.user.id,
-    },
-  })
-
-  await prisma.alertaInspeccion.update({
-    where: { id: alertaId },
-    data: { otId: ot.id, estado: 'EN_PROCESO' },
+  const otId = randomUUID()
+  const creada = await prisma.$transaction(async (tx) => {
+    // Candado: solo una ejecución enlaza la alerta a su OT. Si otra ya lo hizo, esta se revierte entera (sin OT duplicada).
+    const enlace = await tx.alertaInspeccion.updateMany({ where: { id: alertaId, otId: null }, data: { otId, estado: 'EN_PROCESO' } })
+    if (enlace.count === 0) return false
+    await tx.ordenTrabajo.create({
+      data: {
+        id: otId, faenaId: sesion.faenaId, equipoId: alerta.equipoId, tipoMantenimiento: 'CORRECTIVO', estado: 'ABIERTA',
+        prioridad: prioridad as 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA',
+        descripcionFalla: `[Inspección diaria] ${alerta.descripcion}`, creadoPorId: sesion.userId,
+      },
+    })
+    return true
   })
 
   revalidatePath('/inspeccion')
   revalidatePath('/ot')
-  return ot.id
+  if (creada) return otId
+  const actual = await prisma.alertaInspeccion.findUniqueOrThrow({ where: { id: alertaId }, select: { otId: true } })
+  return actual.otId as string
 }
 
 // Solo el Jefe de Taller (de faena o central) puede autorizar que un equipo

@@ -67,6 +67,8 @@ describe('acceso', () => {
       await P(k, s, 'aprobarEstadoPago', 'propia faena', 'BLOQUEADO', () => aprobarEstadoPago('00000000-0000-4000-8000-000000000000'))
       await P(k, s, 'crearItem (bodega)', 'propia faena', k === 'BODEGA' ? 'PERMITIDO' : 'BLOQUEADO', () => crearItem({ codigo: `AUD-${k}`, descripcion: 'AUDIT', unidad: 'un', stockActual: 0, stockMinimo: 0, precioRef: 1 }))
     }
+    await P('OPERADOR', S.op2, 'cambiarEstadoOT (cualquier estado)', 'propia faena', 'BLOQUEADO', () => cambiarEstadoOT(ot2.id, 'DIAGNOSTICADO'))
+    await P('BODEGA', S.bod2, 'cambiarEstadoOT (cualquier estado)', 'propia faena', 'BLOQUEADO', () => cambiarEstadoOT(ot2.id, 'DIAGNOSTICADO'))
     await P('OPERADOR', await sesionDe('operador@sim.local'), 'crearOT', 'propia faena SIM-01', 'BLOQUEADO', () => crearOT({ equipoId: eq1.id, descripcionFalla: 'AUDIT operador' }))
 
     // D) Reglas nuevas de administración de usuarios y de vínculos entre entidades

@@ -398,24 +398,29 @@ enum EstadoSR {
 }
 
 model SolicitudRepuesto {
-  id                   String    @id @default(uuid())
-  numeroSr             Int       @default(autoincrement()) @map("numero_sr")
-  otId                 String    @map("ot_id")
-  faenaId              String    @map("faena_id")
-  estado               EstadoSR  @default(BORRADOR)
-  urgente              Boolean   @default(false)
-  observacion          String?
-  fechaEstimadaLlegada DateTime? @map("fecha_estimada_llegada")
-  creadoPorId          String    @map("creado_por_id")
-  gestionadoPorId      String?   @map("gestionado_por_id")
-  cotizaciones         String[]  @default([])
-  esCompraDirecta      Boolean   @default(false) @map("es_compra_directa")
-  motivoCompraDirecta  String?   @map("motivo_compra_directa")
-  regularizada         Boolean   @default(false)
-  regularizadaPorId    String?   @map("regularizada_por_id")
-  fechaRegularizacion  DateTime? @map("fecha_regularizacion")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
+  id                        String    @id @default(uuid())
+  numeroSr                  Int       @default(autoincrement()) @map("numero_sr")
+  otId                      String    @map("ot_id")
+  faenaId                   String    @map("faena_id")
+  estado                    EstadoSR  @default(BORRADOR)
+  urgente                   Boolean   @default(false)
+  observacion               String?
+  fechaEstimadaLlegada      DateTime? @map("fecha_estimada_llegada")
+  creadoPorId               String    @map("creado_por_id")
+  gestionadoPorId           String?   @map("gestionado_por_id")
+  cotizaciones              String[]  @default([])
+  esCompraDirecta           Boolean   @default(false) @map("es_compra_directa")
+  motivoCompraDirecta       String?   @map("motivo_compra_directa")
+  regularizada              Boolean   @default(false)
+  regularizadaPorId         String?   @map("regularizada_por_id")
+  fechaRegularizacion       DateTime? @map("fecha_regularizacion")
+  comprobanteRegularizacion String?   @map("comprobante_regularizacion")
+  motivoRegularizacion      String?   @map("motivo_regularizacion")
+  montoCompraDirecta        Decimal?  @map("monto_compra_directa") @db.Decimal(14, 2)
+  aprobadaCentralPorId      String?   @map("aprobada_central_por_id")
+  fechaAprobacionCentral    DateTime? @map("fecha_aprobacion_central")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
 
   ot              OrdenTrabajo            @relation(fields: [otId], references: [id])
   faena           Faena                   @relation(fields: [faenaId], references: [id])
@@ -828,16 +833,18 @@ model ItemPlantillaInspeccion {
 }
 
 model InspeccionDiaria {
-  id          String          @id @default(uuid())
-  faenaId     String          @map("faena_id")
-  equipoId    String          @map("equipo_id")
-  plantillaId String          @map("plantilla_id")
-  fecha       DateTime        @default(now())
-  turno       TurnoInspeccion
-  operadorId  String          @map("operador_id")
-  completada  Boolean         @default(false)
-  observacion String?
-  createdAt   DateTime        @default(now()) @map("created_at")
+  id                String          @id @default(uuid())
+  faenaId           String          @map("faena_id")
+  equipoId          String          @map("equipo_id")
+  plantillaId       String          @map("plantilla_id")
+  fecha             DateTime        @default(now())
+  turno             TurnoInspeccion
+  operadorId        String          @map("operador_id")
+  completada        Boolean         @default(false)
+  observacion       String?
+  // Clave que genera el formulario: repetir la misma operación (doble clic) devuelve la inspección existente.
+  claveIdempotencia String?         @map("clave_idempotencia")
+  createdAt         DateTime        @default(now()) @map("created_at")
 
   faena      Faena                 @relation(fields: [faenaId], references: [id])
   equipo     Equipo                @relation(fields: [equipoId], references: [id])
@@ -846,6 +853,7 @@ model InspeccionDiaria {
   resultados ResultadoInspeccion[]
   alertas    AlertaInspeccion[]
 
+  @@unique([faenaId, claveIdempotencia])
   @@map("inspecciones_diarias")
 }
 
@@ -1048,6 +1056,10 @@ model ReporteFalla {
   motivoRechazoDetencion       String?            @map("motivo_rechazo_detencion")
   motivoCierre                 String?            @map("motivo_cierre")
   otId                         String?            @map("ot_id")
+  // Si ya había un reporte crítico abierto del mismo equipo, este apunta a él (reincidencia).
+  reincidenciaDeId             String?            @map("reincidencia_de_id")
+  // Inspección diaria que originó el reporte (permite devolverlo si la operación se repite).
+  inspeccionId                 String?            @map("inspeccion_id")
   fecha                        DateTime           @default(now())
   createdAt                    DateTime           @default(now()) @map("created_at")
   updatedAt                    DateTime           @updatedAt @map("updated_at")

@@ -245,11 +245,12 @@ export async function cambiarEstadoOT(
 ) {
   const sesion = await requireSesion()
 
+  // Gestión de la faena, o el mecánico asignado a la OT (nadie más cambia el estado de una OT).
+  await requireAccesoBitacoraOT(sesion, otId)
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({
     where: { id: otId },
     include: { historial: { orderBy: { fechaCambio: 'desc' }, take: 1 } },
   })
-  requireAlcanceFaena(sesion, ot.faenaId)
 
   if (nuevoEstado === 'CERRADA') {
     // Cierre administrativo: Jefe o Planificador, DESPUÉS de la validación técnica del Jefe.
@@ -434,12 +435,19 @@ export async function agregarBitacora(otId: string, data: {
 }) {
   const sesion = await requireSesion()
   const ot = await requireAccesoBitacoraOT(sesion, otId)
-  // La bitácora propone un estado según el tipo de intervención, pero no puede saltarse la máquina
-  // de estados ni cerrar/validar/anular (tienen su propia acción): si la transición no es válida,
-  // la entrada se guarda igual y el estado de la OT no cambia.
-  const estadoAplicable = data.estado && data.estado !== ot.estado && !ESTADOS_CON_ACCION_PROPIA.includes(data.estado) && puedeTransicionarOT(ot.estado, data.estado)
-    ? data.estado
-    : undefined
+  // El estado que se indique en la bitácora debe ser una transición válida y no puede ser uno con
+  // acción propia (validar, cerrar, anular). Si no lo es se RECHAZA con un mensaje: nunca se ignora en silencio.
+  if (data.estado && data.estado !== ot.estado) {
+    if (ESTADOS_CON_ACCION_PROPIA.includes(data.estado)) throw new Error(`La bitácora no puede pasar la OT a ${data.estado}: usa el cambio de estado de la OT`)
+    if (!puedeTransicionarOT(ot.estado, data.estado)) throw new Error(`Transición no permitida: ${ot.estado} → ${data.estado}`)
+  }
+  const estadoAplicable = data.estado && data.estado !== ot.estado ? data.estado : undefined
+  if (data.repuestos?.length) {
+    const ids = [...new Set(data.repuestos.map(r => r.itemBodegaId).filter((x): x is string => !!x))]
+    if (ids.length && (await prisma.itemBodega.count({ where: { id: { in: ids }, faenaId: ot.faenaId } })) !== ids.length) {
+      throw new ErrorAutorizacion('Sin permisos: algún ítem de bodega no pertenece a la faena de la OT')
+    }
+  }
   const ahora = new Date()
 
   const otUpdate: Record<string, unknown> = {}

@@ -94,7 +94,7 @@ describe('integridad SIM-02', () => {
     await exito('DIAGNOSTICADO → EN_REPARACION', jefe, () => cambiarEstadoOT(ot.id, 'EN_REPARACION'))
     await espera('EN_REPARACION → ABIERTA bloqueado', jefe, () => cambiarEstadoOT(ot.id, 'ABIERTA'), /Transición no permitida/)
     await espera('EN_REPARACION → CERRADA bloqueado (sin validación)', jefe, () => cambiarEstadoOT(ot.id, 'CERRADA'), /Transición no permitida/)
-    await exito('Bitácora con tipo que propone CERRADA no cierra', mec, () => agregarBitacora(ot.id, { descripcion: 'AUDIT', estado: 'CERRADA' }))
+    await espera('Bitácora que propone CERRADA se rechaza con mensaje', mec, () => agregarBitacora(ot.id, { descripcion: 'AUDIT', estado: 'CERRADA' }), /no puede pasar la OT a CERRADA/)
     const ot2 = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: ot.id } })
     chequear('La bitácora no cerró la OT', ot2.estado === 'EN_REPARACION', ot2.estado)
     await exito('EN_REPARACION → EN_VALIDACION', jefe, () => cambiarEstadoOT(ot.id, 'EN_VALIDACION'))

@@ -21,7 +21,8 @@ const fmt = (n: number) =>
 
 type PanelActivo = { id: string; modo: 'mover' | 'editar' } | null
 
-export default function BodegaClient({ items }: { items: Item[] }) {
+// Los botones se ocultan según el rol; el backend igual valida cada acción.
+export default function BodegaClient({ items, puedeEditar, tiposMovimiento }: { items: Item[]; puedeEditar: boolean; tiposMovimiento: ('ENTRADA' | 'SALIDA' | 'AJUSTE')[] }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [panelActivo, setPanelActivo] = useState<PanelActivo>(null)
@@ -29,7 +30,7 @@ export default function BodegaClient({ items }: { items: Item[] }) {
   const [error, setError] = useState('')
 
   // Estado movimiento
-  const [tipo, setTipo] = useState<'ENTRADA' | 'SALIDA' | 'AJUSTE'>('ENTRADA')
+  const [tipo, setTipo] = useState<'ENTRADA' | 'SALIDA' | 'AJUSTE'>(tiposMovimiento[0] ?? 'ENTRADA')
   const [cantidad, setCantidad] = useState('')
   const [obs, setObs] = useState('')
 
@@ -161,7 +162,7 @@ export default function BodegaClient({ items }: { items: Item[] }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button
+                        {tiposMovimiento.length > 0 && <button
                           onClick={() => abrirPanel(item, 'mover')}
                           className="rounded-md px-3 py-1 text-xs font-bold transition"
                           style={{
@@ -171,8 +172,8 @@ export default function BodegaClient({ items }: { items: Item[] }) {
                           }}
                         >
                           {panel === 'mover' ? 'Cerrar' : 'Mover'}
-                        </button>
-                        <button
+                        </button>}
+                        {puedeEditar && <button
                           onClick={() => abrirPanel(item, 'editar')}
                           className="rounded-md px-2 py-1 text-xs font-bold transition flex items-center gap-1"
                           style={{
@@ -182,7 +183,7 @@ export default function BodegaClient({ items }: { items: Item[] }) {
                           }}
                         >
                           <Pencil size={11} /> Editar
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>
@@ -192,7 +193,7 @@ export default function BodegaClient({ items }: { items: Item[] }) {
                       <td colSpan={5} className="px-4 py-4" style={{ backgroundColor: 'var(--n-bg)' }}>
                         <div className="flex flex-wrap gap-3 items-end">
                           <div className="flex gap-1.5">
-                            {(['ENTRADA', 'SALIDA', 'AJUSTE'] as const).map(t => (
+                            {(['ENTRADA', 'SALIDA', 'AJUSTE'] as const).filter(t => tiposMovimiento.includes(t)).map(t => (
                               <button
                                 key={t}
                                 onClick={() => setTipo(t)}

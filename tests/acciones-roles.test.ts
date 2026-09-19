@@ -12,7 +12,7 @@ vi.mock('@/lib/prisma', () => {
   return { prisma: new Proxy({ $transaction: falla }, { get: (t, k) => (k in t ? (t as never)[k] : modelo) }) }
 })
 
-import { asignarTecnico, agregarBitacora, actualizarDiagnostico, crearOT, actualizarManoObra, actualizarOrigenFalla } from '../src/actions/ot'
+import { cambiarEstadoOT, asignarTecnico, agregarBitacora, actualizarDiagnostico, crearOT, actualizarManoObra, actualizarOrigenFalla } from '../src/actions/ot'
 import { crearUsuario } from '../src/actions/usuarios'
 import { autorizarSolicitud, rechazarSolicitud, entregarSolicitud, agregarRepuesto, eliminarRepuesto } from '../src/actions/repuestos'
 import { crearItem, editarItem, registrarMovimiento } from '../src/actions/bodega'
@@ -20,6 +20,8 @@ import { crearPlan, generarOT, eliminarPlan } from '../src/actions/mantenimiento
 import { crearEquipo, actualizarEstadoEquipo } from '../src/actions/equipos'
 import { agregarManoObra } from '../src/actions/manoObra'
 import { aprobarEstadoPago } from '../src/actions/estadoPago'
+import { crearInspeccion, generarOTDesdeAlerta } from '../src/actions/inspeccion'
+import { cambiarEstadoSR, regularizarCompraDirecta, aprobarCompraDirectaCentral, marcarCompraDirecta } from '../src/actions/sr'
 
 const ID = '00000000-0000-4000-8000-000000000000'
 const TODOS = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO', 'BODEGA', 'COMPRAS', 'GERENCIA', 'OPERADOR']
@@ -47,6 +49,13 @@ const casos: { accion: string; permitidos: string[]; llamar: () => Promise<unkno
   { accion: 'actualizarEstadoEquipo', permitidos: GESTION, llamar: () => actualizarEstadoEquipo(ID, 'OPERATIVO') },
   { accion: 'agregarManoObra', permitidos: GESTION, llamar: () => agregarManoObra({ otId: ID, nombre: 'x', horasNormales: 1, horasExtra: 0, tarifaNormal: 1, tarifaExtra: 0 }) },
   { accion: 'aprobarEstadoPago', permitidos: ['ADMINISTRADOR', 'GERENCIA'], llamar: () => aprobarEstadoPago(ID) },
+  { accion: 'cambiarEstadoOT', permitidos: [...GESTION, 'MECANICO'], llamar: () => cambiarEstadoOT(ID, 'DIAGNOSTICADO') },
+  { accion: 'crearInspeccion', permitidos: [...GESTION, 'MECANICO', 'OPERADOR'], llamar: () => crearInspeccion({ equipoId: ID, plantillaId: ID, turno: 'MAÑANA', resultados: [] }) },
+  { accion: 'generarOTDesdeAlerta', permitidos: GESTION, llamar: () => generarOTDesdeAlerta(ID) },
+  { accion: 'cambiarEstadoSR', permitidos: [...GESTION, 'BODEGA', 'COMPRAS'], llamar: () => cambiarEstadoSR(ID, 'ENTREGADA') },
+  { accion: 'marcarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'], llamar: () => marcarCompraDirecta(ID, 'x') },
+  { accion: 'regularizarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'COMPRAS'], llamar: () => regularizarCompraDirecta(ID, { cotizaciones: ['c'], comprobante: 'f', motivo: 'm', monto: 1 }) },
+  { accion: 'aprobarCompraDirectaCentral', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'], llamar: () => aprobarCompraDirectaCentral(ID) },
   { accion: 'crearUsuario', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'], llamar: () => crearUsuario({ nombre: 'x', email: 'x@x.cl', password: 'x', rol: 'ADMINISTRADOR' }) },
 ]
 
