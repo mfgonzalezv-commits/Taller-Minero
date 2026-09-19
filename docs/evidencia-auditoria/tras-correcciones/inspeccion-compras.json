@@ -1,0 +1,247 @@
+[
+  {
+    "paso": "Operador NO crea plantilla de inspección",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "Jefe crea plantilla",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador inspecciona todo OK: sin alertas ni detención",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Hallazgo CRÍTICO: alerta + reporte de falla + equipo detenido pendiente de validación",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Inspección crítica repetida no duplica el reporte de falla",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": true,
+    "detalle": "2 reportes de falla abiertos por el mismo hallazgo"
+  },
+  {
+    "paso": "Operador NO cambia estado de alerta",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "Jefe pasa alerta a EN_PROCESO",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO convierte alerta en OT",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "Jefe convierte alerta en OT",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Convertir la misma alerta dos veces no duplica la OT",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": true,
+    "detalle": "2 OT para la misma alerta"
+  },
+  {
+    "paso": "Inspección de un equipo de OTRA faena está bloqueada",
+    "esperado": "BLOQUEADO",
+    "resultado": "OK",
+    "desviacion": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El equipo de SIM-01 no quedó detenido por una inspección de SIM-02",
+    "esperado": "OK",
+    "resultado": "ERROR",
+    "desviacion": true,
+    "detalle": "estado SIM-01 = DETENIDO_PENDIENTE_VALIDACION"
+  },
+  {
+    "paso": "Operador NO crea SR",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "Mecánico crea SR con ítem de bodega",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico NO cambia estado de la SR",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "Operador NO cambia estado de la SR",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "SR → EN_BODEGA_CENTRAL",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR → EN_ADQUISICIONES",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR → ESPERANDO_LLEGADA",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR → RECIBIDA_FAENA",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La SR guarda historial con fechas para medir cuellos de botella",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "5 registros (creación + 4 cambios)"
+  },
+  {
+    "paso": "Bodega entrega la SR",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entregar dos veces la misma SR está bloqueado",
+    "esperado": "BLOQUEADO",
+    "resultado": "OK",
+    "desviacion": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La segunda entrega no descuenta stock otra vez",
+    "esperado": "OK",
+    "resultado": "ERROR",
+    "desviacion": true,
+    "detalle": "stock=16 (esperado 18)"
+  },
+  {
+    "paso": "SR entregada no vuelve atrás (ENTREGADA → ENVIADA)",
+    "esperado": "BLOQUEADO",
+    "resultado": "OK",
+    "desviacion": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Crear SR para compra directa",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar antes de marcar compra directa está bloqueado",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Esta solicitud no es una compra directa"
+  },
+  {
+    "paso": "Planificador NO marca compra directa",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "Compra directa sin motivo está bloqueada",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Debe justificar la compra directa"
+  },
+  {
+    "paso": "Jefe marca compra directa con motivo",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega NO regulariza",
+    "esperado": "BLOQUEADO",
+    "resultado": "BLOQUEADO",
+    "desviacion": false,
+    "detalle": "Sin permisos para esta acción"
+  },
+  {
+    "paso": "Regularizar SIN cotizaciones está bloqueado",
+    "esperado": "BLOQUEADO",
+    "resultado": "OK",
+    "desviacion": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Compras regulariza con cotizaciones",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar dos veces está bloqueado",
+    "esperado": "BLOQUEADO",
+    "resultado": "OK",
+    "desviacion": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Correos quedan en cola (outbox) sin enviarse",
+    "esperado": "OK",
+    "resultado": "OK",
+    "desviacion": false,
+    "detalle": "4 pendientes/fallidos en cola, 0 enviados por la auditoría"
+  }
+]
