@@ -1,0 +1,83 @@
+[
+  {
+    "ruta": "/usuarios",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/usuarios",
+    "saltos": [
+      "307 /usuarios -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/arriendos",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/arriendos",
+    "saltos": [
+      "307 /arriendos -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/faenas",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/faenas",
+    "saltos": [
+      "307 /faenas -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/informes",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/informes",
+    "saltos": [
+      "307 /informes -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/reportes",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/reportes",
+    "saltos": [
+      "307 /reportes -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/compras",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/compras",
+    "saltos": [
+      "307 /compras -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/trabajadores",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/trabajadores",
+    "saltos": [
+      "307 /trabajadores -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/mantenimiento",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/mantenimiento",
+    "saltos": [
+      "307 /mantenimiento -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  },
+  {
+    "ruta": "/bodega",
+    "urlFinal": "chrome-error://chromewebdata/",
+    "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3111/bodega",
+    "saltos": [
+      "307 /bodega -> http://localhost:3000/dashboard"
+    ],
+    "texto": ""
+  }
+]
