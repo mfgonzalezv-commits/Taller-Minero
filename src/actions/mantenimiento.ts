@@ -230,10 +230,16 @@ export async function crearPlan(data: {
   revalidatePath('/mantenimiento')
 }
 
-export async function programarParada(planId: string, fechaProgramada: string) {
+export async function programarParada(planId: string, fechaProgramada: string, motivo?: string) {
   requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
+
+  // Reprogramar (ya había una fecha) exige motivo; programar por primera vez no.
+  const actual = await prisma.planMantenimiento.findFirst({ where: { id: planId, faenaId: session.user.faenaId }, select: { fechaProgramada: true, faenaId: true } })
+  if (!actual) throw new Error('Sin permisos: el plan no existe o pertenece a otra faena')
+  if (actual.fechaProgramada && !motivo?.trim()) throw new Error('Reprogramar una mantención exige indicar el motivo')
+  if (actual.fechaProgramada) await auditar({ faenaId: actual.faenaId, entidad: 'PlanMantenimiento', entidadId: planId, accion: 'REPROGRAMAR', usuarioId: session.user.id, valorAnterior: { fechaProgramada: actual.fechaProgramada }, valorNuevo: { fechaProgramada }, motivo: motivo!.trim() })
 
   await prisma.planMantenimiento.update({
     where: { id: planId, faenaId: session.user.faenaId },
@@ -248,8 +254,8 @@ export async function programarParada(planId: string, fechaProgramada: string) {
 // de la faena — no es una reprogramación libre.
 export async function postergarPlan(planId: string, nuevaFecha: string, motivo: string) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER'])
-  if (!motivo?.trim()) throw new Error('Debe justificar la postergación')
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'])
+  if (!motivo?.trim()) throw new Error('Debe justificar la reprogramación')
 
   const plan = await prisma.planMantenimiento.findUniqueOrThrow({ where: { id: planId } })
   requireAlcanceFaena(sesion, plan.faenaId)

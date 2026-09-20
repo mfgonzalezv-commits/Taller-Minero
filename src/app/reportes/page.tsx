@@ -14,7 +14,7 @@ export default async function ReportesPage({
 
   const { desde, hasta, equipoId } = await searchParams
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const faenaId = faena?.id
 
   const fechaDesde = desde ? new Date(desde) : new Date(new Date().setMonth(new Date().getMonth() - 1))

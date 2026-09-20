@@ -18,7 +18,7 @@ describe('costos, mantención y reportes SIM-02', () => {
   it('ejecuta', async () => {
     const faena = await prisma.faena.findUniqueOrThrow({ where: { codigo: 'SIM-02' } })
     const eq = await prisma.equipo.findFirstOrThrow({ where: { faenaId: faena.id, codigo: 'SIM2-EQ-01' } })
-    const admin = await sesionDe('admin@sim.local'), jefe = await sesionDe('jefe2@sim2.local'), op = await sesionDe('operador2@sim2.local')
+    const admin = await sesionDe('gerencia@sim.local'), jefe = await sesionDe('jefe2@sim2.local'), op = await sesionDe('operador2@sim2.local')
     const central = await sesionDe('plancentral@sim.local')
     const paso = async (nombre: string, s: unknown, fn: () => Promise<unknown>, verificar?: () => Promise<string | null>, esperaError = false) => {
       como(s)
@@ -47,7 +47,7 @@ describe('costos, mantención y reportes SIM-02', () => {
     await paso('Volver a preparar mismo periodo se rechaza', central, () => prepararEstadoPago(faena.id, '2026-09-19'), undefined, true)
     await paso('Planificador central NO aprueba', central, () => aprobarEstadoPago(ep!.id), undefined, true)
     await paso('Ajuste manual por central', central, () => agregarAjusteManual(ep!.lineas[0].id, -1000, 'AUDIT ajuste'))
-    await paso('Administrador aprueba', admin, () => aprobarEstadoPago(ep!.id))
+    await paso('Gerencia aprueba', admin, () => aprobarEstadoPago(ep!.id))
     await paso('Doble aprobación rechazada', admin, () => aprobarEstadoPago(ep!.id), undefined, true)
     await paso('Ajuste manual sobre EP aprobado rechazado', central, () => agregarAjusteManual(ep!.lineas[0].id, -1000, 'AUDIT post-aprobación'), undefined, true)
     await paso('Rechazar EP ya aprobado rechazado', admin, () => rechazarEstadoPago(ep!.id, 'AUDIT'), undefined, true)

@@ -12,11 +12,12 @@ import ChecklistPM from './ChecklistPM'
 import PrintButton from './PrintButton'
 import AnularOT from './AnularOT'
 import ReabrirOT from './ReabrirOT'
+import LiberarEquipo from './LiberarEquipo'
 import ValidacionOT from './ValidacionOT'
 import TiemposEstadosOT from './TiemposEstadosOT'
 import AsignarTecnico from './AsignarTecnico'
 import EditarDiagnostico from './EditarDiagnostico'
-import { ROLES_ASIGNAR_TECNICO, ROLES_BITACORA } from '@/lib/permisos-roles'
+import { ROLES_ASIGNAR_TECNICO, ROLES_BITACORA, ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
 import Link from 'next/link'
 import { ChevronRight, Clock, Wrench, User, Calendar, DollarSign, AlertCircle, ClipboardCheck, Eye, MessageSquare, CalendarDays, HelpCircle, ArrowRight } from 'lucide-react'
 import type { OrigenFalla } from '@prisma/client'
@@ -46,7 +47,7 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
   if (!session) redirect('/login')
 
   const { id } = await params
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
 
   const [itemsBodega, trabajadoresDirectos] = await Promise.all([
     prisma.itemBodega.findMany({
@@ -104,6 +105,9 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
     select: { id: true, especialidades: true, usuario: { select: { id: true, nombre: true } } },
     orderBy: { usuario: { nombre: 'asc' } },
   })
+
+  // El Jefe de Taller Central valida solo si la faena no tiene Jefe de Taller local.
+  const hayJefeLocal = (await prisma.usuario.count({ where: { faenaId: ot.faenaId, rol: 'JEFE_TALLER', activo: true } })) > 0
 
   const ec = ESTADO_OT_CONFIG[ot.estado]
   const pc = PRIORIDAD_CONFIG[ot.prioridad]
@@ -446,6 +450,9 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
                 ot.estado !== 'ANULADA' && ot.estado !== 'CERRADA' && (
                 <AnularOT otId={ot.id} />
               )}
+              {ROLES_LIBERAR_EQUIPO.includes(rolUsuario as never) && session.user?.faenaId === ot.faenaId && ['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'].includes(ot.equipo.estado) && (
+                <LiberarEquipo equipoId={ot.equipoId} />
+              )}
               {(rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER_CENTRAL' || rolUsuario === 'JEFE_TALLER') && ot.estado === 'CERRADA' && (
                 <ReabrirOT otId={ot.id} />
               )}
@@ -497,7 +504,7 @@ export default async function OTDetallePage({ params }: { params: Promise<{ id: 
             estado={ot.estado}
             yaValidada={!!ot.validadoTecnicamentePorId}
             reincidenciaPendiente={ot.reincidente && ot.reincidenciaConfirmada === null}
-            puedeValidar={rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER_CENTRAL' || rolUsuario === 'JEFE_TALLER'}
+            puedeValidar={rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'JEFE_TALLER' || (rolUsuario === 'JEFE_TALLER_CENTRAL' && !hayJefeLocal)}
           />
           {transiciones.length > 0 && (
             <CambiarEstadoOT

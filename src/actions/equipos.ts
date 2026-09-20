@@ -5,7 +5,10 @@ import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { TipoEquipo, EstadoEquipo } from '@prisma/client'
 import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar, ErrorAutorizacion } from '@/lib/authz'
-import { ROLES_GESTION_OT } from '@/lib/permisos-roles'
+import { ROLES_GESTION_OT, ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
+import { verificarLiberacionEquipo } from '@/lib/liberacion-servidor'
+import { abrirDetencion, cerrarDetencion } from '@/lib/detencion-registro'
+import { esNoOperacional } from '@/lib/estados-equipo'
 
 export async function getEquipos() {
   const session = await auth()
@@ -121,10 +124,14 @@ export async function actualizarEstadoEquipo(id: string, estado: EstadoEquipo) {
     select: { faenaId: true, estado: true },
   })
   requireAlcanceFaena(sesion, actual.faenaId)
+  // Un equipo detenido solo vuelve a operar con la liberación operacional (valida reparación o exige motivo).
+  if (esNoOperacional(actual.estado) && !esNoOperacional(estado)) throw new Error('Un equipo detenido solo sale de ese estado con la liberación operacional (con validación técnica o motivo)')
 
-  const equipo = await prisma.equipo.update({
-    where: { id },
-    data: { estado },
+  // El cambio de estado y la apertura del episodio de detención son una sola transacción (todo o nada).
+  const equipo = await prisma.$transaction(async (tx) => {
+    const e = await tx.equipo.update({ where: { id }, data: { estado } })
+    if (esNoOperacional(estado)) await abrirDetencion(tx, { equipoId: id, faenaId: actual.faenaId, origen: 'ESTADO' })
+    return e
   })
 
   await auditar({
@@ -140,4 +147,29 @@ export async function actualizarEstadoEquipo(id: string, estado: EstadoEquipo) {
   revalidatePath('/equipos')
   revalidatePath(`/equipos/${id}`)
   return equipo
+}
+
+const EN_CURSO = ['ABIERTA', 'EN_DIAGNOSTICO', 'DIAGNOSTICADO', 'REPARACION_PROGRAMADA', 'LISTO_PARA_REPARAR', 'EN_REPARACION', 'ESPERA_REPUESTO'] as const
+
+// Liberación operacional: Jefe o Planificador de la MISMA faena. Con reparación exige la validación técnica previa;
+// sin reparación exige motivo. Queda auditada.
+export async function liberarEquipo(equipoId: string, motivo?: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_LIBERAR_EQUIPO)
+  const equipo = await prisma.equipo.findUnique({ where: { id: equipoId }, select: { faenaId: true, estado: true } })
+  if (!equipo) throw new ErrorAutorizacion('Sin permisos: el equipo no existe o pertenece a otra faena')
+  if (equipo.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: el equipo pertenece a otra faena')
+
+  const { error, otReparadaId } = await verificarLiberacionEquipo(equipoId, equipo.faenaId, equipo.estado, motivo)
+  if (error) throw new Error(error)
+
+  // Estado del equipo + registro del episodio de liberación en una sola transacción (el cálculo de detención del Estado de Pago lo usa).
+  await prisma.$transaction(async (tx) => {
+    const r = await tx.equipo.updateMany({ where: { id: equipoId, estado: equipo.estado }, data: { estado: 'OPERATIVO' } })
+    if (r.count === 0) throw new Error('El equipo cambió de estado mientras se liberaba; recarga e intenta de nuevo')
+    await tx.liberacionEquipo.create({ data: { equipoId, faenaId: equipo.faenaId, liberadoPorId: sesion.userId, motivo: motivo?.trim() || null, tipo: 'LIBERACION', otId: otReparadaId } })
+    await cerrarDetencion(tx, equipoId) // la detención termina SOLO aquí
+  })
+  await auditar({ faenaId: equipo.faenaId, entidad: 'Equipo', entidadId: equipoId, accion: 'LIBERAR', usuarioId: sesion.userId, valorAnterior: { estado: equipo.estado }, valorNuevo: { estado: 'OPERATIVO', conReparacion: !!otReparadaId }, motivo: motivo?.trim() || null })
+  revalidatePath('/equipos'); revalidatePath('/dashboard')
 }

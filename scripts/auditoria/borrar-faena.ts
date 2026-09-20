@@ -27,6 +27,8 @@ export async function borrarFaenaSimulada(codigo: string) {
     }
     await prisma.$executeRawUnsafe(`DELETE FROM ${tabla} WHERE ${cond}`)
   }
+  // Tablas con faena_id SIN clave foránea: el recorrido por FK no las alcanza.
+  for (const t of ['notificaciones', 'liberaciones_equipo', 'solicitudes_ajuste_stock']) await prisma.$executeRawUnsafe(`DELETE FROM ${t} WHERE faena_id = '${faena.id}'`)
   await borrar('faenas', `id = '${faena.id}'`, [])
   return true
 }

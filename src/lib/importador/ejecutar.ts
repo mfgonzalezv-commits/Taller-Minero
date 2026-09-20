@@ -75,7 +75,7 @@ export async function aplicarPlan(prisma: PrismaClient, plan: Plan, opts: { simu
 
     // Usuarios y técnicos
     const usuarios = plan.usuarios.map(u => ({ id: randomUUID(), u }))
-    await tx.usuario.createMany({ data: usuarios.map(({ id, u }) => ({ id, faenaId, nombre: u.nombre, email: u.email, password: hashes.get(u.email) as string, rol: u.rol as never })) })
+    await tx.usuario.createMany({ data: usuarios.map(({ id, u }) => ({ id, faenaId, nombre: u.nombre, email: u.email, password: hashes.get(u.email) as string, rol: u.rol as never, sistemaTurno: u.sistemaTurno, grupoTurno: u.grupoTurno })) })
     await tx.tecnico.createMany({ data: usuarios.filter(({ u }) => u.rol === 'MECANICO').map(({ id, u }) => ({ usuarioId: id, faenaId, especialidades: u.especialidades, turno: u.turno, tarifaHora: u.tarifaHora, tarifaHoraExtra: u.tarifaHoraExtra })) })
 
     // Equipos y asignaciones

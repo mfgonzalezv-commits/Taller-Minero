@@ -37,7 +37,7 @@ export default async function UsuariosPage() {
   if (!session) redirect('/login')
   const puedeEditar = session.user?.rol === 'ADMINISTRADOR' || session.user?.rol === 'JEFE_TALLER'
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const usuarios = await prisma.usuario.findMany({
     where: { faenaId: faena?.id },
     include: { tecnico: true },

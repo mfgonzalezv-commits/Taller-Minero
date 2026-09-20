@@ -104,14 +104,7 @@ aquí en el mismo PR, no solo en el código.
 
 ## Deuda técnica documentada (no son bugs a "corregir sorpresivamente" sin issue)
 
-- Varias páginas server component usan `prisma.faena.findFirst()` en vez de la faena de la
-  sesión del usuario actual (detectado y confirmado en `/inspeccion/nueva`,
-  `/inspeccion/plantillas`, `/reportes`, `/solicitudes-repuesto`, `/trabajadores`,
-  `/usuarios`, `/usuarios/nuevo`, `/compras` — ver auditoría de frontend del
-  2026-09-17/18). En un escenario con más de una faena activa, esto puede mostrar datos de
-  la faena incorrecta. Ya está documentado como deuda técnica en `docs/ARQUITECTURA.md`; un
-  PR que lo corrija debe tratarse como `risk:medium` (toca varios módulos) y no como
-  `risk:low`, porque cambia qué datos ve cada usuario.
+- **Resuelto:** las páginas que usaban `prisma.faena.findFirst()` ahora usan la faena de la sesión (necesario para operar más de una faena, como San Ramón).
 - Dependencias con vulnerabilidades conocidas (`next`, `next-auth`, `prisma`, `vitest`) no se
   han actualizado — requieren su propia tanda de pruebas dedicada (ver `npm audit`).
 - **Resuelto (PR de seguridad `fix/seguridad-roles-faena`):** `AsignarTecnico` y
@@ -151,3 +144,5 @@ OPERADOR y MECANICO reportan fallas; no crean OT. Nadie eleva su propio rol.
 - **Bodega:** toda salida por OT consume lotes FIFO dentro de una transacción
   (`src/lib/stock.ts`); el costo del repuesto es el costo FIFO real. Devoluciones y ajustes
   también mantienen los lotes alineados con el stock.
+
+Ver también `docs/DECISIONES_OPERACIONALES_SR01.md` (permisos, Estados de Pago versionados, liberación, pautas, turnos y alertas del piloto San Ramón).

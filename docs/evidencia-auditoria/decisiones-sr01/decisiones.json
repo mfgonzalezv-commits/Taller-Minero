@@ -1,0 +1,927 @@
+[
+  {
+    "paso": "SR compra 249.999",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO compra",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador marca compra directa",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bajo el límite no se solicita aprobación central (249.999)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador regulariza $249.999 sin aprobación central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR compra 250.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador marca la compra de $250.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar $250.000 exacto exige aprobación central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Aprobar antes de que la faena lo solicite se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Solicitar aprobación (doble clic): ambas OK y una sola vez",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador NO aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe de Taller local NO aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador Central NO aprueba (exclusivo del Jefe Central)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe Central aprueba (doble clic): una sola aprobación",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Con la aprobación, el Planificador regulariza $250.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR compra 300.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca compra 300.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Solicita aprobación por 300.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe Central aprueba 300.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La aprobación fija el tope: $300.001 se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR compra 400.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca la compra estimada en 400.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un monto informado bajo (1) NO evade el límite: se controla con lo estimado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ajuste directo (movimiento) ya no existe",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO solicita ajustes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ajuste exige motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador solicita ajustar el stock a 18 (inventario)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Solicitar no cambia el stock",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un segundo pedido sobre el mismo ítem se rechaza mientras hay uno pendiente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Quien solicita no aprueba su propio ajuste (defensa adicional)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe de Taller local NO aprueba ajustes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador Central NO aprueba ajustes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe Central aprueba (doble clic): se aplica una vez, stock 18 = lotes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Nuevo pedido de ajuste a 25",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe Central rechaza con motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El rechazo no cambia el stock",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Pedido de ajuste a 22 (sube)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe Central aprueba la subida",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras subir: stock 22 = lotes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador reporta falla de SIM2-EQ-01 con detención",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe valida la detención",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO libera el equipo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Descartar una detención tampoco lo puede hacer el ADMINISTRADOR",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central NO libera (es de la faena)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe de OTRA faena NO libera",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Hay una OT en curso: no se libera",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Descartar la detención con una OT en reparación se rechaza (misma regla)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operar con observación con una OT en reparación se rechaza (misma regla)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un equipo detenido tampoco pasa a otro estado por el cambio directo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "OT: DIAGNOSTICADO",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "OT: EN_REPARACION",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "OT: EN_VALIDACION",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Al terminar la reparación el equipo SIGUE detenido (no se libera solo)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Con reparación, sin validación técnica no se libera",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un cambio directo de estado a OPERATIVO también se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central NO valida mientras haya Jefe local",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sin Jefe local, el Jefe Central valida técnicamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador de la faena libera (reparación validada; sin motivo)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El equipo queda OPERATIVO y la liberación auditada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Hallazgo sin reparación: detiene SIM2-EQ-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sin reparación exige motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Con motivo, el Planificador libera",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SIM2-EQ-02 quedó OPERATIVO",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador Central prepara el Estado de Pago",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Queda registrado quién lo preparó",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador Central NO aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central NO aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Gerencia (de otra faena) aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "APROBADO es inmutable: ajuste manual",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "APROBADO no se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "APROBADO no se reemplaza sin anularlo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO anula",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO aprueba (Estado de Pago)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO aprueba ajustes de stock",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO aprueba compras desde $250.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO libera equipos",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador Central NO anula",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Anular exige motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Gerencia anula (doble clic): una sola vez, conserva totales y guarda motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "ANULADO es terminal: no se aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ya hay un documento del periodo: preparar de nuevo obliga a reemplazar",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Reemplazar (doble clic): una sola versión nueva vinculada, con diferencias y vigente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La versión original se conserva intacta",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se consultan todas las versiones",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se listan 2 versiones",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO aprueba Estados de Pago",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO rechaza Estados de Pago",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central NO prepara Estados de Pago",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Separación preparador/aprobador (defensa adicional): Gerencia no decide lo que ella misma preparó",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Gerencia rechaza la versión 2 con motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "RECHAZADO es inmutable: no se aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El rechazado se reemplaza (versión 3 vinculada)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Versión 3 vinculada a la 2 y las 3 versiones se conservan",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador propone una pauta nueva",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Una pauta pendiente no se vincula a un equipo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR NO aprueba pautas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador NO aprueba pautas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe de Taller local NO aprueba pautas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central aprueba la pauta",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ahora sí se vincula",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador programa la mantención preventiva con esa pauta",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Modificar una pauta exige motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador propone la versión 2 (cambia intervalos)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "No se propone otra versión mientras hay una pendiente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La versión anterior NO se sobrescribe mientras la nueva espera aprobación",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central aprueba la versión 2",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Versión 2 vigente y versión 1 conservada (inactiva) con sus datos",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La OT existente conserva la versión 1 que la originó",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La versión 1 (inactiva) ya no se vincula",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe de OTRA faena no propone cambios a esta pauta",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador crea un plan de mantención",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Programar por primera vez no exige motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Reprogramar sin motivo se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Reprogramar con motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La reprogramación queda auditada con su motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Postergar exige motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe crea un operador con 14X14 grupo B (y jornada aparte)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se guardó el régimen de turnos",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sistema inválido se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sistema sin grupo se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se cambia a 7X7 grupo A",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El cambio se guardó",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Los usuarios anteriores (sin turno) siguen intactos (retrocompatible)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe crea una OT CRÍTICA sin responsable",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Inmediata al Planificador de la faena",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ejecutar de nuevo no duplica (idempotente)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "A los 30 min escala al Jefe Central, una sola vez aun con ejecuciones simultáneas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador de la faena ve sus alertas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Planificador ve la alerta de su nivel y NO la del Jefe Central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central ve las de todas las faenas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central ve el escalamiento de la faena",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Operador no recibe alertas de gestión",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador sin alertas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador de OTRA faena",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "No ve las alertas de SIM-02 (aislamiento)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR compra 260.000 (autoaprobación)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central marca la compra",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central solicita la aprobación",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Quien solicita la aprobación de una compra no la aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR compra estimada 500.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca la compra estimada en 500.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Solicita la aprobación declarando solo 250.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El tope solicitado no queda bajo lo estimado (500.000)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Con la solicitud pendiente no se regulariza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ajuste: el Planificador solicita 30",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entra stock mientras el ajuste espera",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Aprobar un ajuste con el stock ya cambiado se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se rechaza la solicitud vencida",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Doble solicitud simultánea de ajuste: queda una sola pendiente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se rechaza para dejar el ítem libre",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tres salidas simultáneas que caben: se descuentan las tres y stock = lotes (sin pérdida de actualización)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe crea otra OT para la prueba de fraccionamiento",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR frac A",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR frac B",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR frac C",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca A",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca B",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Las compras de la misma OT en 24 h quedan auditadas como misma necesidad",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regulariza A por $150.000 (sola, bajo el límite)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Regularizar B por $150.000 se bloquea: junto con A alcanza $300.000 (misma OT, 24 h)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se puede solicitar la aprobación central de B por el acumulado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El Jefe Central aprueba la compra fraccionada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Con la aprobación, B se regulariza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca C (para la prueba de concurrencia)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR conc 1",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca conc 1",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR conc 2",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca conc 2",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Dos regularizaciones simultáneas de la misma necesidad ($260.000 en total): solo una pasa sin aprobación",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR de otra OT (compra independiente)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca la compra independiente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Una compra independiente (otra OT) de $200.000 NO se bloquea",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Fuera de las 24 h ya no es la misma necesidad: C por $100.000 se regulariza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Transferencias opuestas simultáneas: ambas OK, sin deadlock, stock = lotes en las dos faenas y sin pérdida",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Faena sin Jefe ni Planificador: aviso inmediato al Jefe Central y al Planificador Central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR no puede liberar el equipo de una faena sin responsable",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ni el Jefe Central",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El equipo permanece detenido",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sin secreto configurado el endpoint está apagado (503)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Sin credencial: 401",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Credencial incorrecta: 401",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ejecuciones repetidas y simultáneas del cron no duplican alertas",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador de OTRA faena no solicita ajustes de este ítem",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador de OTRA faena no pide aprobación de compra ajena",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe de OTRA faena no rechaza ajustes ajenos",
+    "ok": true,
+    "detalle": "ok"
+  }
+]

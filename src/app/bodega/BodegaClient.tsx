@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { Fragment, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { registrarMovimiento, editarItem } from '@/actions/bodega'
+import { registrarMovimiento, editarItem, solicitarAjusteStock } from '@/actions/bodega'
 import { Pencil } from 'lucide-react'
 
 type Item = {
@@ -74,7 +74,9 @@ export default function BodegaClient({ items, puedeEditar, tiposMovimiento }: { 
     setError('')
     startTransition(async () => {
       try {
-        await registrarMovimiento({ itemId, tipo, cantidad: Number(cantidad), observacion: obs || undefined })
+        // El ajuste manual no se aplica directo: se solicita (motivo obligatorio) y lo aprueba el Jefe de Taller Central.
+        if (tipo === 'AJUSTE') await solicitarAjusteStock({ itemId, cantidadNueva: Number(cantidad), motivo: obs })
+        else await registrarMovimiento({ itemId, tipo, cantidad: Number(cantidad), observacion: obs || undefined })
         setCantidad('')
         setObs('')
         setPanelActivo(null)
@@ -141,8 +143,8 @@ export default function BodegaClient({ items, puedeEditar, tiposMovimiento }: { 
               const panel = panelActivo?.id === item.id ? panelActivo.modo : null
 
               return (
-                <>
-                  <tr key={item.id} style={{ borderBottom: panel ? undefined : '1px solid var(--n-border)' }}>
+                <Fragment key={item.id}>
+                  <tr style={{ borderBottom: panel ? undefined : '1px solid var(--n-border)' }}>
                     <td className="px-4 py-3">
                       <p className="font-medium text-white">{item.descripcion}</p>
                       <p className="text-xs" style={{ color: 'var(--n-text-lt)' }}>
@@ -204,7 +206,7 @@ export default function BodegaClient({ items, puedeEditar, tiposMovimiento }: { 
                                   border: `1px solid ${tipo === t ? 'var(--n-yellow)' : 'var(--n-border)'}`,
                                 }}
                               >
-                                {t}
+                                {t === 'AJUSTE' ? 'SOLICITAR AJUSTE / INVENTARIO' : t}
                               </button>
                             ))}
                           </div>
@@ -262,7 +264,7 @@ export default function BodegaClient({ items, puedeEditar, tiposMovimiento }: { 
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               )
             })}
           </tbody>

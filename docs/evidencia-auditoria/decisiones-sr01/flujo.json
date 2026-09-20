@@ -1,0 +1,97 @@
+[
+  {
+    "paso": "Operador registra horómetro",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador reporta falla",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe convierte reporte en OT",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe asigna técnico",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico agrega bitácora",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico solicita repuesto",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador NO autoriza solicitud",
+    "ok": true,
+    "detalle": "rechazado: Sin permisos para esta acción"
+  },
+  {
+    "paso": "Jefe autoriza solicitud",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bodega entrega repuesto (FIFO)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Salida de bodega mayor al stock es rechazada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Diagnóstico y paso a reparación (doble clic)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "EN_REPARACION → ABIERTA bloqueado",
+    "ok": true,
+    "detalle": "rechazado: Transición no permitida: EN_REPARACION → ABIERTA"
+  },
+  {
+    "paso": "Cierre directo sin validación técnica bloqueado",
+    "ok": true,
+    "detalle": "rechazado: Transición no permitida: EN_REPARACION → CERRADA"
+  },
+  {
+    "paso": "Pasar a EN_VALIDACION",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Validar técnicamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Cerrar OT",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Anular OT ya cerrada bloqueado",
+    "ok": true,
+    "detalle": "rechazado: No se puede anular una OT en estado CERRADA"
+  },
+  {
+    "paso": "Reabrir OT con la acción específica",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Auditoría registrada del flujo",
+    "ok": true,
+    "detalle": "ok"
+  }
+]

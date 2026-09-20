@@ -13,7 +13,7 @@ export default async function NuevaOTPage({ searchParams }: { searchParams: Prom
 
   const { equipoId: equipoIdParam, tipo: tipoParam } = await searchParams
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const equipos = await prisma.equipo.findMany({
     where: { faenaId: faena?.id, activo: true },
     select: {

@@ -62,6 +62,8 @@ export const NAV_ITEMS: { label: string; href: string; roles: Rol[] | null; prin
   { label: 'Usuarios',    href: '/usuarios',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'] },
   { label: 'Faenas',      href: '/faenas',            roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'] },
   { label: 'Arriendos',   href: '/arriendos',         roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'GERENCIA'] },
+  { label: 'Alertas', href: '/alertas', roles: null },
+  { label: 'Compras directas', href: '/compras-directas', roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'COMPRAS'] },
   { label: 'Informes',    href: '/informes',          roles: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'GERENCIA'] },
 ]
 

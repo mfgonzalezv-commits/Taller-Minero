@@ -32,7 +32,7 @@ export default async function EquiposPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const equipos = await prisma.equipo.findMany({
     where: { faenaId: faena?.id, activo: true },
     include: {

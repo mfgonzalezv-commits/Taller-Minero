@@ -2,7 +2,10 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
+import { verificarLiberacionEquipo } from '@/lib/liberacion-servidor'
+import { abrirDetencion, cerrarDetencion, vincularOtADetencion } from '@/lib/detencion-registro'
 import { PrioridadOT } from '@prisma/client'
 
 function sugerirPrioridad(riesgoSeguridad: boolean, impactoProductivo?: string): PrioridadOT {
@@ -57,6 +60,7 @@ export async function crearReporteFalla(data: {
         where: { id: data.equipoId },
         data: { estado: 'DETENIDO_PENDIENTE_VALIDACION' },
       })
+      await abrirDetencion(tx, { equipoId: data.equipoId, faenaId: equipo.faenaId, origen: 'REPORTE_FALLA' })
     }
 
     return r
@@ -81,10 +85,20 @@ export async function crearReporteFalla(data: {
 // desde la hora original del reporte (fecha del ReporteFalla), no desde ahora.
 export async function validarDetencion(reporteId: string, confirmar: boolean, motivo?: string) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'])
 
   const reporte = await prisma.reporteFalla.findUniqueOrThrow({ where: { id: reporteId } })
   requireAlcanceFaena(sesion, reporte.faenaId)
+  // Descartar la detención devuelve el equipo a operar: es una liberación (Jefe/Planificador de la misma faena, con motivo).
+  if (!confirmar) {
+    requireRolPermitido(sesion, ROLES_LIBERAR_EQUIPO)
+    if (reporte.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: el equipo pertenece a otra faena')
+    if (!motivo?.trim()) throw new Error('Debe indicar el motivo para descartar la detención')
+    // Misma regla que la liberación: no se descarta con una OT en reparación ni saltándose la validación técnica.
+    const eq = await prisma.equipo.findUniqueOrThrow({ where: { id: reporte.equipoId }, select: { estado: true } })
+    const v = await verificarLiberacionEquipo(reporte.equipoId, reporte.faenaId, eq.estado, motivo)
+    if (v.error) throw new Error(v.error)
+  }
 
   await prisma.$transaction([
     prisma.reporteFalla.update({
@@ -99,6 +113,7 @@ export async function validarDetencion(reporteId: string, confirmar: boolean, mo
       where: { id: reporte.equipoId },
       data: { estado: confirmar ? 'DETENIDO' : 'OPERATIVO' },
     }),
+    ...(confirmar ? [] : [prisma.detencionEquipo.updateMany({ where: { equipoId: reporte.equipoId, fin: null }, data: { fin: new Date() } }), prisma.liberacionEquipo.create({ data: { equipoId: reporte.equipoId, faenaId: reporte.faenaId, liberadoPorId: sesion.userId, motivo: motivo!.trim(), tipo: 'DETENCION_DESCARTADA' } })]),
   ])
 
   await auditar({
@@ -202,6 +217,7 @@ export async function convertirReporteEnOT(reporteId: string) {
       data: { estado: 'CONVERTIDO_OT', otId: nuevaOt.id },
     })
 
+    await vincularOtADetencion(tx, reporte.equipoId, nuevaOt.id)
     return nuevaOt
   })
 

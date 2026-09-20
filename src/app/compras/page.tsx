@@ -12,7 +12,7 @@ export default async function ComprasPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
 
   const [otsEspera, itemsBajoStock] = await Promise.all([
     prisma.ordenTrabajo.findMany({

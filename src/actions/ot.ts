@@ -10,6 +10,7 @@ import { crearChecklistDesdePauta } from './pautas'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion, type SesionAutenticada } from '@/lib/authz'
 import { ROLES_ASIGNAR_TECNICO, ROLES_BITACORA, ROLES_CREAR_OT, ROLES_GESTION_OT } from '@/lib/permisos-roles'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
+import { abrirDetencion, vincularOtADetencion } from '@/lib/detencion-registro'
 // Bitácora/diagnóstico: roles de gestión de la faena de la OT; un MECANICO solo si es el técnico asignado.
 async function requireAccesoBitacoraOT(sesion: SesionAutenticada, otId: string) {
   requireRolPermitido(sesion, ROLES_BITACORA)
@@ -138,9 +139,12 @@ export async function crearOT(data: {
     await crearChecklistDesdePauta(ot.id, data.pautaId, data.cicloPM)
   }
 
-  await prisma.equipo.update({
-    where: { id: data.equipoId },
-    data: { estado: 'DETENIDO' },
+  // Estado del equipo + episodio de detención en una sola transacción. Si ya estaba detenido (reporte o inspección) el episodio
+  // conserva su hora inicial y solo se vincula la OT.
+  await prisma.$transaction(async (tx) => {
+    await tx.equipo.update({ where: { id: data.equipoId }, data: { estado: 'DETENIDO' } })
+    await abrirDetencion(tx, { equipoId: data.equipoId, faenaId: sesion.faenaId, origen: 'OT' })
+    await vincularOtADetencion(tx, data.equipoId, ot.id)
   })
 
   revalidatePath('/ot')
@@ -265,9 +269,8 @@ export async function cambiarEstadoOT(
   const inicioEstadoActual = ot.historial[0]?.fechaCambio ?? ot.fechaCreacion
   const minutos = Math.round((ahora.getTime() - inicioEstadoActual.getTime()) / 60000)
   const nuevoTiempoMin = ot.tiempoDetenidoMin + minutos
-  // El equipo vuelve a operativo y el contador de detención se congela al
-  // terminar el trabajo técnico (EN_VALIDACION), no al cierre administrativo
-  // (CERRADA) — pueden pasar días entre uno y otro.
+  // El contador de tiempo detenido de la OT se congela al terminar el trabajo técnico (EN_VALIDACION). El equipo SIGUE detenido
+  // hasta la liberación operacional (liberarEquipo), que es lo que termina el episodio de detención.
   const terminaDetencion = nuevoEstado === 'EN_VALIDACION'
   const costoDetencion = terminaDetencion
     ? (Number(ot.costoHoraSnapshot) * nuevoTiempoMin) / 60
@@ -298,7 +301,7 @@ export async function cambiarEstadoOT(
     await tx.historialEstadoOT.create({
       data: { otId, faenaId: ot.faenaId, estadoAnterior: ot.estado, estadoNuevo: nuevoEstado, usuarioId: sesion.userId, observacion, tiempoEnEstadoMin: minutos },
     })
-    if (terminaDetencion) await tx.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
+    // El equipo sigue detenido hasta la validación técnica y la liberación operacional (liberarEquipo).
     return true
   })
 
@@ -335,6 +338,7 @@ export async function reabrirOT(otId: string, motivo: string) {
       data: { otId, faenaId: ot.faenaId, estadoAnterior: 'CERRADA', estadoNuevo: 'ABIERTA', usuarioId: sesion.userId, observacion: `OT reabierta: ${motivo.trim()}`, tiempoEnEstadoMin: 0 },
     })
     await tx.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'DETENIDO' } })
+    await abrirDetencion(tx, { equipoId: ot.equipoId, faenaId: ot.faenaId, origen: 'REAPERTURA', otId })
     await tx.registroAuditoria.create({
       data: {
         faenaId: ot.faenaId, entidad: 'OrdenTrabajo', entidadId: otId, accion: 'REABRIR', usuarioId: sesion.userId, motivo: motivo.trim(),
@@ -349,20 +353,27 @@ export async function reabrirOT(otId: string, motivo: string) {
 }
 
 // Validación técnica del Jefe de Taller — distinta del cierre administrativo.
-// El equipo ya volvió a operativo al pasar a EN_VALIDACION; esto solo deja
-// registrado quién revisó el trabajo técnicamente antes de que se cierre.
+// El equipo sigue detenido en EN_VALIDACION: esto deja registrado quién revisó el trabajo técnicamente, requisito para que
+// Jefe/Planificador de la faena pueda liberarlo operacionalmente.
 export async function validarTecnicamente(otId: string) {
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true, estado: true } })
   requireAlcanceFaena(sesion, ot.faenaId)
+  // El Jefe de Taller Central valida solo cuando la faena no tiene Jefe de Taller local.
+  if (sesion.rol === 'JEFE_TALLER_CENTRAL') {
+    const jefeLocal = await prisma.usuario.count({ where: { faenaId: ot.faenaId, rol: 'JEFE_TALLER', activo: true } })
+    if (jefeLocal > 0) throw new ErrorAutorizacion('Sin permisos: la faena tiene Jefe de Taller local; él valida técnicamente')
+  }
   if (ot.estado !== 'EN_VALIDACION') throw new Error('La OT debe estar en validación técnica')
 
-  await prisma.ordenTrabajo.update({
-    where: { id: otId },
+  // Idempotente: si ya fue validada, no se sobrescribe quién ni cuándo.
+  const validada = await prisma.ordenTrabajo.updateMany({
+    where: { id: otId, estado: 'EN_VALIDACION', fechaValidacionTecnica: null },
     data: { validadoTecnicamentePorId: sesion.userId, fechaValidacionTecnica: new Date() },
   })
+  if (validada.count === 0) return
 
   await auditar({
     faenaId: ot.faenaId,
@@ -607,7 +618,7 @@ export async function anularOT(otId: string, motivo: string) {
     motivo: motivo.trim(),
   })
 
-  await prisma.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
+  // El equipo NO se libera solo al anular la OT: lo libera Jefe/Planificador de la faena (liberarEquipo).
 
   revalidatePath('/ot')
   revalidatePath('/dashboard')

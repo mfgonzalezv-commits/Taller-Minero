@@ -8,7 +8,7 @@ export default async function TrabajadoresPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const trabajadores = await prisma.trabajador.findMany({
     where: { faenaId: faena?.id, activo: true },
     orderBy: [{ tipo: 'asc' }, { nombre: 'asc' }],

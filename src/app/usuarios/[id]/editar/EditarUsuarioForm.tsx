@@ -23,6 +23,7 @@ const ESPECIALIDADES_OPC = ['Motor', 'Hidráulica', 'Eléctrico', 'Transmisión'
 type Usuario = {
   id: string; nombre: string; email: string; rol: RolUsuario
   tecnico: { especialidades: string[]; turno: string | null } | null
+  sistemaTurno?: string | null; grupoTurno?: string | null
 }
 
 // La lista de roles la calcula el servidor según el rol de quien edita; el backend la vuelve a imponer.
@@ -38,6 +39,8 @@ export default function EditarUsuarioForm({ usuario, rolesPermitidos }: { usuari
   const [password, setPassword] = useState('')
   const [especialidades, setEspecialidades] = useState<string[]>(usuario.tecnico?.especialidades ?? [])
   const [turno, setTurno] = useState(usuario.tecnico?.turno ?? '')
+  const [sistemaTurno, setSistemaTurno] = useState(usuario.sistemaTurno ?? '')
+  const [grupoTurno, setGrupoTurno] = useState(usuario.grupoTurno ?? '')
 
   const toggleEsp = (e: string) =>
     setEspecialidades((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e])
@@ -52,6 +55,8 @@ export default function EditarUsuarioForm({ usuario, rolesPermitidos }: { usuari
           password: password || undefined,
           especialidades: rol === 'MECANICO' ? especialidades : undefined,
           turno: rol === 'MECANICO' ? turno : undefined,
+          sistemaTurno: sistemaTurno || null,
+          grupoTurno: grupoTurno || null,
         })
         router.push('/usuarios')
       } catch (err: unknown) {
@@ -127,6 +132,19 @@ export default function EditarUsuarioForm({ usuario, rolesPermitidos }: { usuari
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" className="n-input" />
       </div>
 
+      {/* Régimen de turnos (opcional): cada persona tiene su propia cuenta y su grupo. La jornada Día/Noche va aparte. */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs" style={{ color: 'var(--n-text-lt)' }}>Sistema de turno
+          <select value={sistemaTurno} onChange={(e) => setSistemaTurno(e.target.value)} className="mt-1 w-full rounded-md px-2 py-1.5 text-sm" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+            <option value="">Sin definir</option><option value="7X7">7X7</option><option value="14X14">14X14</option>
+          </select>
+        </label>
+        <label className="text-xs" style={{ color: 'var(--n-text-lt)' }}>Grupo
+          <select value={grupoTurno} onChange={(e) => setGrupoTurno(e.target.value)} className="mt-1 w-full rounded-md px-2 py-1.5 text-sm" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+            <option value="">Sin definir</option><option value="A">A</option><option value="B">B</option>
+          </select>
+        </label>
+      </div>
       {error && <p className="text-xs" style={{ color: 'var(--n-red)' }}>{error}</p>}
 
       <div className="flex gap-3 pt-1">
