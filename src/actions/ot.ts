@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { EstadoOT, OrigenFalla, PrioridadOT, TipoIntervencionOT, TipoMantenimiento } from '@prisma/client'
 import { ESTADOS_CON_ACCION_PROPIA, puedeTransicionarOT, validarTransicionOT } from '@/lib/maquina-ot'
 import { calcularTasaOverhead } from './trabajadores'
-import { crearChecklistDesdePauta } from './pautas'
+import { checklistDesdePautaTx } from '@/lib/checklist-pauta'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion, type SesionAutenticada } from '@/lib/authz'
 import { ROLES_ASIGNAR_TECNICO, ROLES_BITACORA, ROLES_CREAR_OT, ROLES_GESTION_OT } from '@/lib/permisos-roles'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
@@ -107,44 +107,42 @@ export async function crearOT(data: {
     select: { id: true },
   })
 
-  const ot = await prisma.ordenTrabajo.create({
-    data: {
-      faenaId: sesion.faenaId,
-      equipoId: data.equipoId,
-      descripcionFalla: data.descripcionFalla,
-      origenFalla: data.origenFalla ?? null,
-      reportadaPorNombre: data.reportadaPorNombre ?? null,
-      prioridad: data.prioridad ?? 'MEDIA',
-      tipoMantenimiento: data.tipoMantenimiento ?? 'CORRECTIVO',
-      fechaCompromiso: data.fechaCompromiso,
-      creadoPorId: sesion.userId,
-      costoHoraSnapshot: equipo.costoHoraDetencion,
-      pautaId: data.pautaId ?? null,
-      cicloPM: data.cicloPM ?? null,
-      reincidente: !!otAnterior,
-      reincidenciaConfirmada: otAnterior ? null : undefined,
-      otOrigenId: otAnterior?.id ?? null,
-      historial: {
-        create: {
-          estadoNuevo: 'ABIERTA',
-          faenaId: sesion.faenaId,
-          usuarioId: sesion.userId,
-          observacion: 'OT creada',
+  // OT, historial inicial, checklist, estado del equipo, episodio de detención y vinculación: UNA sola transacción (todo o nada).
+  const ot = await prisma.$transaction(async (tx) => {
+    const ot = await tx.ordenTrabajo.create({
+      data: {
+        faenaId: sesion.faenaId,
+        equipoId: data.equipoId,
+        descripcionFalla: data.descripcionFalla,
+        origenFalla: data.origenFalla ?? null,
+        reportadaPorNombre: data.reportadaPorNombre ?? null,
+        prioridad: data.prioridad ?? 'MEDIA',
+        tipoMantenimiento: data.tipoMantenimiento ?? 'CORRECTIVO',
+        fechaCompromiso: data.fechaCompromiso,
+        creadoPorId: sesion.userId,
+        costoHoraSnapshot: equipo.costoHoraDetencion,
+        pautaId: data.pautaId ?? null,
+        cicloPM: data.cicloPM ?? null,
+        reincidente: !!otAnterior,
+        reincidenciaConfirmada: otAnterior ? null : undefined,
+        otOrigenId: otAnterior?.id ?? null,
+        historial: {
+          create: {
+            estadoNuevo: 'ABIERTA',
+            faenaId: sesion.faenaId,
+            usuarioId: sesion.userId,
+            observacion: 'OT creada',
+          },
         },
       },
-    },
-  })
+    })
 
-  if (data.pautaId && data.cicloPM) {
-    await crearChecklistDesdePauta(ot.id, data.pautaId, data.cicloPM)
-  }
-
-  // Estado del equipo + episodio de detención en una sola transacción. Si ya estaba detenido (reporte o inspección) el episodio
-  // conserva su hora inicial y solo se vincula la OT.
-  await prisma.$transaction(async (tx) => {
+    if (data.pautaId && data.cicloPM) await checklistDesdePautaTx(tx, ot.id, data.pautaId, data.cicloPM)
     await tx.equipo.update({ where: { id: data.equipoId }, data: { estado: 'DETENIDO' } })
+    // Si el equipo ya estaba detenido (reporte o inspección), el episodio conserva su hora inicial y solo se vincula la OT.
     await abrirDetencion(tx, { equipoId: data.equipoId, faenaId: sesion.faenaId, origen: 'OT' })
     await vincularOtADetencion(tx, data.equipoId, ot.id)
+    return ot
   })
 
   revalidatePath('/ot')

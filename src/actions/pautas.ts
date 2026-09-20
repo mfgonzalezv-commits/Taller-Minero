@@ -7,6 +7,7 @@ import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
 import { requireSesion, requireAlcanceFaena, requireRolPermitido, ErrorAutorizacion } from '@/lib/authz'
 import { ROLES_APROBAR_PAUTA, ROLES_BITACORA, ROLES_CREAR_PLAN, ROLES_PROPONER_PAUTA } from '@/lib/permisos-roles'
 import { auditar } from '@/lib/authz'
+import { checklistDesdePautaTx } from '@/lib/checklist-pauta'
 import type { CategoriaItemPM, TipoMetricaPM } from '@prisma/client'
 
 export type EstadoPM = 'VENCIDA' | 'PROXIMA' | 'OT_ACTIVA' | 'OK'
@@ -150,49 +151,7 @@ export async function crearChecklistDesdePauta(otId: string, pautaId: string, ci
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true } })
   requireAlcanceFaena(sesion, ot.faenaId)
 
-  const pauta = await prisma.pautaMantenimiento.findUnique({
-    where: { id: pautaId },
-    include: { items: { orderBy: [{ categoria: 'asc' }, { orden: 'asc' }] } },
-  })
-  if (!pauta) throw new Error('Pauta no encontrada')
-
-  // Solo incluir ítems que aplican en este ciclo
-  const itemsAplicables = pauta.items.filter(item =>
-    item.ciclosReemplazar.includes(ciclo) || item.ciclosCondicionar.includes(ciclo)
-  )
-
-  if (itemsAplicables.length === 0) {
-    // Si no hay ítems para este ciclo exacto, incluir todos
-    const todos = pauta.items
-    await prisma.checklistItemOT.createMany({
-      data: todos.map((item, idx) => ({
-        otId,
-        descripcion: item.componente,
-        codigo: item.alternativo || null,
-        cantidad: item.cantidad,
-        unidad: item.unidad || 'un',
-        obligatorio: true,
-        completado: false,
-        orden: idx,
-      })),
-    })
-    return todos.length
-  }
-
-  await prisma.checklistItemOT.createMany({
-    data: itemsAplicables.map((item, idx) => ({
-      otId,
-      descripcion: `${item.ciclosReemplazar.includes(ciclo) ? '🔄 ' : '🔍 '}${item.componente}`,
-      codigo: item.alternativo || null,
-      cantidad: item.cantidad,
-      unidad: item.unidad || 'un',
-      obligatorio: item.ciclosReemplazar.includes(ciclo),
-      completado: false,
-      orden: idx,
-    })),
-  })
-
-  return itemsAplicables.length
+  return checklistDesdePautaTx(prisma, otId, pautaId, ciclo)
 }
 
 export async function programarPM(data: {
