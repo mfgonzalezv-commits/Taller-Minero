@@ -7,6 +7,7 @@ import { CriticidadInspeccion, ResultadoItem, TurnoInspeccion } from '@prisma/cl
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
 import { ROLES_CREAR_PLAN, ROLES_CREAR_OT, ROLES_GESTION_OT, ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
 import { verificarLiberacionEquipo } from '@/lib/liberacion-servidor'
+import { abrirDetencion } from '@/lib/detencion-registro'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 
@@ -188,6 +189,7 @@ export async function crearInspeccion(data: {
         })
         reporteId = reporte.id
         await tx.equipo.updateMany({ where: { id: data.equipoId, faenaId: sesion.faenaId }, data: { estado: 'DETENIDO_PENDIENTE_VALIDACION' } })
+        await abrirDetencion(tx, { equipoId: data.equipoId, faenaId: sesion.faenaId, origen: 'INSPECCION' })
       }
 
       return { inspeccionId: inspeccion.id, alertas: conProblema.length, criticos: criticos.length, reporteId, repetida: false }
@@ -291,6 +293,7 @@ export async function autorizarOperarConObservacion(equipoId: string, observacio
   await prisma.$transaction([
     prisma.equipo.update({ where: { id: equipoId }, data: { estado: 'OPERATIVO_CON_OBSERVACION' } }),
     prisma.liberacionEquipo.create({ data: { equipoId, faenaId: equipo.faenaId, liberadoPorId: sesion.userId, motivo: observacion.trim(), tipo: 'OPERAR_CON_OBSERVACION' } }),
+    prisma.detencionEquipo.updateMany({ where: { equipoId, fin: null }, data: { fin: new Date() } }),
   ])
 
   await auditar({

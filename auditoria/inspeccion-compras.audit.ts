@@ -148,10 +148,10 @@ describe('inspecciones, SR y compras (regresión AUD-013 a AUD-019)', () => {
     const sr2 = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: ot.id, items: { some: { descripcion: 'AUDIT compra urgente' } } } })
     const datos = { cotizaciones: ['COT-1 $590.000'], comprobante: 'FAC-9001', motivo: 'Emergencia: equipo detenido', monto: 600000 }
     await espera('Regularizar antes de marcar compra directa se rechaza', S.C, () => regularizarCompraDirecta(sr2.id, datos), /no es una compra directa/)
-    await espera('Bodega NO marca compra directa', S.bod, () => marcarCompraDirecta(sr2.id, 'AUDIT'), /Sin permisos/)
-    await espera('Compra directa sin motivo se rechaza', S.jefe, () => marcarCompraDirecta(sr2.id, ' '), /justificar/)
+    await espera('Bodega NO marca compra directa', S.bod, () => marcarCompraDirecta(sr2.id, 'AUDIT', 600000), /Sin permisos/)
+    await espera('Compra directa sin motivo se rechaza', S.jefe, () => marcarCompraDirecta(sr2.id, ' ', 600000), /justificar/)
     como(S.jefe)
-    const marc = await Promise.allSettled([marcarCompraDirecta(sr2.id, 'Emergencia sin cotizaciones previas'), marcarCompraDirecta(sr2.id, 'Emergencia sin cotizaciones previas')])
+    const marc = await Promise.allSettled([marcarCompraDirecta(sr2.id, 'Emergencia sin cotizaciones previas', 600000), marcarCompraDirecta(sr2.id, 'Emergencia sin cotizaciones previas', 600000)])
     chequear('Marcar compra directa es idempotente (doble clic)', marc.every(m => m.status === 'fulfilled') && (await prisma.registroAuditoria.count({ where: { entidadId: sr2.id, accion: 'MARCAR_COMPRA_DIRECTA' } })) === 1)
     await espera('Bodega NO regulariza', S.bod, () => regularizarCompraDirecta(sr2.id, datos), /Sin permisos/)
     await espera('Regularizar sin cotización se rechaza', S.C, () => regularizarCompraDirecta(sr2.id, { ...datos, cotizaciones: [] }), /cotización/)

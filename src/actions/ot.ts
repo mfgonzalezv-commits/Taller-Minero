@@ -10,6 +10,7 @@ import { crearChecklistDesdePauta } from './pautas'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion, type SesionAutenticada } from '@/lib/authz'
 import { ROLES_ASIGNAR_TECNICO, ROLES_BITACORA, ROLES_CREAR_OT, ROLES_GESTION_OT } from '@/lib/permisos-roles'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
+import { abrirDetencion, vincularOtADetencion } from '@/lib/detencion-registro'
 // Bitácora/diagnóstico: roles de gestión de la faena de la OT; un MECANICO solo si es el técnico asignado.
 async function requireAccesoBitacoraOT(sesion: SesionAutenticada, otId: string) {
   requireRolPermitido(sesion, ROLES_BITACORA)
@@ -142,6 +143,9 @@ export async function crearOT(data: {
     where: { id: data.equipoId },
     data: { estado: 'DETENIDO' },
   })
+  // Si el equipo ya estaba detenido (reporte o inspección), el episodio conserva su hora inicial y solo se vincula la OT.
+  await abrirDetencion(prisma, { equipoId: data.equipoId, faenaId: sesion.faenaId, origen: 'OT' })
+  await vincularOtADetencion(prisma, data.equipoId, ot.id)
 
   revalidatePath('/ot')
   revalidatePath('/dashboard')
@@ -335,6 +339,7 @@ export async function reabrirOT(otId: string, motivo: string) {
       data: { otId, faenaId: ot.faenaId, estadoAnterior: 'CERRADA', estadoNuevo: 'ABIERTA', usuarioId: sesion.userId, observacion: `OT reabierta: ${motivo.trim()}`, tiempoEnEstadoMin: 0 },
     })
     await tx.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'DETENIDO' } })
+    await abrirDetencion(tx, { equipoId: ot.equipoId, faenaId: ot.faenaId, origen: 'REAPERTURA', otId })
     await tx.registroAuditoria.create({
       data: {
         faenaId: ot.faenaId, entidad: 'OrdenTrabajo', entidadId: otId, accion: 'REABRIR', usuarioId: sesion.userId, motivo: motivo.trim(),

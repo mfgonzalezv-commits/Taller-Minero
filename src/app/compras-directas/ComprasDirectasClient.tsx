@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { marcarCompraDirecta, regularizarCompraDirecta, solicitarAprobacionCompra, aprobarCompraDirectaCentral } from '@/actions/sr'
+import { marcarCompraDirecta, regularizarCompraDirecta, solicitarAprobacionCompra, aprobarCompraDirectaCentral, rechazarAprobacionCompra, cancelarCompraDirecta } from '@/actions/sr'
 import { LIMITE_COMPRA_DIRECTA_FAENA } from '@/lib/compra-directa'
 
 type Fila = Awaited<ReturnType<typeof import('@/actions/sr').getComprasDirectas>>[number]
@@ -35,7 +35,7 @@ export default function ComprasDirectasClient({ filas, puedeComprar, puedeRegula
           {porAprobar.length === 0 ? <p className="text-sm" style={{ color: 'var(--n-text-lt)' }}>Sin compras esperando aprobación.</p> : porAprobar.map(s => (
             <div key={s.id} className="flex items-center justify-between gap-3 py-2 border-t" style={{ borderColor: 'var(--n-border)' }}>
               <div className="text-sm text-white"><b>SR-{String(s.numeroSr).padStart(4, '0')}</b> · {s.faena} · OT {s.ot} ({s.equipo}) · <b>{clp(s.montoSolicitado ?? 0)}</b><br /><span className="text-xs" style={{ color: 'var(--n-text-lt)' }}>{s.items} — {s.motivoCompraDirecta}</span></div>
-              <button disabled={pend} className="n-btn-primary text-xs px-3 py-1.5" onClick={() => correr(() => aprobarCompraDirectaCentral(s.id))}>Aprobar compra</button>
+              <div className="flex gap-2"><button disabled={pend} className="n-btn-primary text-xs px-3 py-1.5" onClick={() => correr(() => aprobarCompraDirectaCentral(s.id))}>Aprobar compra</button><button disabled={pend} className="n-btn-ghost text-xs px-3 py-1.5" onClick={() => { const m = window.prompt('Motivo del rechazo (obligatorio):'); if (m) correr(() => rechazarAprobacionCompra(s.id, m)) }}>Rechazar</button></div>
             </div>
           ))}
         </section>
@@ -50,7 +50,8 @@ export default function ComprasDirectasClient({ filas, puedeComprar, puedeRegula
             <div key={s.id} className="py-3 border-t" style={{ borderColor: 'var(--n-border)' }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="text-sm text-white"><b>SR-{String(s.numeroSr).padStart(4, '0')}</b> · {s.faena} · OT {s.ot} ({s.equipo}) · estimado {clp(s.montoEstimado)}<br /><span className="text-xs" style={{ color: 'var(--n-text-lt)' }}>{s.items} — {s.motivoCompraDirecta}</span>
-                  <br /><span className="text-xs font-bold" style={{ color: s.aprobadaCentral ? '#4ade80' : s.aprobacionSolicitada ? '#fbbf24' : 'var(--n-text-lt)' }}>{s.aprobadaCentral ? `Aprobada por el nivel central (tope ${clp(s.montoFinal ?? 0)})` : s.aprobacionSolicitada ? `Aprobación central solicitada por ${clp(s.montoSolicitado ?? 0)}` : 'Sin aprobación central'}</span></div>
+                  <br /><span className="text-xs font-bold" style={{ color: s.motivoRechazoAprobacion && !s.aprobacionSolicitada ? '#f87171' : s.aprobadaCentral ? '#4ade80' : s.aprobacionSolicitada ? '#fbbf24' : 'var(--n-text-lt)' }}>{s.motivoRechazoAprobacion && !s.aprobacionSolicitada ? `Rechazada por el nivel central: ${s.motivoRechazoAprobacion} (corrige y reenvía, o cancela la compra)` : s.aprobadaCentral ? `Aprobada por el nivel central (tope ${clp(s.montoFinal ?? 0)})` : s.aprobacionSolicitada ? `Aprobación central solicitada por ${clp(s.montoSolicitado ?? 0)}` : 'Sin aprobación central'}</span></div>
+                {puedeComprar && <button disabled={pend} className="n-btn-ghost text-xs px-3 py-1.5" onClick={() => { const m = window.prompt('Motivo de la cancelación:'); if (m) correr(() => cancelarCompraDirecta(s.id, m)) }}>Cancelar compra</button>}
                 {puedeRegularizar && <button className="n-btn-ghost text-xs px-3 py-1.5" onClick={() => { setAbierta(abierta === s.id ? null : s.id); setF({ monto: String(s.montoEstimado || ''), comprobante: '', motivo: '', cotizaciones: '' }) }}>{abierta === s.id ? 'Cerrar' : 'Regularizar'}</button>}
               </div>
               {abierta === s.id && (
@@ -78,7 +79,7 @@ export default function ComprasDirectasClient({ filas, puedeComprar, puedeRegula
           {candidatas.map(s => (
             <div key={s.id} className="flex items-center justify-between gap-3 py-2 border-t" style={{ borderColor: 'var(--n-border)' }}>
               <div className="text-sm text-white"><b>SR-{String(s.numeroSr).padStart(4, '0')}</b> · {s.faena} · OT {s.ot} ({s.equipo}) · {s.estado}<br /><span className="text-xs" style={{ color: 'var(--n-text-lt)' }}>{s.items}</span></div>
-              <button disabled={pend} className="n-btn-ghost text-xs px-3 py-1.5" onClick={() => { const m = window.prompt('Motivo de la compra directa (emergencia):'); if (m) correr(() => marcarCompraDirecta(s.id, m)) }}>Marcar compra directa</button>
+              <button disabled={pend} className="n-btn-ghost text-xs px-3 py-1.5" onClick={() => { const m = window.prompt('Motivo de la compra directa (emergencia):'); const monto = m ? Number(window.prompt('Monto estimado (IVA incluido, mayor a cero):')) : 0; if (m && monto > 0) correr(() => marcarCompraDirecta(s.id, m, monto)) }}>Marcar compra directa</button>
             </div>
           ))}
         </section>

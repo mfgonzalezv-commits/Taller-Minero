@@ -79,3 +79,34 @@ describe('modalidad HORA: la detención es información, sin descuento adicional
     expect(l.montoNeto).toBe(l.montoBruto)
   })
 })
+
+describe('detención SIN OT (episodios registrados al detener el equipo)', () => {
+  const episodio = (ini: Date, fin: Date | null): OtDetencion => ({ equipoId: 'E1', faenaId: 'F1', estado: 'DETENCION', fechaCreacion: ini, fechaTerminoTrabajo: null, episodios: [{ ini, fin }] })
+  it('equipo detenido sin OT: cuenta desde la detención hasta la liberación', () => {
+    expect(horas([episodio(d(10, 8), d(10, 20))])).toBe(12)
+  })
+  it('reporte detenido → demora → creación de OT: la hora inicial es la del reporte, no la de la OT', () => {
+    const detencion = episodio(d(10, 8), d(10, 20))
+    const otTardia = ot({ estado: 'CERRADA', creada: d(10, 12), termino: d(10, 15), cierre: d(10, 16), historial: [H('X', 'EN_VALIDACION', d(10, 15)), H('EN_VALIDACION', 'CERRADA', d(10, 16))] }, [d(10, 20)])
+    expect(horas([otTardia])).toBe(8) // solo con la OT se perdían las 4 h previas
+    expect(horas([detencion, otTardia])).toBe(12) // con el episodio: 08:00 → 20:00, sin doble descuento
+  })
+  it('OT creada posteriormente y liberación: una sola ventana unida', () => {
+    const detencion = episodio(d(10, 8), d(11, 6))
+    const o = ot({ estado: 'CERRADA', creada: d(10, 22), termino: d(11, 2), cierre: d(11, 3), historial: [H('X', 'EN_VALIDACION', d(11, 2)), H('EN_VALIDACION', 'CERRADA', d(11, 3))] }, [d(11, 6)])
+    expect(horas([detencion, o])).toBe(22) // 10 08:00 → 11 06:00
+  })
+  it('episodio abierto (sin liberación) llega hasta el límite del periodo', () => {
+    expect(horas([episodio(d(20, 8), null)])).toBe((d(30, 0).getTime() - d(20, 8).getTime()) / 3_600_000)
+  })
+  it('cambio de periodo 26–25: el episodio sin OT se reparte sin perder ni duplicar', () => {
+    const e = episodio(d(25, 20), d(26, 4))
+    const a = horas([e], { inicio: d(26, 0, 0, 8), termino: d(26, 0) }), b = horas([e], { inicio: d(26, 0), termino: d(25, 23, 59, 10) })
+    expect(a).toBeCloseTo(4, 1); expect(b).toBeCloseTo(4, 1); expect(a + b).toBeCloseTo(8, 1)
+  })
+  it('modalidad HORA: las horas de la detención sin OT quedan como información, sin descuento adicional', () => {
+    const asign = { id: 'A1', equipoId: 'E1', faenaId: 'F1', fechaInicio: d(1, 0), fechaTermino: null, modalidad: 'HORA' as const, tarifa: 50_000, politicaProrateo: 'DIAS_REALES' as const, reglaDescuentoDetencion: '100%' }
+    const l = calcularLineaAsignacion(asign, ventana, [episodio(d(10, 8), d(10, 20))], [{ equipoId: 'E1', faenaId: 'F1', fecha: d(2, 0), horometro: 1000 }, { equipoId: 'E1', faenaId: 'F1', fecha: d(29, 0), horometro: 1100 }])
+    expect(l.horasDetencion).toBe(12); expect(l.descuentoDetencion).toBe(0)
+  })
+})

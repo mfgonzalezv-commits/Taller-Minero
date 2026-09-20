@@ -18,7 +18,7 @@ export function validarRegularizacion(d: DatosRegularizacion): string | null {
   if (!d.comprobante?.trim()) return 'Debe indicar el comprobante de la compra'
   if (!d.motivo?.trim()) return 'Debe indicar el motivo de la regularización'
   if (!Array.isArray(d.cotizaciones) || d.cotizaciones.filter(c => c?.trim()).length < 1) return 'Debe adjuntar al menos una cotización de respaldo'
-  if (!(d.monto >= 0) || !Number.isFinite(d.monto)) return 'El monto de la compra no es válido'
+  if (!(d.monto > 0) || !Number.isFinite(d.monto)) return 'El monto real de la compra debe ser mayor a cero'
   return null
 }
 

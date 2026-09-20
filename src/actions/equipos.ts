@@ -7,6 +7,7 @@ import { TipoEquipo, EstadoEquipo } from '@prisma/client'
 import { requireSesion, requireAlcanceFaena, requireRolPermitido, auditar, ErrorAutorizacion } from '@/lib/authz'
 import { ROLES_GESTION_OT, ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
 import { verificarLiberacionEquipo } from '@/lib/liberacion-servidor'
+import { abrirDetencion, cerrarDetencion } from '@/lib/detencion-registro'
 
 export async function getEquipos() {
   const session = await auth()
@@ -130,6 +131,7 @@ export async function actualizarEstadoEquipo(id: string, estado: EstadoEquipo) {
     where: { id },
     data: { estado },
   })
+  if (['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'].includes(estado)) await abrirDetencion(prisma, { equipoId: id, faenaId: actual.faenaId, origen: 'ESTADO' })
 
   await auditar({
     faenaId: actual.faenaId,
@@ -165,6 +167,7 @@ export async function liberarEquipo(equipoId: string, motivo?: string) {
     const r = await tx.equipo.updateMany({ where: { id: equipoId, estado: equipo.estado }, data: { estado: 'OPERATIVO' } })
     if (r.count === 0) throw new Error('El equipo cambió de estado mientras se liberaba; recarga e intenta de nuevo')
     await tx.liberacionEquipo.create({ data: { equipoId, faenaId: equipo.faenaId, liberadoPorId: sesion.userId, motivo: motivo?.trim() || null, tipo: 'LIBERACION', otId: otReparadaId } })
+    await cerrarDetencion(tx, equipoId) // la detención termina SOLO aquí
   })
   await auditar({ faenaId: equipo.faenaId, entidad: 'Equipo', entidadId: equipoId, accion: 'LIBERAR', usuarioId: sesion.userId, valorAnterior: { estado: equipo.estado }, valorNuevo: { estado: 'OPERATIVO', conReparacion: !!otReparadaId }, motivo: motivo?.trim() || null })
   revalidatePath('/equipos'); revalidatePath('/dashboard')

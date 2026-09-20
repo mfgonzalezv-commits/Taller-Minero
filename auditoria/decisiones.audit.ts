@@ -6,9 +6,9 @@ import fs from 'fs'
 import path from 'path'
 import { prisma } from '../src/lib/prisma'
 import { como, sesionDe, SALIDA } from './helpers'
-import { crearSR, marcarCompraDirecta, regularizarCompraDirecta, solicitarAprobacionCompra, aprobarCompraDirectaCentral } from '../src/actions/sr'
+import { crearSR, marcarCompraDirecta, regularizarCompraDirecta, solicitarAprobacionCompra, aprobarCompraDirectaCentral, rechazarAprobacionCompra, cancelarCompraDirecta } from '../src/actions/sr'
 import { registrarMovimiento, solicitarAjusteStock, aprobarAjusteStock, rechazarAjusteStock, transferirStockEntreFaenas } from '../src/actions/bodega'
-import { crearReporteFalla, validarDetencion } from '../src/actions/fallas'
+import { crearReporteFalla, validarDetencion, convertirReporteEnOT } from '../src/actions/fallas'
 import { cambiarEstadoOT, validarTecnicamente, crearOT } from '../src/actions/ot'
 import { liberarEquipo, actualizarEstadoEquipo } from '../src/actions/equipos'
 import { autorizarOperarConObservacion } from '../src/actions/inspeccion'
@@ -64,12 +64,12 @@ describe('decisiones operacionales (SIM-02)', () => {
     }
     const datos = (monto: number) => ({ cotizaciones: ['COT-1'], comprobante: 'FAC-1', motivo: 'Emergencia', monto })
     const c1 = await nuevaCompra('compra 249.999', 249_999)
-    await espera('Operador NO compra', S.op, () => marcarCompraDirecta(c1.id, 'x'), /Sin permisos/)
-    await exito('Planificador marca compra directa', S.plan, () => marcarCompraDirecta(c1.id, 'Emergencia de faena'))
+    await espera('Operador NO compra', S.op, () => marcarCompraDirecta(c1.id, 'x', 1000), /Sin permisos/)
+    await exito('Planificador marca compra directa', S.plan, () => marcarCompraDirecta(c1.id, 'Emergencia de faena', 249999))
     await espera('Bajo el límite no se solicita aprobación central (249.999)', S.plan, () => solicitarAprobacionCompra(c1.id, 249_999), /menor a \$250\.000/)
     await exito('Planificador regulariza $249.999 sin aprobación central', S.plan, () => regularizarCompraDirecta(c1.id, datos(249_999)))
     const c2 = await nuevaCompra('compra 250.000', 250_000)
-    await exito('Planificador marca la compra de $250.000', S.plan, () => marcarCompraDirecta(c2.id, 'Emergencia de faena'))
+    await exito('Planificador marca la compra de $250.000', S.plan, () => marcarCompraDirecta(c2.id, 'Emergencia de faena', 250000))
     await espera('Regularizar $250.000 exacto exige aprobación central', S.plan, () => regularizarCompraDirecta(c2.id, datos(250_000)), /aprobación central/)
     await espera('Aprobar antes de que la faena lo solicite se rechaza', S.central, () => aprobarCompraDirectaCentral(c2.id), /aún no solicitó/)
     como(S.plan)
@@ -83,12 +83,12 @@ describe('decisiones operacionales (SIM-02)', () => {
     chequear('Jefe Central aprueba (doble clic): una sola aprobación', apr.every(x => x.status === 'fulfilled') && (await auditorias(c2.id, 'APROBAR_COMPRA_DIRECTA_CENTRAL')) === 1)
     await exito('Con la aprobación, el Planificador regulariza $250.000', S.plan, () => regularizarCompraDirecta(c2.id, datos(250_000)))
     const c3 = await nuevaCompra('compra 300.000', 300_000)
-    await exito('Marca compra 300.000', S.plan, () => marcarCompraDirecta(c3.id, 'Emergencia'))
+    await exito('Marca compra 300.000', S.plan, () => marcarCompraDirecta(c3.id, 'Emergencia', 300000))
     await exito('Solicita aprobación por 300.000', S.plan, () => solicitarAprobacionCompra(c3.id, 300_000))
     await exito('Jefe Central aprueba 300.000', S.central, () => aprobarCompraDirectaCentral(c3.id))
     await espera('La aprobación fija el tope: $300.001 se rechaza', S.plan, () => regularizarCompraDirecta(c3.id, datos(300_001)), /supera el monto aprobado/)
     const c4 = await nuevaCompra('compra 400.000', 400_000)
-    await exito('Marca la compra estimada en 400.000', S.plan, () => marcarCompraDirecta(c4.id, 'Emergencia'))
+    await exito('Marca la compra estimada en 400.000', S.plan, () => marcarCompraDirecta(c4.id, 'Emergencia', 400000))
     await espera('Un monto informado bajo (1) NO evade el límite: se controla con lo estimado', S.plan, () => regularizarCompraDirecta(c4.id, datos(1)), /aprobación central/)
 
     // ── B. Ajustes manuales de stock ──────────────────────────────────────────────────────────────────
@@ -251,11 +251,11 @@ describe('decisiones operacionales (SIM-02)', () => {
 
     // ── J. Correcciones de la revisión: separación en compras, tope, solicitud pendiente, ajuste vencido, concurrencia ──
     const c5 = await nuevaCompra('compra 260.000 (autoaprobación)', 260_000)
-    await exito('El Jefe Central marca la compra', S.central, () => marcarCompraDirecta(c5.id, 'Emergencia'))
+    await exito('El Jefe Central marca la compra', S.central, () => marcarCompraDirecta(c5.id, 'Emergencia', 260000))
     await exito('El Jefe Central solicita la aprobación', S.central, () => solicitarAprobacionCompra(c5.id, 260_000))
     await espera('Quien solicita la aprobación de una compra no la aprueba', S.central, () => aprobarCompraDirectaCentral(c5.id), /no puede aprobarla/)
     const c6 = await nuevaCompra('compra estimada 500.000', 500_000)
-    await exito('Marca la compra estimada en 500.000', S.plan, () => marcarCompraDirecta(c6.id, 'Emergencia'))
+    await exito('Marca la compra estimada en 500.000', S.plan, () => marcarCompraDirecta(c6.id, 'Emergencia', 500000))
     await exito('Solicita la aprobación declarando solo 250.000', S.plan, () => solicitarAprobacionCompra(c6.id, 250_000))
     chequear('El tope solicitado no queda bajo lo estimado (500.000)', Number((await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: c6.id } })).montoSolicitado) === 500_000)
     await espera('Con la solicitud pendiente no se regulariza', S.plan, () => regularizarCompraDirecta(c6.id, datos(250_000)), /solicitud de aprobación central pendiente/)
@@ -276,23 +276,66 @@ describe('decisiones operacionales (SIM-02)', () => {
     const desp = await stockLotes()
     chequear('Tres salidas simultáneas que caben: se descuentan las tres y stock = lotes (sin pérdida de actualización)', sim.every(x => x.status === 'fulfilled') && desp.stock === antes.stock - 6 && desp.lotes === desp.stock, JSON.stringify({ r: sim.map(x => x.status), antes, desp }))
 
+    // ── K0. Monto obligatorio, rechazo de la solicitud, corrección/reenvío y cancelación ───────────────────────
+    const cR = await nuevaCompra('compra rechazable', 320_000)
+    await espera('La compra directa exige monto estimado mayor a cero', S.plan, () => marcarCompraDirecta(cR.id, 'Emergencia', 0), /monto estimado/)
+    await exito('Marca la compra con monto estimado', S.plan, () => marcarCompraDirecta(cR.id, 'Emergencia', 320_000))
+    await exito('Solicita la aprobación central', S.plan, () => solicitarAprobacionCompra(cR.id, 320_000))
+    await espera('El Planificador NO rechaza la solicitud', S.plan, () => rechazarAprobacionCompra(cR.id, 'no'), /Sin permisos/)
+    await espera('El ADMINISTRADOR NO rechaza la solicitud', S.adm, () => rechazarAprobacionCompra(cR.id, 'no'), /Sin permisos/)
+    await espera('El rechazo exige motivo', S.central, () => rechazarAprobacionCompra(cR.id, ' '), /motivo/)
+    const stockAntesR = (await stockLotes()).stock
+    await exito('El Jefe Central rechaza con motivo', S.central, () => rechazarAprobacionCompra(cR.id, 'El monto no corresponde al presupuesto'))
+    const rr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: cR.id } })
+    chequear('Tras el rechazo: sin solicitud vigente, motivo visible, no aprobada y auditada', !rr.aprobacionSolicitadaAt && rr.motivoRechazoAprobacion === 'El monto no corresponde al presupuesto' && !rr.aprobadaCentralPorId && (await auditorias(cR.id, 'RECHAZAR_APROBACION_COMPRA')) === 1)
+    await espera('El rechazo NO autoriza regularizar (sigue exigiendo aprobación)', S.plan, () => regularizarCompraDirecta(cR.id, datos(320_000)), /aprobación central/)
+    chequear('El rechazo no descuenta stock', (await stockLotes()).stock === stockAntesR)
+    await espera('No se puede rechazar dos veces', S.central, () => rechazarAprobacionCompra(cR.id, 'otra vez'), /No hay una solicitud/)
+    await exito('El Planificador corrige el monto y reenvía la solicitud', S.plan, () => solicitarAprobacionCompra(cR.id, 300_000))
+    chequear('El reenvío limpia el motivo anterior y queda pendiente', !!(await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: cR.id } })).aprobacionSolicitadaAt)
+    await exito('El Jefe Central rechaza de nuevo', S.central, () => rechazarAprobacionCompra(cR.id, 'Faltan cotizaciones'))
+    await espera('Operador NO cancela la compra', S.op, () => cancelarCompraDirecta(cR.id, 'x'), /Sin permisos/)
+    await exito('El Planificador cancela la compra', S.plan, () => cancelarCompraDirecta(cR.id, 'Se resolvió con stock'))
+    const cc = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: cR.id } })
+    chequear('Cancelada: vuelve a solicitud normal, sin stock movido y auditada', !cc.esCompraDirecta && !cc.aprobacionSolicitadaAt && (await stockLotes()).stock === stockAntesR && (await auditorias(cR.id, 'CANCELAR_COMPRA_DIRECTA')) === 1)
+    await espera('Una compra cancelada ya no se regulariza', S.plan, () => regularizarCompraDirecta(cR.id, datos(100_000)), /no es una compra directa/)
+    await espera('El monto real al regularizar debe ser mayor a cero', S.plan, () => regularizarCompraDirecta(c4.id, datos(0)), /mayor a cero/)
+
+    // ── K1. Detención SIN OT: el episodio empieza al detener el equipo y termina solo con la liberación ────────────
+    const eqD = await prisma.equipo.create({ data: { faenaId: faena.id, codigo: 'SIM2-EQ-D', nombre: 'Equipo detención', tipo: 'MAQUINARIA', costoHoraDetencion: 1000 } })
+    await exito('El operador reporta una falla con detención (todavía sin OT)', S.op, () => crearReporteFalla({ equipoId: eqD.id, descripcion: 'AUDIT detención sin OT', riesgoSeguridad: true, detencionSolicitada: true }))
+    const det0 = await prisma.detencionEquipo.findMany({ where: { equipoId: eqD.id } })
+    chequear('Se abre el episodio de detención al reportar (sin OT), con su hora inicial', det0.length === 1 && det0[0].fin === null && det0[0].otId === null && det0[0].origen === 'REPORTE_FALLA')
+    await new Promise(r => setTimeout(r, 1500))
+    const repD = await prisma.reporteFalla.findFirstOrThrow({ where: { equipoId: eqD.id } })
+    await exito('Jefe valida la detención', S.jefe, () => validarDetencion(repD.id, true))
+    await exito('Más tarde se convierte en OT', S.plan, () => convertirReporteEnOT(repD.id))
+    const det1 = await prisma.detencionEquipo.findMany({ where: { equipoId: eqD.id } })
+    chequear('La OT se vincula al mismo episodio SIN cambiar la hora inicial', det1.length === 1 && det1[0].otId !== null && det1[0].inicio.getTime() === det0[0].inicio.getTime(), JSON.stringify(det1))
+    await espera('Con la OT en curso no se libera', S.plan, () => liberarEquipo(eqD.id, 'x'), /OT en reparación/)
+    await prisma.ordenTrabajo.update({ where: { id: det1[0].otId as string }, data: { estado: 'ANULADA' } })
+    await exito('Sin OT en curso, el Planificador libera con motivo', S.plan, () => liberarEquipo(eqD.id, 'Revisado en terreno'))
+    const det2 = await prisma.detencionEquipo.findMany({ where: { equipoId: eqD.id } })
+    chequear('La liberación cierra el episodio (única forma de terminarlo)', det2.length === 1 && det2[0].fin !== null && det2[0].fin.getTime() > det2[0].inicio.getTime())
+
     // ── K. Fraccionamiento de compras, faena sin responsable, cron ────────────────────────────────────────────
     await exito('Jefe crea otra OT para la prueba de fraccionamiento', S.jefe, () => crearOT({ equipoId: eq2.id, descripcionFalla: 'AUDIT fraccionamiento' }))
     const otF = await prisma.ordenTrabajo.findFirstOrThrow({ where: { faenaId: faena.id, descripcionFalla: 'AUDIT fraccionamiento' } })
     const srF = async (nombre: string) => { await exito(`SR ${nombre}`, S.jefe, () => crearSR(otF.id, { items: [{ descripcion: nombre, cantidad: 1, unidad: 'un' }], urgente: true })); return prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otF.id, items: { some: { descripcion: nombre } } } }) }
     const fA = await srF('frac A'), fB = await srF('frac B'), fC = await srF('frac C')
-    await exito('Marca A', S.plan, () => marcarCompraDirecta(fA.id, 'Emergencia'))
-    await exito('Marca B', S.plan, () => marcarCompraDirecta(fB.id, 'Emergencia'))
+    await prisma.solicitudRepuesto.update({ where: { id: fC.id }, data: { createdAt: new Date(Date.now() - 3 * 86_400_000) } }) // C es de otro día: compra independiente
+    await exito('Marca C (independiente)', S.plan, () => marcarCompraDirecta(fC.id, 'Emergencia', 100000))
+    await exito('Marca A', S.plan, () => marcarCompraDirecta(fA.id, 'Emergencia', 100000))
+    await exito('Marca B', S.plan, () => marcarCompraDirecta(fB.id, 'Emergencia', 100000))
     chequear('Las compras de la misma OT en 24 h quedan auditadas como misma necesidad', (await auditorias(fB.id, 'COMPRAS_MISMA_NECESIDAD')) === 1)
-    await exito('Regulariza A por $150.000 (sola, bajo el límite)', S.plan, () => regularizarCompraDirecta(fA.id, datos(150_000)))
-    await espera('Regularizar B por $150.000 se bloquea: junto con A alcanza $300.000 (misma OT, 24 h)', S.plan, () => regularizarCompraDirecta(fB.id, datos(150_000)), /misma OT en 24 h/)
+    await exito('Regulariza A por $100.000 (bajo el límite, con B estimada en $100.000)', S.plan, () => regularizarCompraDirecta(fA.id, datos(100_000)))
+    await espera('Regularizar B por $150.000 se bloquea: junto con A alcanza $250.000 (misma OT, 24 h)', S.plan, () => regularizarCompraDirecta(fB.id, datos(150_000)), /misma OT en 24 h/)
     await exito('Se puede solicitar la aprobación central de B por el acumulado', S.plan, () => solicitarAprobacionCompra(fB.id, 150_000))
     await exito('El Jefe Central aprueba la compra fraccionada', S.central, () => aprobarCompraDirectaCentral(fB.id))
     await exito('Con la aprobación, B se regulariza', S.plan, () => regularizarCompraDirecta(fB.id, datos(150_000)))
-    await exito('Marca C (para la prueba de concurrencia)', S.plan, () => marcarCompraDirecta(fC.id, 'Emergencia'))
-    // concurrencia: dos compras nuevas de otra OT, sin precio estimado, que juntas alcanzan el límite
+        // concurrencia: dos compras nuevas de otra OT, sin precio estimado, que juntas alcanzan el límite
     const otG = await prisma.ordenTrabajo.create({ data: { faenaId: faena.id, equipoId: eq1.id, tipoMantenimiento: 'CORRECTIVO', estado: 'ABIERTA', prioridad: 'MEDIA', descripcionFalla: 'AUDIT frac concurrencia', creadoPorId: S.jefe.user.id } })
-    const srG = async (n: string) => { await exito(`SR ${n}`, S.jefe, () => crearSR(otG.id, { items: [{ descripcion: n, cantidad: 1, unidad: 'un' }], urgente: true })); const x = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otG.id, items: { some: { descripcion: n } } } }); await exito(`Marca ${n}`, S.plan, () => marcarCompraDirecta(x.id, 'Emergencia')); return x }
+    const srG = async (n: string) => { await exito(`SR ${n}`, S.jefe, () => crearSR(otG.id, { items: [{ descripcion: n, cantidad: 1, unidad: 'un' }], urgente: true })); const x = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otG.id, items: { some: { descripcion: n } } } }); await exito(`Marca ${n}`, S.plan, () => marcarCompraDirecta(x.id, 'Emergencia', 100000)); return x }
     const g1 = await srG('conc 1'), g2 = await srG('conc 2')
     como(S.plan)
     const conc = await Promise.allSettled([regularizarCompraDirecta(g1.id, datos(130_000)), regularizarCompraDirecta(g2.id, datos(130_000))])
@@ -301,10 +344,8 @@ describe('decisiones operacionales (SIM-02)', () => {
     const otH = await prisma.ordenTrabajo.create({ data: { faenaId: faena.id, equipoId: eq1.id, tipoMantenimiento: 'CORRECTIVO', estado: 'ABIERTA', prioridad: 'MEDIA', descripcionFalla: 'AUDIT independiente', creadoPorId: S.jefe.user.id } })
     await exito('SR de otra OT (compra independiente)', S.jefe, () => crearSR(otH.id, { items: [{ descripcion: 'independiente', cantidad: 1, unidad: 'un' }], urgente: true }))
     const srI = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otH.id } })
-    await exito('Marca la compra independiente', S.plan, () => marcarCompraDirecta(srI.id, 'Emergencia'))
+    await exito('Marca la compra independiente', S.plan, () => marcarCompraDirecta(srI.id, 'Emergencia', 200000))
     await exito('Una compra independiente (otra OT) de $200.000 NO se bloquea', S.plan, () => regularizarCompraDirecta(srI.id, datos(200_000)))
-    const viejo = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otF.id, items: { some: { descripcion: 'frac C' } } } })
-    await prisma.solicitudRepuesto.update({ where: { id: viejo.id }, data: { createdAt: new Date(Date.now() - 3 * 86_400_000) } })
     await exito('Fuera de las 24 h ya no es la misma necesidad: C por $100.000 se regulariza', S.plan, () => regularizarCompraDirecta(fC.id, datos(100_000)))
 
     // transferencias entre faenas: stock = lotes y sin deadlock con transferencias opuestas

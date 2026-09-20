@@ -420,6 +420,8 @@ model SolicitudRepuesto {
   comprobanteRegularizacion String?   @map("comprobante_regularizacion")
   motivoRegularizacion      String?   @map("motivo_regularizacion")
   montoCompraDirecta        Decimal?  @map("monto_compra_directa") @db.Decimal(14, 2)
+  montoEstimadoCompra       Decimal?  @map("monto_estimado_compra") @db.Decimal(14, 2)
+  motivoRechazoAprobacion   String?   @map("motivo_rechazo_aprobacion")
   aprobacionSolicitadaAt    DateTime? @map("aprobacion_solicitada_at")
   aprobacionSolicitadaPorId String?   @map("aprobacion_solicitada_por_id")
   montoSolicitado           Decimal?  @map("monto_solicitado") @db.Decimal(14, 2)
@@ -1277,6 +1279,21 @@ model LiberacionEquipo {
 
   @@index([equipoId, liberadoAt])
   @@map("liberaciones_equipo")
+}
+
+// ─── Episodios de detención: empiezan cuando el equipo pasa a detenido (con o sin OT) y terminan SOLO con la liberación ───
+model DetencionEquipo {
+  id        String    @id @default(uuid())
+  equipoId  String    @map("equipo_id")
+  faenaId   String    @map("faena_id")
+  inicio    DateTime  @default(now())
+  fin       DateTime?
+  origen    String    @default("ESTADO") // REPORTE_FALLA | INSPECCION | OT | REAPERTURA | ESTADO
+  otId      String?   @map("ot_id") // se vincula después; NO cambia la hora inicial
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([equipoId, inicio])
+  @@map("detenciones_equipo")
 }
 
 // ─── Notificaciones internas (correo/WhatsApp quedan para después) ─────────────────────────────────

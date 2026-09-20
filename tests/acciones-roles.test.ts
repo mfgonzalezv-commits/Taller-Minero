@@ -21,7 +21,7 @@ import { crearEquipo, actualizarEstadoEquipo } from '../src/actions/equipos'
 import { agregarManoObra } from '../src/actions/manoObra'
 import { aprobarEstadoPago } from '../src/actions/estadoPago'
 import { crearInspeccion, generarOTDesdeAlerta } from '../src/actions/inspeccion'
-import { cambiarEstadoSR, regularizarCompraDirecta, aprobarCompraDirectaCentral, marcarCompraDirecta, solicitarAprobacionCompra } from '../src/actions/sr'
+import { cambiarEstadoSR, regularizarCompraDirecta, aprobarCompraDirectaCentral, marcarCompraDirecta, solicitarAprobacionCompra, rechazarAprobacionCompra, cancelarCompraDirecta } from '../src/actions/sr'
 import { anularEstadoPago, reemplazarEstadoPago, rechazarEstadoPago, prepararEstadoPago } from '../src/actions/estadoPago'
 import { solicitarAjusteStock, aprobarAjusteStock } from '../src/actions/bodega'
 import { liberarEquipo } from '../src/actions/equipos'
@@ -57,7 +57,9 @@ const casos: { accion: string; permitidos: string[]; llamar: () => Promise<unkno
   { accion: 'crearInspeccion', permitidos: [...GESTION, 'MECANICO', 'OPERADOR'], llamar: () => crearInspeccion({ equipoId: ID, plantillaId: ID, turno: 'MAÑANA', resultados: [] }) },
   { accion: 'generarOTDesdeAlerta', permitidos: GESTION, llamar: () => generarOTDesdeAlerta(ID) },
   { accion: 'cambiarEstadoSR', permitidos: [...GESTION, 'BODEGA', 'COMPRAS'], llamar: () => cambiarEstadoSR(ID, 'ENTREGADA') },
-  { accion: 'marcarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => marcarCompraDirecta(ID, 'x') },
+  { accion: 'marcarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => marcarCompraDirecta(ID, 'x', 1000) },
+  { accion: 'rechazarAprobacionCompra (solo Jefe Central)', permitidos: ['JEFE_TALLER_CENTRAL'], llamar: () => rechazarAprobacionCompra(ID, 'x') },
+  { accion: 'cancelarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => cancelarCompraDirecta(ID, 'x') },
   { accion: 'regularizarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR', 'COMPRAS'], llamar: () => regularizarCompraDirecta(ID, { cotizaciones: ['c'], comprobante: 'f', motivo: 'm', monto: 1 }) },
   { accion: 'aprobarCompraDirectaCentral (solo Jefe Central)', permitidos: ['JEFE_TALLER_CENTRAL'], llamar: () => aprobarCompraDirectaCentral(ID) },
   { accion: 'solicitarAprobacionCompra', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => solicitarAprobacionCompra(ID, 300000) },
