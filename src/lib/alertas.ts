@@ -117,10 +117,10 @@ export function calcularAlertas(s: SnapshotAlertas): AlertaGenerada[] {
     if (ep.hayAprobado) continue
     const fin = fechaLocalChile(ep.periodoTermino.getTime()), diaFin = localAUtc(fin.y, fin.m, fin.d, 0)
     const hoyInicio = localAUtc(hoy.y, hoy.m, hoy.d, 0), dias = Math.round((diaFin - hoyInicio) / 86_400_000) // >0 faltan; 0 = hoy es el 25; <0 atraso
-    const base = { faenaId: ep.faenaId, entidad: 'EstadoPago', entidadId: ep.faenaId }
     const periodo = `${fin.y}-${String(fin.m).padStart(2, '0')}`
+    const base = { faenaId: ep.faenaId, entidad: 'EstadoPago', entidadId: `${ep.faenaId}:${periodo}` }
     if (dias <= 3 && dias > 0 && !ep.hayPreparado) out.push({ ...base, claveUnica: `ep_antes:${ep.faenaId}:${periodo}`, tipo: 'ep_antes', nivel: 0, rolDestino: 'PLANIFICADOR_CENTRAL', titulo: 'Estado de Pago: faltan 3 días para el cierre', mensaje: `${ep.faenaNombre}: el periodo cierra el día ${fin.d}; aún no está preparado` })
-    if (dias <= 0) out.push({ ...base, claveUnica: `ep_cierre:${ep.faenaId}:${periodo}`, tipo: 'ep_cierre', nivel: 1, rolDestino: 'PLANIFICADOR_CENTRAL', titulo: 'Estado de Pago: cierre del periodo', mensaje: `${ep.faenaNombre}: hoy vence el periodo y el Estado de Pago ${ep.hayPreparado ? 'no está aprobado' : 'no está preparado'}` })
+    if (dias === 0) out.push({ ...base, claveUnica: `ep_cierre:${ep.faenaId}:${periodo}`, tipo: 'ep_cierre', nivel: 1, rolDestino: 'PLANIFICADOR_CENTRAL', titulo: 'Estado de Pago: cierre del periodo', mensaje: `${ep.faenaNombre}: hoy vence el periodo y el Estado de Pago ${ep.hayPreparado ? 'no está aprobado' : 'no está preparado'}` })
     if (dias < 0) out.push({ ...base, claveUnica: `ep_atraso:${ep.faenaId}:${periodo}`, tipo: 'ep_atraso', nivel: 2, rolDestino: 'GERENCIA', titulo: 'Estado de Pago atrasado', mensaje: `${ep.faenaNombre}: el periodo venció hace ${-dias} día(s) sin aprobación` })
   }
   return out

@@ -620,6 +620,86 @@
     "detalle": "ok"
   },
   {
+    "paso": "SR compra 260.000 (autoaprobación)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR marca la compra",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El ADMINISTRADOR solicita la aprobación",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Quien solicita la aprobación de una compra no la aprueba",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "SR compra estimada 500.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Marca la compra estimada en 500.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Solicita la aprobación declarando solo 250.000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El tope solicitado no queda bajo lo estimado (500.000)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Con la solicitud pendiente no se regulariza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ajuste: el Planificador solicita 30",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entra stock mientras el ajuste espera",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Aprobar un ajuste con el stock ya cambiado se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se rechaza la solicitud vencida",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Doble solicitud simultánea de ajuste: queda una sola pendiente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Se rechaza para dejar el ítem libre",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tres salidas simultáneas que caben: se descuentan las tres y stock = lotes (sin pérdida de actualización)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
     "paso": "Planificador de OTRA faena no solicita ajustes de este ítem",
     "ok": true,
     "detalle": "ok"

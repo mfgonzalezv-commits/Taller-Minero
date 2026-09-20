@@ -236,6 +236,33 @@ describe('decisiones operacionales (SIM-02)', () => {
     const verPlan1 = await exito('Planificador de OTRA faena', S.plan1, () => getAlertasInternas())
     chequear('No ve las alertas de SIM-02 (aislamiento)', !verPlan1?.some(n => n.entidadId === otCrit.id))
 
+    // ── J. Correcciones de la revisión: separación en compras, tope, solicitud pendiente, ajuste vencido, concurrencia ──
+    const c5 = await nuevaCompra('compra 260.000 (autoaprobación)', 260_000)
+    await exito('El ADMINISTRADOR marca la compra', S.adm, () => marcarCompraDirecta(c5.id, 'Emergencia'))
+    await exito('El ADMINISTRADOR solicita la aprobación', S.adm, () => solicitarAprobacionCompra(c5.id, 260_000))
+    await espera('Quien solicita la aprobación de una compra no la aprueba', S.adm, () => aprobarCompraDirectaCentral(c5.id), /no puede aprobarla/)
+    const c6 = await nuevaCompra('compra estimada 500.000', 500_000)
+    await exito('Marca la compra estimada en 500.000', S.plan, () => marcarCompraDirecta(c6.id, 'Emergencia'))
+    await exito('Solicita la aprobación declarando solo 250.000', S.plan, () => solicitarAprobacionCompra(c6.id, 250_000))
+    chequear('El tope solicitado no queda bajo lo estimado (500.000)', Number((await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: c6.id } })).montoSolicitado) === 500_000)
+    await espera('Con la solicitud pendiente no se regulariza', S.plan, () => regularizarCompraDirecta(c6.id, datos(250_000)), /solicitud de aprobación central pendiente/)
+
+    await exito('Ajuste: el Planificador solicita 30', S.plan, async () => { await solicitarAjusteStock({ itemId: item.id, cantidadNueva: 30, motivo: 'Conteo del lunes' }) })
+    const idViejo = (await prisma.solicitudAjusteStock.findFirstOrThrow({ where: { itemId: item.id, estado: 'PENDIENTE' } })).id
+    await exito('Entra stock mientras el ajuste espera', S.bod, () => registrarMovimiento({ itemId: item.id, tipo: 'ENTRADA', cantidad: 3, costoUnitario: 10000 }))
+    await espera('Aprobar un ajuste con el stock ya cambiado se rechaza', S.central, () => aprobarAjusteStock(idViejo), /stock cambió/)
+    await exito('Se rechaza la solicitud vencida', S.central, () => rechazarAjusteStock(idViejo, 'Stock cambió: recontar'))
+    como(S.plan)
+    const dosAj = await Promise.allSettled([solicitarAjusteStock({ itemId: item.id, cantidadNueva: 26, motivo: 'Recuento' }), solicitarAjusteStock({ itemId: item.id, cantidadNueva: 26, motivo: 'Recuento' })])
+    chequear('Doble solicitud simultánea de ajuste: queda una sola pendiente', (await prisma.solicitudAjusteStock.count({ where: { itemId: item.id, estado: 'PENDIENTE' } })) === 1, JSON.stringify(dosAj.map(x => x.status === 'rejected' ? String((x.reason as Error)?.message).replace(/\s+/g, ' ').slice(0, 120) : x.status)))
+    const pend = await prisma.solicitudAjusteStock.findFirstOrThrow({ where: { itemId: item.id, estado: 'PENDIENTE' } })
+    await exito('Se rechaza para dejar el ítem libre', S.central, () => rechazarAjusteStock(pend.id, 'Prueba'))
+    como(S.bod)
+    const antes = await stockLotes()
+    const sim = await Promise.allSettled([registrarMovimiento({ itemId: item.id, tipo: 'SALIDA', cantidad: 2 }), registrarMovimiento({ itemId: item.id, tipo: 'SALIDA', cantidad: 2 }), registrarMovimiento({ itemId: item.id, tipo: 'SALIDA', cantidad: 2 })])
+    const desp = await stockLotes()
+    chequear('Tres salidas simultáneas que caben: se descuentan las tres y stock = lotes (sin pérdida de actualización)', sim.every(x => x.status === 'fulfilled') && desp.stock === antes.stock - 6 && desp.lotes === desp.stock, JSON.stringify({ r: sim.map(x => x.status), antes, desp }))
+
     // ── I. Aislamiento entre faenas ────────────────────────────────────────────────────────────────────
     await espera('Planificador de OTRA faena no solicita ajustes de este ítem', S.plan1, () => solicitarAjusteStock({ itemId: item.id, cantidadNueva: 1, motivo: 'x' }), /otra faena|Sin permisos/)
     await espera('Planificador de OTRA faena no pide aprobación de compra ajena', S.plan1, () => solicitarAprobacionCompra(c1.id, 300_000), /otra faena|Sin permisos/)

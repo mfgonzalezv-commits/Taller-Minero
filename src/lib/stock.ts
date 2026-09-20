@@ -56,6 +56,7 @@ export async function entradaStockConLote(tx: Prisma.TransactionClient, p: Base 
  */
 export async function ajusteStockConLotes(tx: Prisma.TransactionClient, p: { itemId: string; faenaId: string; cantidadNueva: number; usuarioId: string; observacion?: string }) {
   if (!(p.cantidadNueva >= 0)) throw new Error('La cantidad nueva no puede ser negativa')
+  await tx.$queryRaw`SELECT id FROM items_bodega WHERE id = ${p.itemId} FOR UPDATE` // serializa con otras salidas/entradas del ítem
   const item = await tx.itemBodega.findUniqueOrThrow({ where: { id: p.itemId }, select: { stockActual: true, precioRef: true, faenaId: true } })
   if (item.faenaId !== p.faenaId) throw new Error('El ítem no pertenece a la faena')
   const antes = Number(item.stockActual), diff = p.cantidadNueva - antes

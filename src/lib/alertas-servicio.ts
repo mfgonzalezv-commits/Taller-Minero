@@ -16,13 +16,15 @@ export async function cargarSnapshot(prisma: PrismaClient, ahora: Date): Promise
     prisma.itemBodega.findMany({ where: { activo: true, criticidad: 'ALTA', stockActual: { lte: 0 } }, select: { id: true, faenaId: true, codigo: true, descripcion: true, updatedAt: true } }),
     prisma.solicitudRepuesto.findMany({ where: { esCompraDirecta: true, aprobacionSolicitadaAt: { not: null }, aprobadaCentralPorId: null }, select: { id: true, faenaId: true, numeroSr: true, aprobacionSolicitadaAt: true, montoSolicitado: true } }),
     prisma.planMantenimiento.findMany({ where: { activo: true, otActivaId: null, OR: [{ proximaEjecucionFecha: { not: null } }, { proximaEjecucionHoras: { not: null } }] }, select: { id: true, faenaId: true, nombre: true, proximaEjecucionFecha: true, proximaEjecucionHoras: true, equipo: { select: { codigo: true, horometroActual: true } } } }),
-    prisma.faena.findMany({ where: { activa: true, NOT: { codigo: { startsWith: 'SIM-' } } }, select: { id: true, nombre: true } }),
+    prisma.faena.findMany({ where: { activa: true, NOT: { codigo: { startsWith: 'SIM-' } } }, select: { id: true, nombre: true, createdAt: true } }),
   ])
 
   const ev = (id: string, faenaId: string, desde: Date, detalle: string): Evento => ({ id, faenaId, desde, detalle })
   const hoyChile = fechaLocalChile(ahora.getTime())
-  const { inicio, termino } = calcularPeriodo(new Date(hoyChile.y, hoyChile.m - 1, hoyChile.d))
-  const eps = await prisma.estadoPago.findMany({ where: { periodoInicio: inicio, estado: { in: ['PREPARADO', 'APROBADO'] } }, select: { faenaId: true, estado: true } })
+  // Periodo en curso y periodo ANTERIOR (para poder avisar el atraso después del día 25, cuando el periodo en curso ya cambió).
+  const actual = calcularPeriodo(new Date(hoyChile.y, hoyChile.m - 1, hoyChile.d))
+  const anterior = calcularPeriodo(new Date(actual.inicio.getFullYear(), actual.inicio.getMonth(), actual.inicio.getDate() - 1))
+  const eps = await prisma.estadoPago.findMany({ where: { periodoInicio: { in: [actual.inicio, anterior.inicio] }, estado: { in: ['PREPARADO', 'APROBADO'] } }, select: { faenaId: true, estado: true, periodoInicio: true } })
 
   return {
     ahora,
@@ -37,7 +39,8 @@ export async function cargarSnapshot(prisma: PrismaClient, ahora: Date): Promise
       diasRestantes: p.proximaEjecucionFecha ? Math.ceil((p.proximaEjecucionFecha.getTime() - ahora.getTime()) / DIA) : null,
       horasRestantes: p.proximaEjecucionHoras != null ? Number(p.proximaEjecucionHoras) - Number(p.equipo.horometroActual) : null,
     })),
-    estadosPago: faenas.map(f => ({ faenaId: f.id, faenaNombre: f.nombre, periodoTermino: termino, hayPreparado: eps.some(e => e.faenaId === f.id), hayAprobado: eps.some(e => e.faenaId === f.id && e.estado === 'APROBADO') })),
+    // El periodo anterior solo cuenta si la faena ya existía cuando terminó (no se avisa el atraso de periodos previos a su alta).
+    estadosPago: faenas.flatMap(f => [actual, ...(f.createdAt <= anterior.termino ? [anterior] : [])].map(p => ({ faenaId: f.id, faenaNombre: f.nombre, periodoTermino: p.termino, hayPreparado: eps.some(e => e.faenaId === f.id && e.periodoInicio.getTime() === p.inicio.getTime()), hayAprobado: eps.some(e => e.faenaId === f.id && e.periodoInicio.getTime() === p.inicio.getTime() && e.estado === 'APROBADO') }))),
   }
 }
 

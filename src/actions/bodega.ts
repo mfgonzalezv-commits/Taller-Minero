@@ -242,6 +242,7 @@ export async function solicitarAjusteStock(data: { itemId: string; cantidadNueva
   if (pendiente) throw new Error('Este ítem ya tiene una solicitud de ajuste pendiente')
 
   const sol = await prisma.solicitudAjusteStock.create({ data: { faenaId: item.faenaId, itemId: data.itemId, cantidadActual: item.stockActual, cantidadNueva: data.cantidadNueva, motivo: data.motivo.trim(), solicitadoPorId: sesion.userId } })
+    .catch((e) => { if (e?.code === 'P2002') throw new Error('Este ítem ya tiene una solicitud de ajuste pendiente'); throw e })
   await auditar({ faenaId: item.faenaId, entidad: 'SolicitudAjusteStock', entidadId: sol.id, accion: 'SOLICITAR_AJUSTE', usuarioId: sesion.userId, valorAnterior: { stock: Number(item.stockActual) }, valorNuevo: { stock: data.cantidadNueva }, motivo: data.motivo.trim() })
   revalidatePath('/bodega')
   return sol.id
@@ -257,6 +258,8 @@ export async function aprobarAjusteStock(solicitudId: string) {
 
   // Todo o nada: la solicitud pasa a APROBADO y el ajuste (movimiento, lotes y stock) se aplica en la misma transacción.
   await prisma.$transaction(async (tx) => {
+    const actual = await tx.itemBodega.findUniqueOrThrow({ where: { id: sol.itemId }, select: { stockActual: true } })
+    if (Math.abs(Number(actual.stockActual) - Number(sol.cantidadActual)) > 0.005) throw new Error(`El stock cambió desde la solicitud (era ${Number(sol.cantidadActual)}, ahora ${Number(actual.stockActual)}): rechaza y solicita el ajuste de nuevo con un conteo actualizado`)
     const c = await tx.solicitudAjusteStock.updateMany({ where: { id: solicitudId, estado: 'PENDIENTE' }, data: { estado: 'APROBADO', resueltoPorId: sesion.userId, resueltoAt: new Date() } })
     if (c.count === 0) throw new Error('La solicitud ya fue resuelta')
     await ajusteStockConLotes(tx, { itemId: sol.itemId, faenaId: sol.faenaId, cantidadNueva: Number(sol.cantidadNueva), usuarioId: sesion.userId, observacion: `Ajuste aprobado: ${sol.motivo}` })

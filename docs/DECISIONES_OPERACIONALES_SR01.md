@@ -44,7 +44,7 @@ Una pauta nueva o modificada se **versiona** (no se sobrescribe), queda pendient
 
 **Supuestos a confirmar:** horario laboral = lunes a viernes 08:00–18:00 hora de Chile; el primer aviso de «OT sin movimiento» y de «OT crítica sin responsable» va al Planificador de la faena; el aviso de preventivo va al Planificador.
 
-**Cómo se ejecuta:** el motor es idempotente (`scripts/procesar-alertas.ts` o `GET/POST /api/alertas/procesar` con `Authorization: Bearer $ALERTAS_CRON_SECRET`, secreto de 16+ caracteres; sin secreto el endpoint está apagado). Debe programarse cada 1–5 minutos (cron de Railway). Las alertas se ven en **Alertas** (menú); cada rol ve las dirigidas a su rol y faena.
+**Cómo se ejecuta:** el motor es idempotente (`scripts/procesar-alertas.ts` o `POST /api/alertas/procesar` con `Authorization: Bearer $ALERTAS_CRON_SECRET`, secreto de 16+ caracteres; sin secreto el endpoint está apagado). Debe programarse cada 1–5 minutos (cron de Railway). Las alertas se ven en **Alertas** (menú); cada rol ve las dirigidas a su rol y faena.
 
 ## Migración `20260920000000_decisiones_operacionales`
 Solo agrega columnas nulables o con valor por defecto, dos tablas nuevas (`solicitudes_ajuste_stock`, `notificaciones`) y el valor `ANULADO` del enum. **Único cambio no puramente aditivo:** el índice único de `estados_pago` (faena, periodo) se **amplía** a (faena, periodo, versión) y se agrega el índice parcial de documento vigente; no se borra ni modifica ningún dato.

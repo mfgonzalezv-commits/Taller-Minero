@@ -208,7 +208,7 @@ describe('Estado de Pago: 3 días antes del 25, día 25 y atraso', () => {
   const dia = (d: number) => calcularAlertas({ ...vacio(chile(d, 10)), estadosPago: [ep(false)] }).map(a => `${a.rolDestino}:${a.tipo}`)
   it('a 4 días no avisa; a 3 días avisa al Planificador Central', () => { expect(dia(21)).toEqual([]); expect(dia(22)).toEqual(['PLANIFICADOR_CENTRAL:ep_antes']) })
   it('el día 25 avisa al Planificador Central', () => { expect(dia(25)).toEqual(['PLANIFICADOR_CENTRAL:ep_cierre']) })
-  it('el atraso (día 26 en adelante) avisa a Gerencia', () => { expect(dia(26)).toEqual(['PLANIFICADOR_CENTRAL:ep_cierre', 'GERENCIA:ep_atraso']) })
+  it('el atraso (día 26 en adelante, sobre el periodo que cerró) avisa a Gerencia', () => { expect(dia(26)).toEqual(['GERENCIA:ep_atraso']); expect(dia(28)).toEqual(['GERENCIA:ep_atraso']) })
   it('si ya está aprobado no avisa nada; si está preparado no hay aviso previo', () => {
     expect(calcularAlertas({ ...vacio(chile(26, 10)), estadosPago: [ep(true, true)] })).toEqual([])
     expect(calcularAlertas({ ...vacio(chile(22, 10)), estadosPago: [ep(true)] })).toEqual([])

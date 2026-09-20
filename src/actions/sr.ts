@@ -227,9 +227,11 @@ export async function solicitarAprobacionCompra(srId: string, monto: number) {
   if (!requiereAprobacionCentral(monto)) throw new Error(`Una compra menor a $${LIMITE_COMPRA_DIRECTA_FAENA.toLocaleString('es-CL')} (IVA incluido) se realiza en la faena sin aprobación`)
   if (sr.aprobacionSolicitadaAt) return // idempotente
 
-  const r = await prisma.solicitudRepuesto.updateMany({ where: { id: srId, aprobacionSolicitadaAt: null }, data: { aprobacionSolicitadaAt: new Date(), aprobacionSolicitadaPorId: sesion.userId, montoSolicitado: monto } })
+  // El tope que se aprobará no puede quedar bajo lo estimado en los ítems de la SR: se usa el mayor.
+  const tope = Math.max(monto, await montoEstimadoSR(srId))
+  const r = await prisma.solicitudRepuesto.updateMany({ where: { id: srId, aprobacionSolicitadaAt: null }, data: { aprobacionSolicitadaAt: new Date(), aprobacionSolicitadaPorId: sesion.userId, montoSolicitado: tope } })
   if (r.count === 0) return
-  await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'SOLICITAR_APROBACION_COMPRA', usuarioId: sesion.userId, valorNuevo: { monto } })
+  await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'SOLICITAR_APROBACION_COMPRA', usuarioId: sesion.userId, valorNuevo: { monto, topeSolicitado: tope } })
   revalidatePath('/solicitudes-repuesto')
 }
 
@@ -244,6 +246,7 @@ export async function aprobarCompraDirectaCentral(srId: string) {
   if (!sr.aprobacionSolicitadaAt || sr.montoSolicitado == null) throw new Error('La faena aún no solicitó la aprobación de esta compra')
   if (!requiereAprobacionCentral(Number(sr.montoSolicitado))) throw new Error('El nivel central solo aprueba compras desde el límite de faena')
   if (sr.aprobadaCentralPorId) return // idempotente
+  if (sr.aprobacionSolicitadaPorId === sesion.userId) throw new ErrorAutorizacion('Sin permisos: quien solicita la aprobación de la compra no puede aprobarla')
 
   // La aprobación fija el monto tope: no vale para cualquier monto posterior.
   const r = await prisma.solicitudRepuesto.updateMany({
@@ -269,6 +272,7 @@ export async function regularizarCompraDirecta(srId: string, datos: { cotizacion
 
   const error = validarRegularizacion(datos)
   if (error) throw new Error(error)
+  if (sr.aprobacionSolicitadaAt && !sr.aprobadaCentralPorId) throw new Error('Hay una solicitud de aprobación central pendiente: espera la decisión del Jefe de Taller Central antes de regularizar')
   // El monto lo informa el cliente, así que el control usa el mayor entre lo informado y lo estimado en los ítems de la SR.
   const montoControl = Math.max(datos.monto, await montoEstimadoSR(srId))
   if (requiereAprobacionCentral(montoControl) && !sr.aprobadaCentralPorId) {

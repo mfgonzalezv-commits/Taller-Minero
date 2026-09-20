@@ -123,7 +123,7 @@ export async function reemplazarEstadoPago(estadoPagoId: string) {
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ROLES_PREPARAR_EP)
 
-  const previo = await prisma.estadoPago.findUniqueOrThrow({ where: { id: estadoPagoId }, include: { lineas: true } })
+  const previo = await prisma.estadoPago.findUniqueOrThrow({ where: { id: estadoPagoId }, include: { lineas: { include: { ajustes: { select: { monto: true } } } } } })
   requireAlcanceFaena(sesion, previo.faenaId)
   if (!admiteReemplazo(previo.estado as EstadoEP)) throw new Error(`Solo se reemplaza un Estado de Pago rechazado o anulado (este está ${previo.estado.toLowerCase()})`)
   const siguiente = await prisma.estadoPago.findFirst({ where: { versionAnteriorId: previo.id } })
@@ -132,12 +132,14 @@ export async function reemplazarEstadoPago(estadoPagoId: string) {
   const lineas = await calcularLineasPeriodo(previo.faenaId, previo.periodoInicio, previo.periodoTermino)
   const comparables = (l: { equipoId: string; asignacionId: string | null; montoBruto: unknown; descuentoDetencion: unknown; montoNeto: unknown }) => ({ equipoId: l.equipoId, asignacionId: l.asignacionId, montoBruto: Number(l.montoBruto), descuentoDetencion: Number(l.descuentoDetencion), montoNeto: Number(l.montoNeto) })
   const diferencias = compararVersiones(
-    { totalBruto: Number(previo.totalBruto), totalDescuentos: Number(previo.totalDescuentos), totalNeto: Number(previo.totalNeto), lineas: previo.lineas.map(comparables) },
+    // Se compara contra el cálculo del previo SIN sus ajustes manuales; los ajustes se dejan explícitos como descartados.
+    { totalBruto: Number(previo.totalBruto), totalDescuentos: Number(previo.totalDescuentos), totalNeto: Number(previo.totalNeto) - Number(previo.totalAjustes), lineas: previo.lineas.map(l => comparables({ ...l, montoNeto: Number(l.montoNeto) - l.ajustes.reduce((a, x) => a + Number(x.monto), 0) })) },
     { ...totales(lineas), lineas: lineas.map(comparables) },
   )
+  const diferenciasConAjustes = { ...diferencias, ajustesManualesDelPrevioDescartados: Number(previo.totalAjustes) }
   const maxVersion = await prisma.estadoPago.aggregate({ where: { faenaId: previo.faenaId, periodoInicio: previo.periodoInicio }, _max: { version: true } })
   const version = (maxVersion._max.version ?? previo.version) + 1
-  const ep = await crearVersion(previo.faenaId, previo.periodoInicio, previo.periodoTermino, lineas, sesion.userId, { version, versionAnteriorId: previo.id, diferencias })
+  const ep = await crearVersion(previo.faenaId, previo.periodoInicio, previo.periodoTermino, lineas, sesion.userId, { version, versionAnteriorId: previo.id, diferencias: diferenciasConAjustes })
 
   await auditar({ faenaId: previo.faenaId, entidad: 'EstadoPago', entidadId: ep.id, accion: 'REEMPLAZAR', usuarioId: sesion.userId, valorAnterior: { id: previo.id, estado: previo.estado, version: previo.version, totalNeto: Number(previo.totalNeto) }, valorNuevo: { version, totalNeto: totales(lineas).totalNeto, diferencias } })
   revalidatePath('/arriendos')
@@ -159,6 +161,7 @@ export async function agregarAjusteManual(lineaId: string, monto: number, motivo
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'])
   if (!motivo?.trim()) throw new Error('Debe justificar el ajuste')
+  if (!Number.isFinite(monto) || monto === 0) throw new Error('El monto del ajuste no es válido')
 
   const linea = await prisma.estadoPagoLinea.findUniqueOrThrow({
     where: { id: lineaId },
@@ -167,19 +170,16 @@ export async function agregarAjusteManual(lineaId: string, monto: number, motivo
   requireAlcanceFaena(sesion, linea.estadoPago.faenaId)
   if (!admiteAjustes(linea.estadoPago.estado as EstadoEP)) throw new Error(`No se puede ajustar un Estado de Pago ${linea.estadoPago.estado.toLowerCase()}`)
 
-  await prisma.$transaction([
-    prisma.ajusteEstadoPagoLinea.create({
-      data: { lineaId, monto, motivo: motivo.trim(), usuarioId: sesion.userId },
-    }),
-    prisma.estadoPagoLinea.update({
-      where: { id: lineaId },
-      data: { montoNeto: { increment: monto } },
-    }),
-    prisma.estadoPago.update({
-      where: { id: linea.estadoPagoId },
+  // Condición dentro de la transacción: si el documento se aprueba/rechaza mientras tanto, el ajuste no se aplica.
+  await prisma.$transaction(async (tx) => {
+    const vigente = await tx.estadoPago.updateMany({
+      where: { id: linea.estadoPagoId, estado: { in: ['BORRADOR', 'PREPARADO'] } },
       data: { totalAjustes: { increment: monto }, totalNeto: { increment: monto } },
-    }),
-  ])
+    })
+    if (vigente.count === 0) throw new Error('El Estado de Pago ya no admite ajustes (cambió de estado)')
+    await tx.ajusteEstadoPagoLinea.create({ data: { lineaId, monto, motivo: motivo.trim(), usuarioId: sesion.userId } })
+    await tx.estadoPagoLinea.update({ where: { id: lineaId }, data: { montoNeto: { increment: monto } } })
+  })
 
   await auditar({
     faenaId: linea.estadoPago.faenaId, entidad: 'EstadoPagoLinea', entidadId: lineaId,

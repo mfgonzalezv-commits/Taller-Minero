@@ -364,10 +364,12 @@ export async function validarTecnicamente(otId: string) {
   }
   if (ot.estado !== 'EN_VALIDACION') throw new Error('La OT debe estar en validación técnica')
 
-  await prisma.ordenTrabajo.update({
-    where: { id: otId },
+  // Idempotente: si ya fue validada, no se sobrescribe quién ni cuándo.
+  const validada = await prisma.ordenTrabajo.updateMany({
+    where: { id: otId, estado: 'EN_VALIDACION', fechaValidacionTecnica: null },
     data: { validadoTecnicamentePorId: sesion.userId, fechaValidacionTecnica: new Date() },
   })
+  if (validada.count === 0) return
 
   await auditar({
     faenaId: ot.faenaId,

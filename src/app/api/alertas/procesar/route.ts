@@ -19,6 +19,6 @@ async function manejar(req: Request) {
   const r = await procesarAlertas(prisma)
   return NextResponse.json({ generadas: r.generadas, nuevas: r.nuevas })
 }
+// Solo POST: el secreto no viaja por URL ni queda en registros de acceso.
 export const POST = manejar
-export const GET = manejar
 export const dynamic = 'force-dynamic'
