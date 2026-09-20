@@ -17,6 +17,7 @@ import { prisma } from '../src/lib/prisma'
 import { como, sesionDe, SALIDA } from './helpers'
 import { actualizarEstadoEquipo, liberarEquipo } from '../src/actions/equipos'
 import { crearOT } from '../src/actions/ot'
+import { crearSR, marcarCompraDirecta, solicitarAprobacionCompra, rechazarAprobacionCompra } from '../src/actions/sr'
 import { detencionesYLiberaciones } from '../src/lib/detencion-registro'
 import { ESTADOS_NO_OPERACIONALES } from '../src/lib/estados-equipo'
 
@@ -44,19 +45,43 @@ describe('atomicidad de la detención', () => {
     await actualizarEstadoEquipo(e1.id, 'DETENIDO')
     chequear('Sin falla: el estado y el episodio se registran juntos', (await estado(e1.id)) === 'DETENIDO' && (await episodios(e1.id)).filter((e: { fin: Date | null }) => e.fin === null).length === 1)
 
-    // 2. crearOT: estado + apertura + vinculación en una transacción
+    // 2. crearOT: OT + historial + checklist + estado + episodio + vinculación en una transacción
     const e2 = await nuevoEquipo('AT-2')
-    falla.vincular = true
-    const err2 = await intentar(() => crearOT({ equipoId: e2.id, descripcionFalla: 'AUDIT atomicidad vincular' }))
-    falla.vincular = false
-    chequear('Rollback: si falla la vinculación, el equipo NO queda detenido ni con episodio', /falla simulada/.test(err2 ?? '') && (await estado(e2.id)) === 'OPERATIVO' && (await episodios(e2.id)).length === 0, `${err2} ${await estado(e2.id)}`)
-    falla.abrir = true
-    const err3 = await intentar(() => crearOT({ equipoId: e2.id, descripcionFalla: 'AUDIT atomicidad abrir' }))
-    falla.abrir = false
-    chequear('Rollback: si falla la apertura, el equipo NO queda detenido', /falla simulada/.test(err3 ?? '') && (await estado(e2.id)) === 'OPERATIVO' && (await episodios(e2.id)).length === 0)
-    await crearOT({ equipoId: e2.id, descripcionFalla: 'AUDIT atomicidad ok' })
-    const ep2 = await episodios(e2.id)
-    chequear('Sin falla: equipo detenido, episodio abierto y OT vinculada', (await estado(e2.id)) === 'DETENIDO' && ep2.length === 1 && ep2[0].fin === null && ep2[0].otId !== null)
+    const pauta = await prisma.pautaMantenimiento.create({ data: { faenaId: faena.id, nombre: 'AUDIT pauta atomicidad', marcaModelo: 'AUDIT', tipoMetrica: 'HRS', ciclosDisponibles: [250], items: { create: [{ componente: 'Filtro de aceite', categoria: 'FILTRO', ciclosReemplazar: [250], orden: 1 }, { componente: 'Aceite motor', categoria: 'FLUIDO', ciclosReemplazar: [250], orden: 2 }] } } })
+    const ciclo = 250
+    const rastros = async (id: string, desc: string) => {
+      const ots = await prisma.ordenTrabajo.findMany({ where: { equipoId: id, descripcionFalla: desc }, select: { id: true } })
+      const ids = ots.map(o => o.id)
+      return { ots: ots.length, historial: await prisma.historialEstadoOT.count({ where: { otId: { in: ids } } }), checklist: await prisma.checklistItemOT.count({ where: { otId: { in: ids } } }), estado: await estado(id), episodios: (await episodios(id)).length }
+    }
+    const limpio = (r: Awaited<ReturnType<typeof rastros>>) => r.ots === 0 && r.historial === 0 && r.checklist === 0 && r.estado === 'OPERATIVO' && r.episodios === 0
+    for (const paso of ['vincular', 'abrir'] as const) {
+      const desc = `AUDIT atomicidad ${paso}`
+      falla[paso] = true
+      const err = await intentar(() => crearOT({ equipoId: e2.id, descripcionFalla: desc, tipoMantenimiento: 'PREVENTIVO', pautaId: pauta.id, cicloPM: ciclo }))
+      falla[paso] = false
+      const r = await rastros(e2.id, desc)
+      chequear(`Rollback (falla al ${paso}): no queda OT, historial, checklist, cambio de estado ni episodio`, /falla simulada/.test(err ?? '') && limpio(r), `${err} ${JSON.stringify(r)}`)
+    }
+    // Pautas inválidas: de otra faena o no aprobada -> no queda nada
+    const pautaOtraFaena = await prisma.pautaMantenimiento.create({ data: { faenaId: sim1.id, nombre: 'AUDIT pauta SIM-01', marcaModelo: 'AUDIT', tipoMetrica: 'HRS', ciclosDisponibles: [250], items: { create: [{ componente: 'Filtro', categoria: 'FILTRO', ciclosReemplazar: [250], orden: 1 }] } } })
+    const pautaPendiente = await prisma.pautaMantenimiento.create({ data: { faenaId: faena.id, nombre: 'AUDIT pauta pendiente', marcaModelo: 'AUDIT', tipoMetrica: 'HRS', ciclosDisponibles: [250], estadoAprobacion: 'PENDIENTE', items: { create: [{ componente: 'Filtro', categoria: 'FILTRO', ciclosReemplazar: [250], orden: 1 }] } } })
+    const invalidas: [string, string, Parameters<typeof crearOT>[0]][] = [
+      ['pauta de SIM-01 usada desde SIM-02', 'AUDIT pauta otra faena', { equipoId: e2.id, descripcionFalla: 'AUDIT pauta otra faena', tipoMantenimiento: 'PREVENTIVO', pautaId: pautaOtraFaena.id, cicloPM: 250 }],
+      ['pauta pendiente de aprobación', 'AUDIT pauta pendiente', { equipoId: e2.id, descripcionFalla: 'AUDIT pauta pendiente', tipoMantenimiento: 'PREVENTIVO', pautaId: pautaPendiente.id, cicloPM: 250 }],
+      ['ciclo sin pauta', 'AUDIT ciclo sin pauta', { equipoId: e2.id, descripcionFalla: 'AUDIT ciclo sin pauta', cicloPM: 250 }],
+      ['ciclo que la pauta no tiene', 'AUDIT ciclo inexistente', { equipoId: e2.id, descripcionFalla: 'AUDIT ciclo inexistente', tipoMantenimiento: 'PREVENTIVO', pautaId: pauta.id, cicloPM: 999 }],
+      ['preventiva con pauta y sin ciclo', 'AUDIT sin ciclo', { equipoId: e2.id, descripcionFalla: 'AUDIT sin ciclo', tipoMantenimiento: 'PREVENTIVO', pautaId: pauta.id }],
+    ]
+    for (const [nombre, desc, datos] of invalidas) {
+      const err = await intentar(() => crearOT(datos))
+      const r = await rastros(e2.id, desc)
+      chequear(`Rechazo (${nombre}): no queda OT, historial, checklist, detención ni cambio del equipo`, err !== null && limpio(r), `${err} ${JSON.stringify(r)}`)
+    }
+    const descOk = 'AUDIT atomicidad ok'
+    await crearOT({ equipoId: e2.id, descripcionFalla: descOk, tipoMantenimiento: 'PREVENTIVO', pautaId: pauta.id, cicloPM: ciclo })
+    const rOk = await rastros(e2.id, descOk), ep2 = await episodios(e2.id)
+    chequear('Sin falla: OT, historial inicial, checklist, equipo detenido, episodio abierto y OT vinculada', rOk.ots === 1 && rOk.historial === 1 && rOk.checklist > 0 && rOk.estado === 'DETENIDO' && ep2.length === 1 && ep2[0].fin === null && ep2[0].otId !== null, JSON.stringify(rOk))
 
     // 3. Todos los estados no operacionales abren el episodio y la liberación lo cierra
     for (const est of ['TALLER', 'EN_MANTENIMIENTO', 'FUERA_DE_SERVICIO', 'DETENIDO_PENDIENTE_VALIDACION'] as const) {
@@ -83,6 +108,30 @@ describe('atomicidad de la detención', () => {
     const ventana = { inicio: new Date(t.getTime() - 30 * 86_400_000), termino: t }
     const enSim2 = await detencionesYLiberaciones(prisma, e4.id, faena.id, ventana), enSim1 = await detencionesYLiberaciones(prisma, e4.id, sim1.id, ventana)
     chequear('Equipo transferido: cada faena ve solo sus episodios y liberaciones', enSim2.detenciones.length === 1 && enSim2.liberaciones.length === 0 && enSim1.detenciones.length === 1 && enSim1.liberaciones.length === 1, JSON.stringify({ enSim2, enSim1 }))
+
+    // 5. Reenvío de compra rechazada: dos reenvíos simultáneos con montos distintos -> un único ganador coherente
+    como(jefe)
+    const equipoC = await nuevoEquipo('AT-COMPRA')
+    const otC = await prisma.ordenTrabajo.create({ data: { faenaId: faena.id, equipoId: equipoC.id, tipoMantenimiento: 'CORRECTIVO', estado: 'ABIERTA', prioridad: 'MEDIA', descripcionFalla: 'AUDIT reenvío concurrente', creadoPorId: jefe.user.id } })
+    como(plan)
+    await crearSR(otC.id, { items: [{ descripcion: 'sin precio', cantidad: 1, unidad: 'un' }], urgente: true })
+    const srC = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otC.id } })
+    await marcarCompraDirecta(srC.id, 'Emergencia', 300_000)
+    await solicitarAprobacionCompra(srC.id, 300_000, 300_000)
+    const central = await sesionDe('jefecentral@sim.local')
+    como(central); await rechazarAprobacionCompra(srC.id, 'Corregir monto')
+    como(plan)
+    const montos = [280_000, 350_000]
+    const res = await Promise.allSettled(montos.map(m => solicitarAprobacionCompra(srC.id, m, m)))
+    const ganadores = res.filter(r => r.status === 'fulfilled').length
+    const fin = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srC.id } })
+    const audits = await prisma.registroAuditoria.findMany({ where: { entidadId: srC.id, accion: { in: ['CORREGIR_MONTO_ESTIMADO', 'SOLICITAR_APROBACION_COMPRA'] } }, orderBy: { createdAt: 'asc' } })
+    const ganador = Number(fin.montoSolicitado)
+    const corr = audits.filter(a => a.accion === 'CORREGIR_MONTO_ESTIMADO' && (a.valorNuevo as { montoEstimadoCompra: number }).montoEstimadoCompra !== 300_000)
+    const solic = audits.filter(a => a.accion === 'SOLICITAR_APROBACION_COMPRA')
+    chequear('Reenvíos simultáneos: hay un único ganador', ganadores === 1 && montos.includes(ganador), JSON.stringify({ ganadores, ganador, res: res.map(r => r.status) }))
+    chequear('montoEstimadoCompra y montoSolicitado son del MISMO envío ganador', Number(fin.montoEstimadoCompra) === ganador, JSON.stringify({ est: Number(fin.montoEstimadoCompra), sol: ganador }))
+    chequear('Auditoría efectiva: solo la del ganador (una corrección y una solicitud, con su monto)', corr.length === 1 && (corr[0].valorNuevo as { montoEstimadoCompra: number }).montoEstimadoCompra === ganador && solic.filter(a => (a.valorNuevo as { topeSolicitado: number }).topeSolicitado === ganador).length === 1 && solic.length === 2, JSON.stringify({ corr: corr.length, solic: solic.length }))
 
     const fallos = pasos.filter(p => !p.ok)
     expect(fallos, JSON.stringify(fallos, null, 1)).toEqual([])

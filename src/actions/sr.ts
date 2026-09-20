@@ -241,30 +241,36 @@ export async function solicitarAprobacionCompra(srId: string, monto: number, mon
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ROLES_COMPRAR)
 
-  const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
-  requireAlcanceFaena(sesion, sr.faenaId)
-  if (!sr.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
+  const inicial = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
+  requireAlcanceFaena(sesion, inicial.faenaId)
+  if (!inicial.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
   if (!(monto > 0) || !Number.isFinite(monto)) throw new Error('El monto no es válido')
-  // El tope que se aprobará no puede quedar bajo lo estimado en los ítems de la SR: se usa el mayor.
-  // Corrección tras un rechazo: el monto estimado puede cambiar (hacia arriba o hacia abajo) y queda auditado.
-  if (montoEstimado !== undefined) {
-    if (!(montoEstimado > 0) || !Number.isFinite(montoEstimado)) throw new Error('El monto estimado debe ser mayor a cero')
-    if (sr.aprobacionSolicitadaAt) throw new Error('Ya hay una solicitud vigente: espera la decisión antes de corregir el monto')
-    if (Number(sr.montoEstimadoCompra ?? 0) !== montoEstimado) {
-      await prisma.solicitudRepuesto.update({ where: { id: srId }, data: { montoEstimadoCompra: montoEstimado } })
-      await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'CORREGIR_MONTO_ESTIMADO', usuarioId: sesion.userId, valorAnterior: { montoEstimadoCompra: Number(sr.montoEstimadoCompra ?? 0) }, valorNuevo: { montoEstimadoCompra: montoEstimado } })
-    }
-  }
-  const estimado = await montoEstimadoSR(srId)
-  if (!(estimado > 0)) throw new Error('La compra necesita un monto estimado mayor a cero antes de solicitar la aprobación')
-  const tope = Math.max(monto, estimado)
-  const otras = await otrasComprasMismaNecesidad(prisma, sr)
-  if (!requiereAprobacionPorAcumulado(tope, otras.map(o => o.monto))) throw new Error(`Una compra menor a $${LIMITE_COMPRA_DIRECTA_FAENA.toLocaleString('es-CL')} (IVA incluido, sumando las compras de la misma OT en 24 h) se realiza en la faena sin aprobación`)
-  if (sr.aprobacionSolicitadaAt) return // idempotente
+  if (montoEstimado !== undefined && (!(montoEstimado > 0) || !Number.isFinite(montoEstimado))) throw new Error('El monto estimado debe ser mayor a cero')
 
-  const r = await prisma.solicitudRepuesto.updateMany({ where: { id: srId, aprobacionSolicitadaAt: null }, data: { aprobacionSolicitadaAt: new Date(), aprobacionSolicitadaPorId: sesion.userId, montoSolicitado: tope, motivoRechazoAprobacion: null } })
-  if (r.count === 0) return
-  await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'SOLICITAR_APROBACION_COMPRA', usuarioId: sesion.userId, valorNuevo: { monto, topeSolicitado: tope, acumuladoOtras: otras.reduce((a, o) => a + o.monto, 0) } })
+  // Corrección del monto estimado, cálculo del tope, registro de la solicitud y auditoría: UNA transacción con candado por OT (el mismo de
+  // la regularización). Dos reenvíos simultáneos: gana el primero; el segundo ve la solicitud vigente y falla sin dejar nada.
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${inicial.otId}))::text AS bloqueo`
+    const sr = await tx.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
+    if (sr.aprobacionSolicitadaAt) {
+      if (montoEstimado !== undefined) throw new Error('Ya hay una solicitud vigente: espera la decisión antes de corregir el monto')
+      return // idempotente
+    }
+    // El tope que se aprobará no puede quedar bajo lo estimado en los ítems de la SR: se usa el mayor.
+    if (montoEstimado !== undefined && Number(sr.montoEstimadoCompra ?? 0) !== montoEstimado) {
+      await tx.solicitudRepuesto.update({ where: { id: srId }, data: { montoEstimadoCompra: montoEstimado } })
+      await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'CORREGIR_MONTO_ESTIMADO', usuarioId: sesion.userId, valorAnterior: { montoEstimadoCompra: Number(sr.montoEstimadoCompra ?? 0) }, valorNuevo: { montoEstimadoCompra: montoEstimado } }, tx)
+    }
+    const estimado = await montoEstimadoSR(srId, tx)
+    if (!(estimado > 0)) throw new Error('La compra necesita un monto estimado mayor a cero antes de solicitar la aprobación')
+    const tope = Math.max(monto, estimado)
+    const otras = await otrasComprasMismaNecesidad(tx, sr)
+    if (!requiereAprobacionPorAcumulado(tope, otras.map(o => o.monto))) throw new Error(`Una compra menor a $${LIMITE_COMPRA_DIRECTA_FAENA.toLocaleString('es-CL')} (IVA incluido, sumando las compras de la misma OT en 24 h) se realiza en la faena sin aprobación`)
+
+    const r = await tx.solicitudRepuesto.updateMany({ where: { id: srId, aprobacionSolicitadaAt: null }, data: { aprobacionSolicitadaAt: new Date(), aprobacionSolicitadaPorId: sesion.userId, montoSolicitado: tope, motivoRechazoAprobacion: null } })
+    if (r.count === 0) throw new Error('La solicitud cambió mientras se procesaba: reintenta')
+    await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'SOLICITAR_APROBACION_COMPRA', usuarioId: sesion.userId, valorNuevo: { monto, topeSolicitado: tope, acumuladoOtras: otras.reduce((a, o) => a + o.monto, 0) } }, tx)
+  })
   revalidatePath('/solicitudes-repuesto')
 }
 

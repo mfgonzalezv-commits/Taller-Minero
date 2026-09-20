@@ -86,8 +86,8 @@ type DatosAuditoria = {
 
 // Registra una acción crítica (anulaciones, cambios de estado sensibles,
 // ediciones administrativas) con quién, cuándo, qué cambió y por qué.
-export async function auditar(datos: DatosAuditoria) {
-  await prisma.registroAuditoria.create({
+export async function auditar(datos: DatosAuditoria, cliente: Pick<typeof prisma, 'registroAuditoria'> = prisma) {
+  await cliente.registroAuditoria.create({
     data: {
       faenaId: datos.faenaId ?? null,
       entidad: datos.entidad,
