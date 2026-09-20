@@ -83,7 +83,7 @@ export default async function DashboardPage() {
 
   // Operatividad semanal — últimos 3 meses. Un equipo cuenta como detenido en
   // la semana si su OT seguía sin terminar TÉCNICAMENTE (fechaTerminoTrabajo,
-  // que es cuando de verdad vuelve a operar — Fase 4), no si la OT seguía
+  // aproximación de la operatividad; la liberación operacional se registra aparte), no si la OT seguía
   // administrativamente abierta. OTs anuladas no cuentan como detención real.
   const totalEquipos = equipos.length || 1
   const hoy = new Date()

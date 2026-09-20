@@ -3,13 +3,14 @@
 import type { PrismaClient } from '@prisma/client'
 import { calcularAlertas, fechaLocalChile, type AlertaGenerada, type Evento, type SnapshotAlertas } from './alertas'
 import { calcularPeriodo } from './periodo-pago'
+import { ESTADOS_NO_OPERACIONALES } from './estados-equipo'
 
 const DIA = 86_400_000
 const ABIERTA = { notIn: ['CERRADA', 'ANULADA'] as ('CERRADA' | 'ANULADA')[] }
 
 export async function cargarSnapshot(prisma: PrismaClient, ahora: Date): Promise<SnapshotAlertas> {
   const [reportes, otsCrit, ots, valid, items, compras, planes, faenas, equiposDetenidos, responsables, comprasDirectas] = await Promise.all([
-    prisma.reporteFalla.findMany({ where: { estado: { in: ['PENDIENTE', 'EVALUADO'] }, detencionSolicitada: true, equipo: { estado: { in: ['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'] } } }, select: { id: true, faenaId: true, createdAt: true, descripcion: true, equipo: { select: { codigo: true } } } }),
+    prisma.reporteFalla.findMany({ where: { estado: { in: ['PENDIENTE', 'EVALUADO'] }, detencionSolicitada: true, equipo: { estado: { in: [...ESTADOS_NO_OPERACIONALES] } } }, select: { id: true, faenaId: true, createdAt: true, descripcion: true, equipo: { select: { codigo: true } } } }),
     prisma.ordenTrabajo.findMany({ where: { prioridad: 'CRITICA', estado: ABIERTA, tecnicoAsignadoId: null }, select: { id: true, faenaId: true, fechaCreacion: true, numeroOt: true, equipo: { select: { codigo: true } } } }),
     prisma.ordenTrabajo.findMany({ where: { estado: { notIn: ['CERRADA', 'ANULADA', 'EN_VALIDACION'] } }, select: { id: true, faenaId: true, numeroOt: true, estado: true, updatedAt: true, equipo: { select: { codigo: true } }, historial: { select: { fechaCambio: true }, orderBy: { fechaCambio: 'desc' }, take: 1 }, bitacora: { select: { fechaHora: true }, orderBy: { fechaHora: 'desc' }, take: 1 } } }),
     prisma.ordenTrabajo.findMany({ where: { estado: 'EN_VALIDACION', fechaValidacionTecnica: null }, select: { id: true, faenaId: true, numeroOt: true, fechaTerminoTrabajo: true, updatedAt: true, equipo: { select: { codigo: true } } } }),
@@ -17,7 +18,7 @@ export async function cargarSnapshot(prisma: PrismaClient, ahora: Date): Promise
     prisma.solicitudRepuesto.findMany({ where: { esCompraDirecta: true, aprobacionSolicitadaAt: { not: null }, aprobadaCentralPorId: null }, select: { id: true, faenaId: true, numeroSr: true, aprobacionSolicitadaAt: true, montoSolicitado: true } }),
     prisma.planMantenimiento.findMany({ where: { activo: true, otActivaId: null, OR: [{ proximaEjecucionFecha: { not: null } }, { proximaEjecucionHoras: { not: null } }] }, select: { id: true, faenaId: true, nombre: true, proximaEjecucionFecha: true, proximaEjecucionHoras: true, equipo: { select: { codigo: true, horometroActual: true } } } }),
     prisma.faena.findMany({ where: { activa: true, NOT: { codigo: { startsWith: 'SIM-' } } }, select: { id: true, nombre: true, createdAt: true } }),
-    prisma.equipo.findMany({ where: { activo: true, estado: { in: ['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'] } }, select: { faenaId: true, updatedAt: true } }),
+    prisma.equipo.findMany({ where: { activo: true, estado: { in: [...ESTADOS_NO_OPERACIONALES] } }, select: { faenaId: true, updatedAt: true } }),
     prisma.usuario.findMany({ where: { rol: { in: ['JEFE_TALLER', 'PLANIFICADOR'] } }, select: { faenaId: true, activo: true, updatedAt: true } }),
     prisma.solicitudRepuesto.findMany({ where: { esCompraDirecta: true }, select: { otId: true, faenaId: true, createdAt: true, ot: { select: { numeroOt: true } } }, orderBy: { createdAt: 'asc' } }),
   ])

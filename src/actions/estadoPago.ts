@@ -6,6 +6,8 @@ import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, Error
 import { calcularPeriodo } from '@/lib/periodo-pago'
 import { calcularLineaAsignacion, type LineaCalculada } from '@/lib/linea-estado-pago'
 import { episodiosDetencionOT, ventanaEfectiva, type OtDetencion } from '@/lib/detencion-periodo'
+import { detencionesYLiberaciones } from '@/lib/detencion-registro'
+import { esNoOperacional } from '@/lib/estados-equipo'
 import { serializar } from '@/lib/serialize'
 import { admiteAjustes, admiteReemplazo, compararVersiones, puedeTransicionarEP, violaSeparacionDeFunciones, type EstadoEP } from '@/lib/estado-pago-maquina'
 import { ROLES_ANULAR_EP, ROLES_DECIDIR_EP, ROLES_PREPARAR_EP } from '@/lib/permisos-roles'
@@ -40,7 +42,7 @@ async function calcularLineasPeriodo(faenaId: string, inicio: Date, termino: Dat
 
     // Solo datos del mismo equipo Y de la misma faena. La detención de cada OT termina en la LIBERACIÓN operacional del equipo
     // (no cuando el mecánico termina): incluye espera de validación y retrabajo, y una reapertura abre otro episodio.
-    const [ots, lecturas, liberaciones, detenciones] = v
+    const [ots, lecturas, { detenciones, liberaciones }] = v
       ? await Promise.all([
           prisma.ordenTrabajo.findMany({
             where: { equipoId: a.equipoId, faenaId, estado: { not: 'ANULADA' }, fechaCreacion: { lte: v.termino } },
@@ -53,14 +55,13 @@ async function calcularLineasPeriodo(faenaId: string, inicio: Date, termino: Dat
                 select: { equipoId: true, faenaId: true, fechaRegistro: true, horometro: true },
               })
             : Promise.resolve([]),
-          prisma.liberacionEquipo.findMany({ where: { equipoId: a.equipoId }, select: { liberadoAt: true } }),
-          prisma.detencionEquipo.findMany({ where: { equipoId: a.equipoId, inicio: { lte: v.termino }, OR: [{ fin: null }, { fin: { gte: v.inicio } }] }, select: { inicio: true, fin: true } }),
+          detencionesYLiberaciones(prisma, a.equipoId, faenaId, v),
         ])
-      : [[], [], [], []]
+      : [[], [], { detenciones: [], liberaciones: [] }]
     // La OT "última" se decide por (fecha de creación, id) y un episodio solo queda abierto si el periodo aún está en curso:
     // reprocesar un periodo pasado no debe extender detenciones por el estado de HOY del equipo.
     const ultimaOt = ots.reduce<{ id: string; f: Date } | null>((m, o) => (m === null || o.fechaCreacion > m.f || (o.fechaCreacion.getTime() === m.f.getTime() && o.id > m.id) ? { id: o.id, f: o.fechaCreacion } : m), null)
-    const detenidoActual = ['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'].includes(a.equipo.estado) && termino.getTime() >= Date.now()
+    const detenidoActual = esNoOperacional(a.equipo.estado) && termino.getTime() >= Date.now()
     // Episodios de detención registrados al detener el equipo (con o sin OT): se unen a los de las OT (sin doble descuento).
     const episodiosSinOt: OtDetencion[] = detenciones.map(e => ({ equipoId: a.equipoId, faenaId, estado: 'DETENCION', fechaCreacion: e.inicio, fechaTerminoTrabajo: null, episodios: [{ ini: e.inicio, fin: e.fin }] }))
     const otsDetencion: OtDetencion[] = [...episodiosSinOt, ...ots.map(o => ({

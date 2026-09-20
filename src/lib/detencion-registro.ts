@@ -26,3 +26,18 @@ export async function cerrarDetencion(c: Cliente, equipoId: string, fin: Date = 
 export async function vincularOtADetencion(c: Cliente, equipoId: string, otId: string) {
   await c.detencionEquipo.updateMany({ where: { equipoId, fin: null, otId: null }, data: { otId } })
 }
+
+/**
+ * Episodios y liberaciones de un equipo EN UNA FAENA (un equipo puede cambiar de faena: lo de otra faena no cuenta).
+ * Los episodios se acotan a la ventana [inicio, termino] si se indica.
+ */
+export async function detencionesYLiberaciones(c: Cliente, equipoId: string, faenaId: string, ventana?: { inicio: Date; termino: Date }) {
+  const [detenciones, liberaciones] = await Promise.all([
+    c.detencionEquipo.findMany({
+      where: { equipoId, faenaId, ...(ventana ? { inicio: { lte: ventana.termino }, OR: [{ fin: null }, { fin: { gte: ventana.inicio } }] } : {}) },
+      select: { inicio: true, fin: true },
+    }),
+    c.liberacionEquipo.findMany({ where: { equipoId, faenaId }, select: { liberadoAt: true } }),
+  ])
+  return { detenciones, liberaciones }
+}

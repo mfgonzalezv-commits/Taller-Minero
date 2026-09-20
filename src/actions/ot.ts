@@ -139,13 +139,13 @@ export async function crearOT(data: {
     await crearChecklistDesdePauta(ot.id, data.pautaId, data.cicloPM)
   }
 
-  await prisma.equipo.update({
-    where: { id: data.equipoId },
-    data: { estado: 'DETENIDO' },
+  // Estado del equipo + episodio de detención en una sola transacción. Si ya estaba detenido (reporte o inspección) el episodio
+  // conserva su hora inicial y solo se vincula la OT.
+  await prisma.$transaction(async (tx) => {
+    await tx.equipo.update({ where: { id: data.equipoId }, data: { estado: 'DETENIDO' } })
+    await abrirDetencion(tx, { equipoId: data.equipoId, faenaId: sesion.faenaId, origen: 'OT' })
+    await vincularOtADetencion(tx, data.equipoId, ot.id)
   })
-  // Si el equipo ya estaba detenido (reporte o inspección), el episodio conserva su hora inicial y solo se vincula la OT.
-  await abrirDetencion(prisma, { equipoId: data.equipoId, faenaId: sesion.faenaId, origen: 'OT' })
-  await vincularOtADetencion(prisma, data.equipoId, ot.id)
 
   revalidatePath('/ot')
   revalidatePath('/dashboard')
@@ -269,9 +269,8 @@ export async function cambiarEstadoOT(
   const inicioEstadoActual = ot.historial[0]?.fechaCambio ?? ot.fechaCreacion
   const minutos = Math.round((ahora.getTime() - inicioEstadoActual.getTime()) / 60000)
   const nuevoTiempoMin = ot.tiempoDetenidoMin + minutos
-  // El equipo vuelve a operativo y el contador de detención se congela al
-  // terminar el trabajo técnico (EN_VALIDACION), no al cierre administrativo
-  // (CERRADA) — pueden pasar días entre uno y otro.
+  // El contador de tiempo detenido de la OT se congela al terminar el trabajo técnico (EN_VALIDACION). El equipo SIGUE detenido
+  // hasta la liberación operacional (liberarEquipo), que es lo que termina el episodio de detención.
   const terminaDetencion = nuevoEstado === 'EN_VALIDACION'
   const costoDetencion = terminaDetencion
     ? (Number(ot.costoHoraSnapshot) * nuevoTiempoMin) / 60
@@ -354,8 +353,8 @@ export async function reabrirOT(otId: string, motivo: string) {
 }
 
 // Validación técnica del Jefe de Taller — distinta del cierre administrativo.
-// El equipo ya volvió a operativo al pasar a EN_VALIDACION; esto solo deja
-// registrado quién revisó el trabajo técnicamente antes de que se cierre.
+// El equipo sigue detenido en EN_VALIDACION: esto deja registrado quién revisó el trabajo técnicamente, requisito para que
+// Jefe/Planificador de la faena pueda liberarlo operacionalmente.
 export async function validarTecnicamente(otId: string) {
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])

@@ -237,7 +237,7 @@ export async function marcarCompraDirecta(srId: string, motivo: string, montoEst
 
 // Desde el límite de faena ($250.000 total final, IVA incluido) la compra necesita aprobación del Jefe de Taller
 // Central. El límite se mide sobre el TOTAL ACUMULADO de la necesidad (misma OT, 24 h): dividir la compra no lo evita.
-export async function solicitarAprobacionCompra(srId: string, monto: number) {
+export async function solicitarAprobacionCompra(srId: string, monto: number, montoEstimado?: number) {
   const sesion = await requireSesion()
   requireRolPermitido(sesion, ROLES_COMPRAR)
 
@@ -246,6 +246,15 @@ export async function solicitarAprobacionCompra(srId: string, monto: number) {
   if (!sr.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
   if (!(monto > 0) || !Number.isFinite(monto)) throw new Error('El monto no es válido')
   // El tope que se aprobará no puede quedar bajo lo estimado en los ítems de la SR: se usa el mayor.
+  // Corrección tras un rechazo: el monto estimado puede cambiar (hacia arriba o hacia abajo) y queda auditado.
+  if (montoEstimado !== undefined) {
+    if (!(montoEstimado > 0) || !Number.isFinite(montoEstimado)) throw new Error('El monto estimado debe ser mayor a cero')
+    if (sr.aprobacionSolicitadaAt) throw new Error('Ya hay una solicitud vigente: espera la decisión antes de corregir el monto')
+    if (Number(sr.montoEstimadoCompra ?? 0) !== montoEstimado) {
+      await prisma.solicitudRepuesto.update({ where: { id: srId }, data: { montoEstimadoCompra: montoEstimado } })
+      await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'CORREGIR_MONTO_ESTIMADO', usuarioId: sesion.userId, valorAnterior: { montoEstimadoCompra: Number(sr.montoEstimadoCompra ?? 0) }, valorNuevo: { montoEstimadoCompra: montoEstimado } })
+    }
+  }
   const estimado = await montoEstimadoSR(srId)
   if (!(estimado > 0)) throw new Error('La compra necesita un monto estimado mayor a cero antes de solicitar la aprobación')
   const tope = Math.max(monto, estimado)

@@ -9,7 +9,7 @@ const EN_CURSO = ['ABIERTA', 'EN_DIAGNOSTICO', 'DIAGNOSTICADO', 'REPARACION_PROG
  * si la hubo y con motivo si no hubo reparación. Devuelve el error (o null) y la OT reparada que respalda la liberación.
  */
 export async function verificarLiberacionEquipo(equipoId: string, faenaId: string, estado: string, motivo?: string): Promise<{ error: string | null; otReparadaId: string | null }> {
-  const ultima = await prisma.liberacionEquipo.findFirst({ where: { equipoId }, orderBy: { liberadoAt: 'desc' }, select: { liberadoAt: true } })
+  const ultima = await prisma.liberacionEquipo.findFirst({ where: { equipoId, faenaId }, orderBy: { liberadoAt: 'desc' }, select: { liberadoAt: true } })
   const [enCurso, reparada] = await Promise.all([
     prisma.ordenTrabajo.count({ where: { equipoId, faenaId, tipoMantenimiento: 'CORRECTIVO', estado: { in: [...EN_CURSO] } } }),
     prisma.ordenTrabajo.findFirst({ where: { equipoId, faenaId, estado: { in: ['EN_VALIDACION', 'CERRADA'] }, fechaTerminoTrabajo: { gt: ultima?.liberadoAt ?? new Date(0) } }, orderBy: { fechaTerminoTrabajo: 'desc' }, select: { id: true, fechaValidacionTecnica: true } }),
