@@ -42,7 +42,7 @@ describe('atomicidad de la detención', () => {
     falla.abrir = false
     chequear('Rollback: si falla la apertura del episodio, el estado del equipo NO cambia', /falla simulada/.test(err1 ?? '') && (await estado(e1.id)) === 'OPERATIVO' && (await episodios(e1.id)).length === 0, `${err1} ${await estado(e1.id)}`)
     await actualizarEstadoEquipo(e1.id, 'DETENIDO')
-    chequear('Sin falla: el estado y el episodio se registran juntos', (await estado(e1.id)) === 'DETENIDO' && (await episodios(e1.id)).filter(e => e.fin === null).length === 1)
+    chequear('Sin falla: el estado y el episodio se registran juntos', (await estado(e1.id)) === 'DETENIDO' && (await episodios(e1.id)).filter((e: { fin: Date | null }) => e.fin === null).length === 1)
 
     // 2. crearOT: estado + apertura + vinculación en una transacción
     const e2 = await nuevoEquipo('AT-2')
