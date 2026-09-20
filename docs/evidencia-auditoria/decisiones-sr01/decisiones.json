@@ -230,6 +230,21 @@
     "detalle": "ok"
   },
   {
+    "paso": "Descartar la detención con una OT en reparación se rechaza (misma regla)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operar con observación con una OT en reparación se rechaza (misma regla)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un equipo detenido tampoco pasa a otro estado por el cambio directo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
     "paso": "OT: DIAGNOSTICADO",
     "ok": true,
     "detalle": "ok"
@@ -846,6 +861,11 @@
   },
   {
     "paso": "Fuera de las 24 h ya no es la misma necesidad: C por $100.000 se regulariza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Transferencias opuestas simultáneas: ambas OK, sin deadlock, stock = lotes en las dos faenas y sin pérdida",
     "ok": true,
     "detalle": "ok"
   },

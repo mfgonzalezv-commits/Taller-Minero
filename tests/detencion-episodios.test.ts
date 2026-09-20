@@ -55,6 +55,18 @@ describe('detención hasta la liberación operacional', () => {
   })
 })
 
+describe('una liberación pertenece a la OT de su ciclo', () => {
+  it('OT antigua sin liberación registrada NO toma la liberación de una OT posterior', () => {
+    const vieja = { estado: 'CERRADA', fechaCreacion: d(3, 8), fechaTerminoTrabajo: d(3, 12), fechaCierre: d(3, 13), historial: [H('X', 'EN_VALIDACION', d(3, 12)), H('EN_VALIDACION', 'CERRADA', d(3, 13))] }
+    const eps = episodiosDetencionOT(vieja, [d(20, 10)], { equipoDetenidoActual: false, esUltimaOtDelEquipo: false, iniciosOtrasOt: [d(10, 8)] })
+    expect(eps).toEqual([{ ini: d(3, 8), fin: d(3, 12) }])
+  })
+  it('una OT simultánea (creada ANTES del término técnico) sí comparte la liberación', () => {
+    const a = { estado: 'CERRADA', fechaCreacion: d(3, 8), fechaTerminoTrabajo: d(3, 12), fechaCierre: d(3, 13), historial: [H('X', 'EN_VALIDACION', d(3, 12)), H('EN_VALIDACION', 'CERRADA', d(3, 13))] }
+    expect(episodiosDetencionOT(a, [d(3, 20)], { equipoDetenidoActual: false, esUltimaOtDelEquipo: false, iniciosOtrasOt: [d(3, 10)] })).toEqual([{ ini: d(3, 8), fin: d(3, 20) }])
+  })
+})
+
 describe('modalidad HORA: la detención es información, sin descuento adicional', () => {
   it('registra las horas detenidas pero no descuenta', () => {
     const o = ot({ estado: 'CERRADA', creada: d(10, 8), termino: d(10, 12), cierre: d(10, 13), historial: [H('X', 'EN_VALIDACION', d(10, 12)), H('EN_VALIDACION', 'CERRADA', d(10, 13))] }, [d(10, 20)])

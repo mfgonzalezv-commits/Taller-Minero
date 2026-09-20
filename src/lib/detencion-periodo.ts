@@ -119,7 +119,7 @@ export interface OtParaEpisodios {
  *   si no, termina en el término técnico (datos anteriores a la liberación operacional u OT sin efecto sobre el estado del equipo).
  * - Una reapertura DESPUÉS de una liberación abre un episodio nuevo: el tiempo operando entre medio no se descuenta.
  */
-export function episodiosDetencionOT(ot: OtParaEpisodios, liberaciones: Date[], opts: { equipoDetenidoActual: boolean; esUltimaOtDelEquipo: boolean }): { ini: Date; fin: Date | null }[] {
+export function episodiosDetencionOT(ot: OtParaEpisodios, liberaciones: Date[], opts: { equipoDetenidoActual: boolean; esUltimaOtDelEquipo: boolean; /** Fechas de creación de las OTRAS OT del equipo: una liberación posterior a una OT nueva no pertenece a esta. */ iniciosOtrasOt?: Date[] }): { ini: Date; fin: Date | null }[] {
   const hist = [...ot.historial].sort((a, b) => a.fechaCambio.getTime() - b.fechaCambio.getTime())
   const libs = [...liberaciones].sort((a, b) => a.getTime() - b.getTime())
   const inicios = [ot.fechaCreacion, ...hist.filter(h => h.estadoAnterior === 'CERRADA' && h.estadoNuevo !== 'CERRADA' && h.estadoNuevo !== 'ANULADA').map(h => h.fechaCambio)]
@@ -131,7 +131,9 @@ export function episodiosDetencionOT(ot: OtParaEpisodios, liberaciones: Date[], 
     let tecnico = hist.find(h => (h.estadoNuevo === 'EN_VALIDACION' || h.estadoNuevo === 'CERRADA') && dentro(h.fechaCambio))?.fechaCambio ?? null
     if (!tecnico && ultimo && ['EN_VALIDACION', 'CERRADA'].includes(ot.estado)) tecnico = ot.fechaTerminoTrabajo ?? ot.fechaCierre
     if (!tecnico) { out.push({ ini, fin: hasta }); return }
-    const lib = libs.find(l => l.getTime() >= tecnico!.getTime() && (hasta === null || l.getTime() <= hasta.getTime()))
+    // Tope: si se creó otra OT DESPUÉS del término técnico y antes de esa liberación, la liberación es de esa otra OT (esta ya terminó).
+    const tope = (opts.iniciosOtrasOt ?? []).filter(x => x.getTime() > tecnico!.getTime()).sort((a, b) => a.getTime() - b.getTime())[0] ?? null
+    const lib = libs.find(l => l.getTime() >= tecnico!.getTime() && (hasta === null || l.getTime() <= hasta.getTime()) && (tope === null || l.getTime() <= tope.getTime()))
     if (lib) out.push({ ini, fin: lib })
     else if (ultimo && opts.equipoDetenidoActual && opts.esUltimaOtDelEquipo) out.push({ ini, fin: null })
     else out.push({ ini, fin: hasta && hasta.getTime() < tecnico.getTime() ? hasta : tecnico })

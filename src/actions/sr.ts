@@ -104,7 +104,7 @@ export async function cambiarEstadoSR(srId: string, nuevoEstado: EstadoSR, data?
 
     // Al entregar: el descuento FIFO ocurre UNA sola vez y en esta misma transacción (si falta stock, todo se revierte).
     if (nuevoEstado === 'ENTREGADA') {
-      for (const item of sr.items) {
+      for (const item of [...sr.items].sort((x, y) => (x.itemBodegaId ?? '').localeCompare(y.itemBodegaId ?? ''))) {
         if (item.itemBodegaId) {
           const bodegaItem = await tx.itemBodega.findUniqueOrThrow({ where: { id: item.itemBodegaId } })
           if (bodegaItem.faenaId !== sr.faenaId) throw new ErrorAutorizacion('Sin permisos: un ítem de la SR pertenece a otra faena')

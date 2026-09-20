@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { CriticidadInspeccion, ResultadoItem, TurnoInspeccion } from '@prisma/client'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
 import { ROLES_CREAR_PLAN, ROLES_CREAR_OT, ROLES_GESTION_OT, ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
+import { verificarLiberacionEquipo } from '@/lib/liberacion-servidor'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 
@@ -283,6 +284,9 @@ export async function autorizarOperarConObservacion(equipoId: string, observacio
 
   const equipo = await prisma.equipo.findUniqueOrThrow({ where: { id: equipoId }, select: { faenaId: true, estado: true } })
   if (equipo.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: el equipo pertenece a otra faena')
+  // Misma regla que la liberación (sin OT en reparación, con validación técnica si hubo reparación).
+  const v = await verificarLiberacionEquipo(equipoId, equipo.faenaId, equipo.estado, observacion)
+  if (v.error) throw new Error(v.error)
 
   await prisma.$transaction([
     prisma.equipo.update({ where: { id: equipoId }, data: { estado: 'OPERATIVO_CON_OBSERVACION' } }),

@@ -56,11 +56,13 @@ async function calcularLineasPeriodo(faenaId: string, inicio: Date, termino: Dat
           prisma.liberacionEquipo.findMany({ where: { equipoId: a.equipoId }, select: { liberadoAt: true } }),
         ])
       : [[], [], []]
-    const ultimaOt = ots.reduce<Date | null>((m, o) => (m === null || o.fechaCreacion > m ? o.fechaCreacion : m), null)
-    const detenidoActual = ['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'].includes(a.equipo.estado)
+    // La OT "última" se decide por (fecha de creación, id) y un episodio solo queda abierto si el periodo aún está en curso:
+    // reprocesar un periodo pasado no debe extender detenciones por el estado de HOY del equipo.
+    const ultimaOt = ots.reduce<{ id: string; f: Date } | null>((m, o) => (m === null || o.fechaCreacion > m.f || (o.fechaCreacion.getTime() === m.f.getTime() && o.id > m.id) ? { id: o.id, f: o.fechaCreacion } : m), null)
+    const detenidoActual = ['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'].includes(a.equipo.estado) && termino.getTime() >= Date.now()
     const otsDetencion = ots.map(o => ({
       equipoId: o.equipoId, faenaId: o.faenaId, estado: o.estado, fechaCreacion: o.fechaCreacion, fechaTerminoTrabajo: o.fechaTerminoTrabajo, fechaCierre: o.fechaCierre,
-      episodios: episodiosDetencionOT(o, liberaciones.map(l => l.liberadoAt), { equipoDetenidoActual: detenidoActual, esUltimaOtDelEquipo: ultimaOt !== null && o.fechaCreacion.getTime() === ultimaOt.getTime() }),
+      episodios: episodiosDetencionOT(o, liberaciones.map(l => l.liberadoAt), { equipoDetenidoActual: detenidoActual, esUltimaOtDelEquipo: ultimaOt?.id === o.id, iniciosOtrasOt: ots.filter(x => x.id !== o.id).map(x => x.fechaCreacion) }),
     }))
 
     lineas.push(

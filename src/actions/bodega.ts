@@ -159,42 +159,15 @@ export async function transferirStockEntreFaenas(data: {
   ])
   if (origen.faenaId === destino.faenaId) throw new Error('Los ítems deben ser de faenas distintas')
 
-  const stockAntesOrigen = Number(origen.stockActual)
-  const stockDespuesOrigen = stockAntesOrigen - data.cantidad
-  if (stockDespuesOrigen < 0) throw new Error('Stock insuficiente en la faena de origen')
-  const stockAntesDestino = Number(destino.stockActual)
-  const stockDespuesDestino = stockAntesDestino + data.cantidad
+  if (!(data.cantidad > 0)) throw new Error('La cantidad debe ser mayor a cero')
 
   await prisma.$transaction(async (tx) => {
-    const consumos = await consumirFIFO(tx, data.itemOrigenId, data.cantidad)
-    const costoPromedio =
-      consumos.reduce((acc, c) => acc + c.cantidad * c.costoUnitario, 0) / data.cantidad
-
-    const movSalida = await tx.movimientoBodega.create({
-      data: {
-        itemId: data.itemOrigenId, faenaId: origen.faenaId, tipo: 'SALIDA', cantidad: data.cantidad,
-        stockAntes: stockAntesOrigen, stockDespues: stockDespuesOrigen,
-        usuarioId: sesion.userId, observacion: `Transferencia a otra faena${data.observacion ? ` — ${data.observacion}` : ''}`,
-      },
-    })
-    for (const c of consumos) {
-      await tx.consumoLoteBodega.create({ data: { loteId: c.loteId, movimientoId: movSalida.id, cantidad: c.cantidad, costoUnitario: c.costoUnitario } })
-    }
-    await tx.itemBodega.update({ where: { id: data.itemOrigenId }, data: { stockActual: stockDespuesOrigen } })
-
-    const loteDestino = await tx.loteBodega.create({
-      data: { itemId: data.itemDestinoId, cantidad: data.cantidad, cantidadSaldo: data.cantidad, costoUnitario: costoPromedio, documento: 'Transferencia entre faenas' },
-    })
-    const movEntrada = await tx.movimientoBodega.create({
-      data: {
-        itemId: data.itemDestinoId, faenaId: destino.faenaId, tipo: 'ENTRADA', cantidad: data.cantidad,
-        stockAntes: stockAntesDestino, stockDespues: stockDespuesDestino,
-        usuarioId: sesion.userId, observacion: `Transferencia desde otra faena${data.observacion ? ` — ${data.observacion}` : ''}`,
-      },
-    })
-    await tx.consumoLoteBodega.create({ data: { loteId: loteDestino.id, movimientoId: movEntrada.id, cantidad: data.cantidad, costoUnitario: costoPromedio } })
-    await tx.itemBodega.update({ where: { id: data.itemDestinoId }, data: { stockActual: stockDespuesDestino } })
-
+    // Bloqueo en orden fijo de ítem: dos transferencias opuestas (A→B y B→A) no pueden cruzarse en un deadlock.
+    await tx.$queryRaw`SELECT id FROM items_bodega WHERE id IN (${data.itemOrigenId}, ${data.itemDestinoId}) ORDER BY id FOR UPDATE`
+    const obs = data.observacion ? ` — ${data.observacion}` : ''
+    // Salida atómica en el origen (stock condicionado + FIFO) y entrada con lote nuevo al costo promedio en el destino.
+    const salida = await salidaStockFIFO(tx, { itemId: data.itemOrigenId, faenaId: origen.faenaId, cantidad: data.cantidad, usuarioId: sesion.userId, observacion: `Transferencia a otra faena${obs}` })
+    await entradaStockConLote(tx, { itemId: data.itemDestinoId, faenaId: destino.faenaId, cantidad: data.cantidad, usuarioId: sesion.userId, observacion: `Transferencia desde otra faena${obs}`, costoUnitario: salida.costoUnitario, documento: 'Transferencia entre faenas' })
     await tx.transferenciaBodega.create({
       data: {
         itemOrigenId: data.itemOrigenId, itemDestinoId: data.itemDestinoId,
@@ -202,7 +175,7 @@ export async function transferirStockEntreFaenas(data: {
         cantidad: data.cantidad, usuarioId: sesion.userId, observacion: data.observacion ?? null,
       },
     })
-  })
+  }, { timeout: 20_000, maxWait: 10_000 })
 
   await auditar({
     entidad: 'ItemBodega', entidadId: data.itemOrigenId, accion: 'TRANSFERIR_ENTRE_FAENAS',
@@ -258,11 +231,9 @@ export async function aprobarAjusteStock(solicitudId: string) {
 
   // Todo o nada: la solicitud pasa a APROBADO y el ajuste (movimiento, lotes y stock) se aplica en la misma transacción.
   await prisma.$transaction(async (tx) => {
-    const actual = await tx.itemBodega.findUniqueOrThrow({ where: { id: sol.itemId }, select: { stockActual: true } })
-    if (Math.abs(Number(actual.stockActual) - Number(sol.cantidadActual)) > 0.005) throw new Error(`El stock cambió desde la solicitud (era ${Number(sol.cantidadActual)}, ahora ${Number(actual.stockActual)}): rechaza y solicita el ajuste de nuevo con un conteo actualizado`)
     const c = await tx.solicitudAjusteStock.updateMany({ where: { id: solicitudId, estado: 'PENDIENTE' }, data: { estado: 'APROBADO', resueltoPorId: sesion.userId, resueltoAt: new Date() } })
     if (c.count === 0) throw new Error('La solicitud ya fue resuelta')
-    await ajusteStockConLotes(tx, { itemId: sol.itemId, faenaId: sol.faenaId, cantidadNueva: Number(sol.cantidadNueva), usuarioId: sesion.userId, observacion: `Ajuste aprobado: ${sol.motivo}` })
+    await ajusteStockConLotes(tx, { itemId: sol.itemId, faenaId: sol.faenaId, cantidadNueva: Number(sol.cantidadNueva), usuarioId: sesion.userId, observacion: `Ajuste aprobado: ${sol.motivo}`, stockEsperado: Number(sol.cantidadActual) })
   }, { timeout: 20_000, maxWait: 10_000 })
   await auditar({ faenaId: sol.faenaId, entidad: 'SolicitudAjusteStock', entidadId: solicitudId, accion: 'APROBAR_AJUSTE', usuarioId: sesion.userId, valorNuevo: { stock: Number(sol.cantidadNueva) }, motivo: sol.motivo })
   revalidatePath('/bodega')

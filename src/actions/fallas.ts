@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
 import { ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
+import { verificarLiberacionEquipo } from '@/lib/liberacion-servidor'
 import { PrioridadOT } from '@prisma/client'
 
 function sugerirPrioridad(riesgoSeguridad: boolean, impactoProductivo?: string): PrioridadOT {
@@ -91,6 +92,10 @@ export async function validarDetencion(reporteId: string, confirmar: boolean, mo
     requireRolPermitido(sesion, ROLES_LIBERAR_EQUIPO)
     if (reporte.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: el equipo pertenece a otra faena')
     if (!motivo?.trim()) throw new Error('Debe indicar el motivo para descartar la detención')
+    // Misma regla que la liberación: no se descarta con una OT en reparación ni saltándose la validación técnica.
+    const eq = await prisma.equipo.findUniqueOrThrow({ where: { id: reporte.equipoId }, select: { estado: true } })
+    const v = await verificarLiberacionEquipo(reporte.equipoId, reporte.faenaId, eq.estado, motivo)
+    if (v.error) throw new Error(v.error)
   }
 
   await prisma.$transaction([

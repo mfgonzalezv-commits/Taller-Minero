@@ -7,10 +7,11 @@ import path from 'path'
 import { prisma } from '../src/lib/prisma'
 import { como, sesionDe, SALIDA } from './helpers'
 import { crearSR, marcarCompraDirecta, regularizarCompraDirecta, solicitarAprobacionCompra, aprobarCompraDirectaCentral } from '../src/actions/sr'
-import { registrarMovimiento, solicitarAjusteStock, aprobarAjusteStock, rechazarAjusteStock } from '../src/actions/bodega'
+import { registrarMovimiento, solicitarAjusteStock, aprobarAjusteStock, rechazarAjusteStock, transferirStockEntreFaenas } from '../src/actions/bodega'
 import { crearReporteFalla, validarDetencion } from '../src/actions/fallas'
 import { cambiarEstadoOT, validarTecnicamente, crearOT } from '../src/actions/ot'
 import { liberarEquipo, actualizarEstadoEquipo } from '../src/actions/equipos'
+import { autorizarOperarConObservacion } from '../src/actions/inspeccion'
 import { prepararEstadoPago, aprobarEstadoPago, rechazarEstadoPago, anularEstadoPago, reemplazarEstadoPago, agregarAjusteManual, getVersionesEstadoPago } from '../src/actions/estadoPago'
 import { proponerPautaNueva, proponerVersionPauta, aprobarPauta, vincularPautaEquipo, programarPM } from '../src/actions/pautas'
 import { crearPlan, programarParada, postergarPlan } from '../src/actions/mantenimiento'
@@ -123,6 +124,9 @@ describe('decisiones operacionales (SIM-02)', () => {
     await espera('El Jefe Central NO libera (es de la faena)', S.central, () => liberarEquipo(eq1.id, 'x'), /Sin permisos/)
     await espera('Jefe de OTRA faena NO libera', S.jefe1, () => liberarEquipo(eq1.id, 'x'), /Sin permisos|otra faena/)
     await espera('Hay una OT en curso: no se libera', S.plan, () => liberarEquipo(eq1.id, 'x'), /OT en reparación/)
+    await espera('Descartar la detención con una OT en reparación se rechaza (misma regla)', S.plan, () => validarDetencion(rf.id, false, 'falsa alarma'), /OT en reparación/)
+    await espera('Operar con observación con una OT en reparación se rechaza (misma regla)', S.plan, () => autorizarOperarConObservacion(eq1.id, 'sigue operando'), /OT en reparación/)
+    await espera('Un equipo detenido tampoco pasa a otro estado por el cambio directo', S.jefe, () => actualizarEstadoEquipo(eq1.id, 'EN_MANTENIMIENTO'), /solo sale de ese estado/)
     await exito('OT: DIAGNOSTICADO', S.jefe, () => cambiarEstadoOT(ot.id, 'DIAGNOSTICADO'))
     await exito('OT: EN_REPARACION', S.jefe, () => cambiarEstadoOT(ot.id, 'EN_REPARACION'))
     await exito('OT: EN_VALIDACION', S.mec, () => cambiarEstadoOT(ot.id, 'EN_VALIDACION'))
@@ -302,6 +306,15 @@ describe('decisiones operacionales (SIM-02)', () => {
     const viejo = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otF.id, items: { some: { descripcion: 'frac C' } } } })
     await prisma.solicitudRepuesto.update({ where: { id: viejo.id }, data: { createdAt: new Date(Date.now() - 3 * 86_400_000) } })
     await exito('Fuera de las 24 h ya no es la misma necesidad: C por $100.000 se regulariza', S.plan, () => regularizarCompraDirecta(fC.id, datos(100_000)))
+
+    // transferencias entre faenas: stock = lotes y sin deadlock con transferencias opuestas
+    const itemOtra = await prisma.itemBodega.findFirstOrThrow({ where: { faenaId: sim1.id } })
+    const lotesDe = async (id: string) => { const it = await prisma.itemBodega.findUniqueOrThrow({ where: { id } }); return { stock: Number(it.stockActual), lotes: (await prisma.loteBodega.findMany({ where: { itemId: id } })).reduce((a, l) => a + Number(l.cantidadSaldo), 0) } }
+    const t0a = await lotesDe(item.id), t0b = await lotesDe(itemOtra.id)
+    como(S.central)
+    const tr = await Promise.allSettled([transferirStockEntreFaenas({ itemOrigenId: item.id, itemDestinoId: itemOtra.id, cantidad: 1 }), transferirStockEntreFaenas({ itemOrigenId: itemOtra.id, itemDestinoId: item.id, cantidad: 1 })])
+    const t1a = await lotesDe(item.id), t1b = await lotesDe(itemOtra.id)
+    chequear('Transferencias opuestas simultáneas: ambas OK, sin deadlock, stock = lotes en las dos faenas y sin pérdida', tr.every(x => x.status === 'fulfilled') && t1a.stock === t1a.lotes && t1b.stock === t1b.lotes && t1a.stock === t0a.stock && t1b.stock === t0b.stock, JSON.stringify({ r: tr.map(x => x.status === 'rejected' ? String((x.reason as Error).message).slice(0, 80) : 'ok'), t0a, t1a, t0b, t1b }))
 
     // faena sin Jefe ni Planificador: el equipo sigue detenido y se avisa al nivel central
     await prisma.equipo.update({ where: { id: eq2.id }, data: { estado: 'DETENIDO' } })
