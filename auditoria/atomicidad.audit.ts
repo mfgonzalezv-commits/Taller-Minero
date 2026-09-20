@@ -63,6 +63,21 @@ describe('atomicidad de la detención', () => {
       const r = await rastros(e2.id, desc)
       chequear(`Rollback (falla al ${paso}): no queda OT, historial, checklist, cambio de estado ni episodio`, /falla simulada/.test(err ?? '') && limpio(r), `${err} ${JSON.stringify(r)}`)
     }
+    // Pautas inválidas: de otra faena o no aprobada -> no queda nada
+    const pautaOtraFaena = await prisma.pautaMantenimiento.create({ data: { faenaId: sim1.id, nombre: 'AUDIT pauta SIM-01', marcaModelo: 'AUDIT', tipoMetrica: 'HRS', ciclosDisponibles: [250], items: { create: [{ componente: 'Filtro', categoria: 'FILTRO', ciclosReemplazar: [250], orden: 1 }] } } })
+    const pautaPendiente = await prisma.pautaMantenimiento.create({ data: { faenaId: faena.id, nombre: 'AUDIT pauta pendiente', marcaModelo: 'AUDIT', tipoMetrica: 'HRS', ciclosDisponibles: [250], estadoAprobacion: 'PENDIENTE', items: { create: [{ componente: 'Filtro', categoria: 'FILTRO', ciclosReemplazar: [250], orden: 1 }] } } })
+    const invalidas: [string, string, Parameters<typeof crearOT>[0]][] = [
+      ['pauta de SIM-01 usada desde SIM-02', 'AUDIT pauta otra faena', { equipoId: e2.id, descripcionFalla: 'AUDIT pauta otra faena', tipoMantenimiento: 'PREVENTIVO', pautaId: pautaOtraFaena.id, cicloPM: 250 }],
+      ['pauta pendiente de aprobación', 'AUDIT pauta pendiente', { equipoId: e2.id, descripcionFalla: 'AUDIT pauta pendiente', tipoMantenimiento: 'PREVENTIVO', pautaId: pautaPendiente.id, cicloPM: 250 }],
+      ['ciclo sin pauta', 'AUDIT ciclo sin pauta', { equipoId: e2.id, descripcionFalla: 'AUDIT ciclo sin pauta', cicloPM: 250 }],
+      ['ciclo que la pauta no tiene', 'AUDIT ciclo inexistente', { equipoId: e2.id, descripcionFalla: 'AUDIT ciclo inexistente', tipoMantenimiento: 'PREVENTIVO', pautaId: pauta.id, cicloPM: 999 }],
+      ['preventiva con pauta y sin ciclo', 'AUDIT sin ciclo', { equipoId: e2.id, descripcionFalla: 'AUDIT sin ciclo', tipoMantenimiento: 'PREVENTIVO', pautaId: pauta.id }],
+    ]
+    for (const [nombre, desc, datos] of invalidas) {
+      const err = await intentar(() => crearOT(datos))
+      const r = await rastros(e2.id, desc)
+      chequear(`Rechazo (${nombre}): no queda OT, historial, checklist, detención ni cambio del equipo`, err !== null && limpio(r), `${err} ${JSON.stringify(r)}`)
+    }
     const descOk = 'AUDIT atomicidad ok'
     await crearOT({ equipoId: e2.id, descripcionFalla: descOk, tipoMantenimiento: 'PREVENTIVO', pautaId: pauta.id, cicloPM: ciclo })
     const rOk = await rastros(e2.id, descOk), ep2 = await episodios(e2.id)

@@ -82,6 +82,15 @@ export async function crearOT(data: {
   })
   if (!equipo) throw new ErrorAutorizacion('Sin permisos: el equipo no existe o pertenece a otra faena')
 
+  // La pauta debe ser de esta faena y estar aprobada; el ciclo, uno de los que ofrece la pauta.
+  if (data.cicloPM != null && !data.pautaId) throw new Error('El ciclo de mantenimiento requiere indicar la pauta')
+  if (data.pautaId) {
+    const pauta = await prisma.pautaMantenimiento.findFirst({ where: { id: data.pautaId, faenaId: sesion.faenaId, estadoAprobacion: 'APROBADA' }, select: { ciclosDisponibles: true } })
+    if (!pauta) throw new ErrorAutorizacion('Sin permisos: la pauta no existe, pertenece a otra faena o no está aprobada')
+    if (data.cicloPM != null && !pauta.ciclosDisponibles.includes(data.cicloPM)) throw new Error('El ciclo indicado no existe en la pauta')
+    if ((data.tipoMantenimiento ?? 'CORRECTIVO') === 'PREVENTIVO' && data.cicloPM == null) throw new Error('Una OT preventiva con pauta requiere indicar el ciclo')
+  }
+
   if ((data.tipoMantenimiento ?? 'CORRECTIVO') === 'PREVENTIVO' && (await hayOTPreventivaActiva(data.equipoId))) {
     throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
   }
