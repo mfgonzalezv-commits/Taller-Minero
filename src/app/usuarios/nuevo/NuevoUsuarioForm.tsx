@@ -32,6 +32,8 @@ export default function NuevoUsuarioForm({ rolesPermitidos }: { rolesPermitidos:
   const [password, setPassword] = useState('')
   const [rol, setRol] = useState<RolUsuario>(rolesPermitidos.includes('MECANICO') ? 'MECANICO' : rolesPermitidos[0])
   const [turno, setTurno] = useState('')
+  const [sistemaTurno, setSistemaTurno] = useState('')
+  const [grupoTurno, setGrupoTurno] = useState('')
   const [especialidades, setEspecialidades] = useState<string[]>([])
 
   const toggleEsp = (e: string) =>
@@ -50,6 +52,8 @@ export default function NuevoUsuarioForm({ rolesPermitidos }: { rolesPermitidos:
           rol,
           especialidades,
           turno: turno || undefined,
+          sistemaTurno: sistemaTurno || undefined,
+          grupoTurno: grupoTurno || undefined,
         })
         router.push('/usuarios')
       } catch (err: unknown) {
@@ -165,6 +169,19 @@ export default function NuevoUsuarioForm({ rolesPermitidos }: { rolesPermitidos:
         </div>
       )}
 
+      {/* Régimen de turnos (opcional): cada persona tiene su propia cuenta y su grupo. La jornada Día/Noche va aparte. */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs" style={{ color: 'var(--n-text-lt)' }}>Sistema de turno
+          <select value={sistemaTurno} onChange={(e) => setSistemaTurno(e.target.value)} className="mt-1 w-full rounded-md px-2 py-1.5 text-sm" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+            <option value="">Sin definir</option><option value="7X7">7X7</option><option value="14X14">14X14</option>
+          </select>
+        </label>
+        <label className="text-xs" style={{ color: 'var(--n-text-lt)' }}>Grupo
+          <select value={grupoTurno} onChange={(e) => setGrupoTurno(e.target.value)} className="mt-1 w-full rounded-md px-2 py-1.5 text-sm" style={{ backgroundColor: 'var(--n-bg)', border: '1px solid var(--n-border)', color: 'var(--n-text)' }}>
+            <option value="">Sin definir</option><option value="A">A</option><option value="B">B</option>
+          </select>
+        </label>
+      </div>
       {error && (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}

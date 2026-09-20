@@ -47,15 +47,18 @@ model Faena {
 }
 
 model Usuario {
-  id        String     @id @default(uuid())
-  faenaId   String     @map("faena_id")
-  nombre    String
-  email     String     @unique
-  password  String
-  rol       RolUsuario
-  activo    Boolean    @default(true)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  id           String     @id @default(uuid())
+  faenaId      String     @map("faena_id")
+  nombre       String
+  email        String     @unique
+  password     String
+  rol          RolUsuario
+  activo       Boolean    @default(true)
+  // Régimen de turnos (opcional, retrocompatible): '7X7' | '14X14' y grupo 'A' | 'B'. La jornada Día/Noche sigue en Tecnico.turno.
+  sistemaTurno String?    @map("sistema_turno")
+  grupoTurno   String?    @map("grupo_turno")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
 
   faena                         Faena                    @relation(fields: [faenaId], references: [id])
   tecnico                       Tecnico?
@@ -417,6 +420,9 @@ model SolicitudRepuesto {
   comprobanteRegularizacion String?   @map("comprobante_regularizacion")
   motivoRegularizacion      String?   @map("motivo_regularizacion")
   montoCompraDirecta        Decimal?  @map("monto_compra_directa") @db.Decimal(14, 2)
+  aprobacionSolicitadaAt    DateTime? @map("aprobacion_solicitada_at")
+  aprobacionSolicitadaPorId String?   @map("aprobacion_solicitada_por_id")
+  montoSolicitado           Decimal?  @map("monto_solicitado") @db.Decimal(14, 2)
   aprobadaCentralPorId      String?   @map("aprobada_central_por_id")
   fechaAprobacionCentral    DateTime? @map("fecha_aprobacion_central")
   createdAt                 DateTime  @default(now()) @map("created_at")
@@ -927,6 +933,14 @@ model PautaMantenimiento {
   tipoMetrica       TipoMetricaPM @map("tipo_metrica")
   ciclosDisponibles Int[]         @default([]) @map("ciclos_disponibles")
   activo            Boolean       @default(true)
+  // Versionado con aprobación del Jefe de Taller Central. Las pautas existentes quedan APROBADA (v1).
+  version           Int           @default(1)
+  estadoAprobacion  String        @default("APROBADA") @map("estado_aprobacion")
+  pautaAnteriorId   String?       @map("pauta_anterior_id")
+  creadaPorId       String?       @map("creada_por_id")
+  aprobadaPorId     String?       @map("aprobada_por_id")
+  fechaAprobacion   DateTime?     @map("fecha_aprobacion")
+  motivoCambio      String?       @map("motivo_cambio")
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
@@ -1115,33 +1129,41 @@ enum EstadoEstadoPago {
   PREPARADO
   APROBADO
   RECHAZADO
+  ANULADO
 
   @@map("estado_estado_pago")
 }
 
 model EstadoPago {
-  id              String           @id @default(uuid())
-  faenaId         String           @map("faena_id")
-  periodoInicio   DateTime         @map("periodo_inicio")
-  periodoTermino  DateTime         @map("periodo_termino")
-  estado          EstadoEstadoPago @default(BORRADOR)
-  preparadoPorId  String?          @map("preparado_por_id")
-  aprobadoPorId   String?          @map("aprobado_por_id")
-  fechaAprobacion DateTime?        @map("fecha_aprobacion")
-  motivoRechazo   String?          @map("motivo_rechazo")
-  totalBruto      Decimal          @default(0) @map("total_bruto") @db.Decimal(14, 2)
-  totalDescuentos Decimal          @default(0) @map("total_descuentos") @db.Decimal(14, 2)
-  totalAjustes    Decimal          @default(0) @map("total_ajustes") @db.Decimal(14, 2)
-  totalNeto       Decimal          @default(0) @map("total_neto") @db.Decimal(14, 2)
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id                     String           @id @default(uuid())
+  faenaId                String           @map("faena_id")
+  periodoInicio          DateTime         @map("periodo_inicio")
+  periodoTermino         DateTime         @map("periodo_termino")
+  estado                 EstadoEstadoPago @default(BORRADOR)
+  preparadoPorId         String?          @map("preparado_por_id")
+  aprobadoPorId          String?          @map("aprobado_por_id")
+  fechaAprobacion        DateTime?        @map("fecha_aprobacion")
+  motivoRechazo          String?          @map("motivo_rechazo")
+  // Versionado: una corrección o reemplazo es una versión nueva vinculada; ninguna versión se borra ni se edita.
+  version                Int              @default(1)
+  versionAnteriorId      String?          @map("version_anterior_id")
+  motivoAnulacion        String?          @map("motivo_anulacion")
+  anuladoPorId           String?          @map("anulado_por_id")
+  fechaAnulacion         DateTime?        @map("fecha_anulacion")
+  diferenciasConAnterior Json?            @map("diferencias_con_anterior")
+  totalBruto             Decimal          @default(0) @map("total_bruto") @db.Decimal(14, 2)
+  totalDescuentos        Decimal          @default(0) @map("total_descuentos") @db.Decimal(14, 2)
+  totalAjustes           Decimal          @default(0) @map("total_ajustes") @db.Decimal(14, 2)
+  totalNeto              Decimal          @default(0) @map("total_neto") @db.Decimal(14, 2)
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
 
   faena        Faena             @relation(fields: [faenaId], references: [id])
   preparadoPor Usuario?          @relation("EstadoPagoPreparado", fields: [preparadoPorId], references: [id])
   aprobadoPor  Usuario?          @relation("EstadoPagoAprobado", fields: [aprobadoPorId], references: [id])
   lineas       EstadoPagoLinea[]
 
-  @@unique([faenaId, periodoInicio])
+  @@unique([faenaId, periodoInicio, version])
   @@map("estados_pago")
 }
 
@@ -1221,4 +1243,43 @@ model DestinatarioInforme {
   faena Faena? @relation(fields: [faenaId], references: [id])
 
   @@map("destinatarios_informe")
+}
+
+// ─── Ajustes manuales de stock: se SOLICITAN en la faena y los aprueba el Jefe de Taller Central ─────
+model SolicitudAjusteStock {
+  id               String    @id @default(uuid())
+  faenaId          String    @map("faena_id")
+  itemId           String    @map("item_id")
+  cantidadActual   Decimal   @map("cantidad_actual") @db.Decimal(10, 2)
+  cantidadNueva    Decimal   @map("cantidad_nueva") @db.Decimal(10, 2)
+  motivo           String
+  estado           String    @default("PENDIENTE") // PENDIENTE | APROBADO | RECHAZADO
+  solicitadoPorId  String    @map("solicitado_por_id")
+  resueltoPorId    String?   @map("resuelto_por_id")
+  motivoResolucion String?   @map("motivo_resolucion")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  resueltoAt       DateTime? @map("resuelto_at")
+
+  @@index([faenaId, estado])
+  @@map("solicitudes_ajuste_stock")
+}
+
+// ─── Notificaciones internas (correo/WhatsApp quedan para después) ─────────────────────────────────
+model Notificacion {
+  id         String    @id @default(uuid())
+  faenaId    String?   @map("faena_id")
+  rolDestino String    @map("rol_destino")
+  usuarioId  String?   @map("usuario_id")
+  tipo       String
+  nivel      Int       @default(0)
+  entidad    String?
+  entidadId  String?   @map("entidad_id")
+  titulo     String
+  mensaje    String
+  claveUnica String    @unique @map("clave_unica")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  leidaAt    DateTime? @map("leida_at")
+
+  @@index([rolDestino, faenaId, leidaAt])
+  @@map("notificaciones")
 }

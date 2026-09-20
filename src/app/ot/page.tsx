@@ -12,7 +12,7 @@ export default async function OTPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const ots = await prisma.ordenTrabajo.findMany({
     where: { faenaId: faena?.id },
     include: {

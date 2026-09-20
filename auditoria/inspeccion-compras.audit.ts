@@ -7,7 +7,7 @@ import path from 'path'
 import { prisma } from '../src/lib/prisma'
 import { como, sesionDe, SALIDA } from './helpers'
 import { crearPlantilla, crearInspeccion, actualizarEstadoAlerta, generarOTDesdeAlerta } from '../src/actions/inspeccion'
-import { crearSR, cambiarEstadoSR, marcarCompraDirecta, regularizarCompraDirecta, aprobarCompraDirectaCentral } from '../src/actions/sr'
+import { crearSR, cambiarEstadoSR, marcarCompraDirecta, regularizarCompraDirecta, aprobarCompraDirectaCentral, solicitarAprobacionCompra } from '../src/actions/sr'
 import { agregarBitacora } from '../src/actions/ot'
 
 type Paso = { paso: string; ok: boolean; detalle: string }
@@ -148,7 +148,7 @@ describe('inspecciones, SR y compras (regresión AUD-013 a AUD-019)', () => {
     const sr2 = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: ot.id, items: { some: { descripcion: 'AUDIT compra urgente' } } } })
     const datos = { cotizaciones: ['COT-1 $590.000'], comprobante: 'FAC-9001', motivo: 'Emergencia: equipo detenido', monto: 600000 }
     await espera('Regularizar antes de marcar compra directa se rechaza', S.C, () => regularizarCompraDirecta(sr2.id, datos), /no es una compra directa/)
-    await espera('Planificador NO marca compra directa', S.plan, () => marcarCompraDirecta(sr2.id, 'AUDIT'), /Sin permisos/)
+    await espera('Bodega NO marca compra directa', S.bod, () => marcarCompraDirecta(sr2.id, 'AUDIT'), /Sin permisos/)
     await espera('Compra directa sin motivo se rechaza', S.jefe, () => marcarCompraDirecta(sr2.id, ' '), /justificar/)
     como(S.jefe)
     const marc = await Promise.allSettled([marcarCompraDirecta(sr2.id, 'Emergencia sin cotizaciones previas'), marcarCompraDirecta(sr2.id, 'Emergencia sin cotizaciones previas')])
@@ -160,6 +160,7 @@ describe('inspecciones, SR y compras (regresión AUD-013 a AUD-019)', () => {
     await espera('Un monto informado bajo (1) no evade el límite: se controla con lo estimado de la SR', S.C, () => regularizarCompraDirecta(sr2.id, { ...datos, monto: 1 }), /aprobación central/)
     await espera('Sobre el límite de faena exige aprobación central', S.C, () => regularizarCompraDirecta(sr2.id, datos), /aprobación central/)
     await espera('El Jefe de faena NO da la aprobación central', S.jefe, () => aprobarCompraDirectaCentral(sr2.id), /Sin permisos/)
+    await exito('La faena solicita la aprobación central', S.plan, () => solicitarAprobacionCompra(sr2.id, 600000))
     await exito('Central aprueba', S.central, () => aprobarCompraDirectaCentral(sr2.id))
     como(S.C)
     const reg = await Promise.allSettled([regularizarCompraDirecta(sr2.id, datos), regularizarCompraDirecta(sr2.id, datos)])

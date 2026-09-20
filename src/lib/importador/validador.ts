@@ -3,13 +3,14 @@
 // errores) y el plan de inserción. El importador NUNCA actualiza ni borra: lo que ya existe y es
 // idéntico se cuenta como "sin cambios"; si difiere es un conflicto (error) y no se toca.
 import { aFecha, aNumero, type Fila } from './csv'
+import { normalizarTurno, validarTurno } from '../turnos'
 
 export const HOJAS = ['faenas', 'usuarios', 'equipos', 'asignaciones', 'items_bodega', 'lotes'] as const
 export type Hoja = (typeof HOJAS)[number]
 
 export const COLUMNAS: Record<Hoja, { requeridas: string[]; opcionales: string[] }> = {
   faenas: { requeridas: ['codigo', 'nombre'], opcionales: ['empresa', 'ubicacion'] },
-  usuarios: { requeridas: ['email', 'nombre', 'rol', 'faena'], opcionales: ['password_temporal', 'especialidades', 'turno', 'tarifa_hora', 'tarifa_hora_extra'] },
+  usuarios: { requeridas: ['email', 'nombre', 'rol', 'faena'], opcionales: ['password_temporal', 'especialidades', 'turno', 'tarifa_hora', 'tarifa_hora_extra', 'sistema_turno', 'grupo_turno'] },
   equipos: { requeridas: ['faena', 'codigo', 'nombre', 'tipo'], opcionales: ['marca', 'modelo', 'patente', 'anio', 'costo_hora_detencion', 'horometro_inicial'] },
   asignaciones: { requeridas: ['faena', 'equipo_codigo', 'fecha_inicio', 'modalidad', 'tarifa'], opcionales: ['fecha_termino', 'contrato', 'regla_descuento', 'politica_prorateo'] },
   items_bodega: { requeridas: ['faena', 'codigo', 'descripcion', 'stock_actual'], opcionales: ['unidad', 'stock_minimo', 'stock_maximo', 'criticidad', 'precio_ref', 'categoria'] },
@@ -42,7 +43,7 @@ export interface Existente {
 
 export interface Mensaje { hoja: Hoja | 'general'; linea: number | null; mensaje: string }
 
-export interface PlanUsuario { email: string; nombre: string; rol: string; passwordTemporal: string | null; especialidades: string[]; turno: string | null; tarifaHora: number; tarifaHoraExtra: number; linea: number }
+export interface PlanUsuario { sistemaTurno: string | null; grupoTurno: string | null; email: string; nombre: string; rol: string; passwordTemporal: string | null; especialidades: string[]; turno: string | null; tarifaHora: number; tarifaHoraExtra: number; linea: number }
 export interface PlanEquipo { codigo: string; nombre: string; tipo: string; marca: string | null; modelo: string | null; patente: string | null; anio: number | null; costoHoraDetencion: number; horometroInicial: number; linea: number }
 export interface PlanAsignacion { equipoCodigo: string; inicio: Date; fin: Date | null; contrato: string | null; modalidad: string; tarifa: number; regla: string | null; politica: string; linea: number }
 export interface PlanLote { ref: string; cantidad: number; costo: number; fecha: Date; linea: number }
@@ -127,6 +128,9 @@ export function validarCarga(d: DatosPlanilla, existente: Existente, faenaObjeti
     if (!ROLES.includes(rol)) { error('usuarios', f, `Rol inválido "${f.rol}". Roles válidos: ${ROLES.join(', ')}`); continue }
     if (ROLES_CENTRALES.includes(rol)) aviso('usuarios', f, `${email} tiene rol central (${rol}): ve y opera todas las faenas. Confirma que corresponde`)
     if (f.password_temporal && f.password_temporal.length < 8) { error('usuarios', f, 'password_temporal debe tener al menos 8 caracteres (o déjala vacía para generar una)'); continue }
+    const errTurno = validarTurno({ sistemaTurno: f.sistema_turno, grupoTurno: f.grupo_turno })
+    if (errTurno) { error('usuarios', f, errTurno); continue }
+    const turnos = normalizarTurno({ sistemaTurno: f.sistema_turno, grupoTurno: f.grupo_turno })
     const th = numero('usuarios', f, 'tarifa_hora', { min: 0 }), the = numero('usuarios', f, 'tarifa_hora_extra', { min: 0 })
     const ex = existente.usuarios.get(email)
     if (ex) {
@@ -135,7 +139,7 @@ export function validarCarga(d: DatosPlanilla, existente: Existente, faenaObjeti
       continue
     }
     if (rol === 'MECANICO' && th === null) aviso('usuarios', f, `${email} es MECANICO sin tarifa_hora: sus horas se costearán en $0`)
-    plan.usuarios.push({ email, nombre: f.nombre, rol, passwordTemporal: f.password_temporal || null, especialidades: (f.especialidades ?? '').split(/[|;]/).map(s => s.trim()).filter(Boolean), turno: f.turno || null, tarifaHora: num(th), tarifaHoraExtra: num(the), linea: +f.__linea })
+    plan.usuarios.push({ ...turnos, email, nombre: f.nombre, rol, passwordTemporal: f.password_temporal || null, especialidades: (f.especialidades ?? '').split(/[|;]/).map(s => s.trim()).filter(Boolean), turno: f.turno || null, tarifaHora: num(th), tarifaHoraExtra: num(the), linea: +f.__linea })
     nuevos.usuarios++
   }
   const rolesFinales = new Set([...plan.usuarios.map(u => u.rol), ...[...existente.usuarios.values()].filter(u => u.faena.toUpperCase() === faenaObjetivo.toUpperCase()).map(u => u.rol)])

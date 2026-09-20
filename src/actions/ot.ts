@@ -298,7 +298,7 @@ export async function cambiarEstadoOT(
     await tx.historialEstadoOT.create({
       data: { otId, faenaId: ot.faenaId, estadoAnterior: ot.estado, estadoNuevo: nuevoEstado, usuarioId: sesion.userId, observacion, tiempoEnEstadoMin: minutos },
     })
-    if (terminaDetencion) await tx.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
+    // El equipo sigue detenido hasta la validación técnica y la liberación operacional (liberarEquipo).
     return true
   })
 
@@ -357,6 +357,11 @@ export async function validarTecnicamente(otId: string) {
 
   const ot = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId }, select: { faenaId: true, estado: true } })
   requireAlcanceFaena(sesion, ot.faenaId)
+  // El Jefe de Taller Central valida solo cuando la faena no tiene Jefe de Taller local.
+  if (sesion.rol === 'JEFE_TALLER_CENTRAL') {
+    const jefeLocal = await prisma.usuario.count({ where: { faenaId: ot.faenaId, rol: 'JEFE_TALLER', activo: true } })
+    if (jefeLocal > 0) throw new ErrorAutorizacion('Sin permisos: la faena tiene Jefe de Taller local; él valida técnicamente')
+  }
   if (ot.estado !== 'EN_VALIDACION') throw new Error('La OT debe estar en validación técnica')
 
   await prisma.ordenTrabajo.update({

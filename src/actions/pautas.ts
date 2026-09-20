@@ -5,7 +5,9 @@ import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { hayOTPreventivaActiva } from '@/lib/mantenimiento-guard'
 import { requireSesion, requireAlcanceFaena, requireRolPermitido, ErrorAutorizacion } from '@/lib/authz'
-import { ROLES_BITACORA, ROLES_CREAR_PLAN } from '@/lib/permisos-roles'
+import { ROLES_APROBAR_PAUTA, ROLES_BITACORA, ROLES_CREAR_PLAN, ROLES_PROPONER_PAUTA } from '@/lib/permisos-roles'
+import { auditar } from '@/lib/authz'
+import type { CategoriaItemPM, TipoMetricaPM } from '@prisma/client'
 
 export type EstadoPM = 'VENCIDA' | 'PROXIMA' | 'OT_ACTIVA' | 'OK'
 
@@ -105,7 +107,7 @@ export async function getPautasDisponibles() {
   const session = await auth()
   if (!session?.user?.faenaId) return []
   return prisma.pautaMantenimiento.findMany({
-    where: { faenaId: session.user.faenaId, activo: true },
+    where: { faenaId: session.user.faenaId, activo: true, estadoAprobacion: 'APROBADA' },
     select: { id: true, nombre: true, tipoMetrica: true, ciclosDisponibles: true, codigosInternos: true },
     orderBy: { nombre: 'asc' },
   })
@@ -115,6 +117,11 @@ export async function vincularPautaEquipo(equipoId: string, pautaId: string | nu
   requireRolPermitido(await requireSesion(), ROLES_CREAR_PLAN)
   const session = await auth()
   if (!session?.user?.faenaId) throw new Error('Sin sesión')
+  // Solo se vincula una pauta APROBADA y vigente de la misma faena.
+  if (pautaId) {
+    const pauta = await prisma.pautaMantenimiento.findFirst({ where: { id: pautaId, faenaId: session.user.faenaId, activo: true, estadoAprobacion: 'APROBADA' }, select: { id: true } })
+    if (!pauta) throw new Error('La pauta no está aprobada, no está vigente o pertenece a otra faena')
+  }
   await prisma.equipo.update({
     where: { id: equipoId, faenaId: session.user.faenaId },
     data: { pautaId },
@@ -208,10 +215,11 @@ export async function programarPM(data: {
     throw new Error('Este equipo ya tiene una OT preventiva abierta (por plan o por pauta) — evita duplicados')
   }
 
-  const unidad = await prisma.pautaMantenimiento.findUnique({
-    where: { id: data.pautaId },
+  const unidad = await prisma.pautaMantenimiento.findFirst({
+    where: { id: data.pautaId, faenaId: session.user.faenaId, estadoAprobacion: 'APROBADA' },
     select: { tipoMetrica: true },
   })
+  if (!unidad) throw new Error('La pauta no está aprobada o pertenece a otra faena')
 
   const ot = await prisma.ordenTrabajo.create({
     data: {
@@ -267,4 +275,66 @@ export async function marcarChecklistItem(
       completadoPor: sesion.userId,
     },
   })
+}
+
+// ── Versionado de pautas: una pauta nueva o modificada la propone la faena y la APRUEBA el Jefe de Taller Central ──
+// La versión anterior no se sobrescribe; las OT que ya existen conservan la pauta (versión) que las originó.
+type ItemNuevo = { componente: string; categoria: CategoriaItemPM; normativa?: string | null; alternativo?: string | null; cantidad?: number | null; unidad?: string | null; ciclosReemplazar?: number[]; ciclosCondicionar?: number[]; orden?: number }
+
+export async function proponerVersionPauta(pautaId: string, data: { motivo: string; nombre?: string; ciclosDisponibles?: number[]; items?: ItemNuevo[] }) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_PROPONER_PAUTA)
+  if (!data.motivo?.trim()) throw new Error('Debe indicar el motivo del cambio')
+  const base = await prisma.pautaMantenimiento.findUniqueOrThrow({ where: { id: pautaId }, include: { items: true } })
+  requireAlcanceFaena(sesion, base.faenaId)
+  if (base.estadoAprobacion !== 'APROBADA') throw new Error('Solo se modifica una pauta aprobada')
+  if (await prisma.pautaMantenimiento.findFirst({ where: { pautaAnteriorId: pautaId, estadoAprobacion: { in: ['PENDIENTE', 'APROBADA'] } } })) throw new Error('Esta pauta ya tiene una versión posterior o pendiente de aprobación')
+
+  const nueva = await prisma.pautaMantenimiento.create({
+    data: {
+      faenaId: base.faenaId, nombre: data.nombre ?? base.nombre, marcaModelo: base.marcaModelo, codigosInternos: base.codigosInternos, tipoMetrica: base.tipoMetrica,
+      ciclosDisponibles: data.ciclosDisponibles ?? base.ciclosDisponibles, activo: false, version: base.version + 1, estadoAprobacion: 'PENDIENTE', pautaAnteriorId: base.id, creadaPorId: sesion.userId, motivoCambio: data.motivo.trim(),
+      items: { create: (data.items ?? base.items.map(i => ({ componente: i.componente, categoria: i.categoria, normativa: i.normativa, alternativo: i.alternativo, cantidad: i.cantidad === null ? null : Number(i.cantidad), unidad: i.unidad, ciclosReemplazar: i.ciclosReemplazar, ciclosCondicionar: i.ciclosCondicionar, orden: i.orden }))).map(i => ({ ...i, orden: i.orden ?? 0 })) },
+    },
+  })
+  await auditar({ faenaId: base.faenaId, entidad: 'PautaMantenimiento', entidadId: nueva.id, accion: 'PROPONER_VERSION', usuarioId: sesion.userId, valorAnterior: { pautaId: base.id, version: base.version }, valorNuevo: { version: nueva.version }, motivo: data.motivo.trim() })
+  return nueva.id
+}
+
+export async function proponerPautaNueva(data: { nombre: string; marcaModelo: string; tipoMetrica: TipoMetricaPM; ciclosDisponibles: number[]; items: ItemNuevo[]; motivo: string }) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_PROPONER_PAUTA)
+  if (!data.motivo?.trim()) throw new Error('Debe indicar el motivo')
+  const nueva = await prisma.pautaMantenimiento.create({
+    data: { faenaId: sesion.faenaId, nombre: data.nombre, marcaModelo: data.marcaModelo, tipoMetrica: data.tipoMetrica, ciclosDisponibles: data.ciclosDisponibles, activo: false, estadoAprobacion: 'PENDIENTE', creadaPorId: sesion.userId, motivoCambio: data.motivo.trim(), items: { create: data.items.map(i => ({ ...i, orden: i.orden ?? 0 })) } },
+  })
+  await auditar({ faenaId: sesion.faenaId, entidad: 'PautaMantenimiento', entidadId: nueva.id, accion: 'PROPONER_PAUTA', usuarioId: sesion.userId, motivo: data.motivo.trim() })
+  return nueva.id
+}
+
+export async function aprobarPauta(pautaId: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_APROBAR_PAUTA)
+  const pauta = await prisma.pautaMantenimiento.findUniqueOrThrow({ where: { id: pautaId } })
+  requireAlcanceFaena(sesion, pauta.faenaId)
+  if (pauta.creadaPorId === sesion.userId) throw new ErrorAutorizacion('Sin permisos: quien propuso la pauta no puede aprobarla')
+  await prisma.$transaction(async (tx) => {
+    const c = await tx.pautaMantenimiento.updateMany({ where: { id: pautaId, estadoAprobacion: 'PENDIENTE' }, data: { estadoAprobacion: 'APROBADA', activo: true, aprobadaPorId: sesion.userId, fechaAprobacion: new Date() } })
+    if (c.count === 0) throw new Error('La pauta ya fue resuelta')
+    // La versión anterior deja de ofrecerse, pero se conserva (y las OT que la usan siguen apuntando a ella).
+    if (pauta.pautaAnteriorId) await tx.pautaMantenimiento.update({ where: { id: pauta.pautaAnteriorId }, data: { activo: false } })
+  })
+  await auditar({ faenaId: pauta.faenaId, entidad: 'PautaMantenimiento', entidadId: pautaId, accion: 'APROBAR_PAUTA', usuarioId: sesion.userId, valorNuevo: { version: pauta.version } })
+  revalidatePath('/mantenimiento')
+}
+
+export async function rechazarPauta(pautaId: string, motivo: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_APROBAR_PAUTA)
+  if (!motivo?.trim()) throw new Error('Debe indicar el motivo del rechazo')
+  const pauta = await prisma.pautaMantenimiento.findUniqueOrThrow({ where: { id: pautaId } })
+  requireAlcanceFaena(sesion, pauta.faenaId)
+  const c = await prisma.pautaMantenimiento.updateMany({ where: { id: pautaId, estadoAprobacion: 'PENDIENTE' }, data: { estadoAprobacion: 'RECHAZADA', aprobadaPorId: sesion.userId, fechaAprobacion: new Date() } })
+  if (c.count === 0) throw new Error('La pauta ya fue resuelta')
+  await auditar({ faenaId: pauta.faenaId, entidad: 'PautaMantenimiento', entidadId: pautaId, accion: 'RECHAZAR_PAUTA', usuarioId: sesion.userId, motivo: motivo.trim() })
 }

@@ -11,7 +11,8 @@ const ROLES_CREAR_SR: Rol[] = [...ROLES_BITACORA, 'BODEGA']
 const ROLES_GESTIONAR_SR: Rol[] = [...ROLES_GESTION_OT, 'BODEGA', 'COMPRAS']
 import { salidaStockFIFO } from '@/lib/stock'
 import { puedeTransicionarSR } from '@/lib/maquina-sr'
-import { requiereAprobacionCentral, validarRegularizacion } from '@/lib/compra-directa'
+import { LIMITE_COMPRA_DIRECTA_FAENA, requiereAprobacionCentral, validarRegularizacion } from '@/lib/compra-directa'
+import { ROLES_APROBAR_COMPRA_CENTRAL, ROLES_COMPRAR, ROLES_REGULARIZAR_COMPRA } from '@/lib/permisos-roles'
 import { encolarCorreo } from '@/lib/correo'
 
 export async function crearSR(otId: string, data: {
@@ -191,7 +192,7 @@ async function montoEstimadoSR(srId: string): Promise<number> {
 
 export async function marcarCompraDirecta(srId: string, motivo: string) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  requireRolPermitido(sesion, ROLES_COMPRAR)
   if (!motivo?.trim()) throw new Error('Debe justificar la compra directa')
 
   const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
@@ -213,26 +214,45 @@ export async function marcarCompraDirecta(srId: string, motivo: string) {
   revalidatePath('/solicitudes-repuesto')
 }
 
-// Sobre el límite de faena, la compra directa necesita la aprobación del nivel central antes de regularizarse.
-export async function aprobarCompraDirectaCentral(srId: string, montoAprobado?: number) {
+// Desde el límite de faena ($250.000 total final, IVA incluido) la compra necesita aprobación del Jefe de Taller
+// Central: primero la faena la SOLICITA (con el monto), luego el Jefe Central la aprueba o no.
+export async function solicitarAprobacionCompra(srId: string, monto: number) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'])
+  requireRolPermitido(sesion, ROLES_COMPRAR)
 
   const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
   requireAlcanceFaena(sesion, sr.faenaId)
   if (!sr.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
+  if (!(monto > 0) || !Number.isFinite(monto)) throw new Error('El monto no es válido')
+  if (!requiereAprobacionCentral(monto)) throw new Error(`Una compra menor a $${LIMITE_COMPRA_DIRECTA_FAENA.toLocaleString('es-CL')} (IVA incluido) se realiza en la faena sin aprobación`)
+  if (sr.aprobacionSolicitadaAt) return // idempotente
+
+  const r = await prisma.solicitudRepuesto.updateMany({ where: { id: srId, aprobacionSolicitadaAt: null }, data: { aprobacionSolicitadaAt: new Date(), aprobacionSolicitadaPorId: sesion.userId, montoSolicitado: monto } })
+  if (r.count === 0) return
+  await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'SOLICITAR_APROBACION_COMPRA', usuarioId: sesion.userId, valorNuevo: { monto } })
+  revalidatePath('/solicitudes-repuesto')
+}
+
+// Aprueba EXCLUSIVAMENTE compras desde el límite (el Jefe de Taller Central; el ADMINISTRADOR único también).
+export async function aprobarCompraDirectaCentral(srId: string) {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, ROLES_APROBAR_COMPRA_CENTRAL)
+
+  const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
+  requireAlcanceFaena(sesion, sr.faenaId)
+  if (!sr.esCompraDirecta) throw new Error('Esta solicitud no es una compra directa')
+  if (!sr.aprobacionSolicitadaAt || sr.montoSolicitado == null) throw new Error('La faena aún no solicitó la aprobación de esta compra')
+  if (!requiereAprobacionCentral(Number(sr.montoSolicitado))) throw new Error('El nivel central solo aprueba compras desde el límite de faena')
   if (sr.aprobadaCentralPorId) return // idempotente
-  const tope = montoAprobado ?? (await montoEstimadoSR(srId))
-  if (!(tope >= 0) || !Number.isFinite(tope)) throw new Error('El monto aprobado no es válido')
 
   // La aprobación fija el monto tope: no vale para cualquier monto posterior.
   const r = await prisma.solicitudRepuesto.updateMany({
     where: { id: srId, aprobadaCentralPorId: null },
-    data: { aprobadaCentralPorId: sesion.userId, fechaAprobacionCentral: new Date(), montoCompraDirecta: tope },
+    data: { aprobadaCentralPorId: sesion.userId, fechaAprobacionCentral: new Date(), montoCompraDirecta: sr.montoSolicitado },
   })
   if (r.count === 0) return
 
-  await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'APROBAR_COMPRA_DIRECTA_CENTRAL', usuarioId: sesion.userId })
+  await auditar({ faenaId: sr.faenaId, entidad: 'SolicitudRepuesto', entidadId: srId, accion: 'APROBAR_COMPRA_DIRECTA_CENTRAL', usuarioId: sesion.userId, valorNuevo: { montoAprobado: Number(sr.montoSolicitado) } })
   revalidatePath('/solicitudes-repuesto')
 }
 
@@ -240,7 +260,7 @@ export async function aprobarCompraDirectaCentral(srId: string, montoAprobado?: 
 // Sobre el límite de faena requiere aprobación central. Idempotente: repetirla no cambia nada.
 export async function regularizarCompraDirecta(srId: string, datos: { cotizaciones: string[]; comprobante: string; motivo: string; monto: number }) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'COMPRAS'])
+  requireRolPermitido(sesion, ROLES_REGULARIZAR_COMPRA)
 
   const sr = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srId } })
   requireAlcanceFaena(sesion, sr.faenaId)
@@ -322,4 +342,24 @@ export async function getSRsPendientes() {
     },
     orderBy: [{ urgente: 'desc' }, { createdAt: 'asc' }],
   })
+}
+
+// Bandeja de compras directas para la interfaz: la faena ve las suyas; los roles centrales, las de todas las faenas.
+export async function getComprasDirectas() {
+  const sesion = await requireSesion()
+  requireRolPermitido(sesion, [...new Set([...ROLES_COMPRAR, ...ROLES_REGULARIZAR_COMPRA, ...ROLES_APROBAR_COMPRA_CENTRAL, 'PLANIFICADOR_CENTRAL' as const])])
+  const central = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'].includes(sesion.rol)
+  const srs = await prisma.solicitudRepuesto.findMany({
+    where: { ...(central ? {} : { faenaId: sesion.faenaId }), OR: [{ esCompraDirecta: true }, { estado: { in: ['ENVIADA', 'EN_BODEGA_CENTRAL', 'EN_ADQUISICIONES', 'ESPERANDO_LLEGADA'] } }] },
+    include: { items: { select: { descripcion: true, cantidad: true, unidad: true, precioEstimado: true } }, ot: { select: { numeroOt: true, equipo: { select: { codigo: true } } } }, faena: { select: { codigo: true } } },
+    orderBy: [{ esCompraDirecta: 'desc' }, { createdAt: 'desc' }], take: 200,
+  })
+  return srs.map(s => ({
+    id: s.id, numeroSr: s.numeroSr, estado: s.estado, faena: s.faena.codigo, ot: s.ot.numeroOt, equipo: s.ot.equipo.codigo,
+    items: s.items.map(i => `${Number(i.cantidad)} ${i.unidad} ${i.descripcion}`).join(' · '),
+    montoEstimado: s.items.reduce((a, i) => a + Number(i.cantidad) * Number(i.precioEstimado ?? 0), 0),
+    esCompraDirecta: s.esCompraDirecta, motivoCompraDirecta: s.motivoCompraDirecta,
+    aprobacionSolicitada: !!s.aprobacionSolicitadaAt, montoSolicitado: s.montoSolicitado == null ? null : Number(s.montoSolicitado),
+    aprobadaCentral: !!s.aprobadaCentralPorId, regularizada: s.regularizada, comprobante: s.comprobanteRegularizacion, montoFinal: s.montoCompraDirecta == null ? null : Number(s.montoCompraDirecta),
+  }))
 }

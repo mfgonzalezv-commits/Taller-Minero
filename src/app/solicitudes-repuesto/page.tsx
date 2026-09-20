@@ -20,7 +20,7 @@ export default async function SolicitudesRepuestoPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
 
   const srs = await prisma.solicitudRepuesto.findMany({
     where: { faenaId: faena?.id },

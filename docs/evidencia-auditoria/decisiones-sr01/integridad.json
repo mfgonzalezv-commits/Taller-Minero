@@ -1,0 +1,247 @@
+[
+  {
+    "paso": "Entrega simultánea de la misma solicitud: solo una pasa",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras la entrega: stock = suma de lotes (15)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Costo del repuesto = costo FIFO real ($10.000 x 5)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Un solo movimiento de salida y consumos que suman 5",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entrega mayor al stock se rechaza",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Rollback: la solicitud sigue AUTORIZADA y el stock intacto",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Dos salidas de 10 con stock 15: una pasa, la otra falla, sin negativos",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Entrega directa (agregarRepuesto) usa FIFO",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras la entrega directa: stock = lotes (3)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Eliminar repuesto devuelve stock como lote",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras la devolución: stock = lotes (5)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ajuste de inventario a 12 (solicita el Planificador, aprueba el Jefe Central)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras el ajuste: stock = lotes (12)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Ajuste de inventario a 4",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Tras el ajuste a la baja: stock = lotes (4)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Doble clic al mismo estado: un solo historial y ninguna falla",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "DIAGNOSTICADO → EN_REPARACION",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "EN_REPARACION → ABIERTA bloqueado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "EN_REPARACION → CERRADA bloqueado (sin validación)",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Bitácora que propone CERRADA se rechaza con mensaje",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La bitácora no cerró la OT",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "EN_REPARACION → EN_VALIDACION",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Cierre sin validación técnica bloqueado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador no valida técnicamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe valida técnicamente",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador hace el cierre administrativo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "CERRADA → ABIERTA por cambiarEstadoOT bloqueado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Reabrir sin motivo bloqueado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico no reabre",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Planificador no reabre",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe reabre con motivo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Reapertura: OT ABIERTA, sin cierre ni validación, equipo DETENIDO y auditoría",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Reabrir dos veces bloqueado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Lectura normal 1005",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Lectura menor bloqueada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Salto anómalo queda pendiente y NO cambia el horómetro del equipo",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador no ve ni confirma pendientes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Operador no confirma",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Mecánico no confirma",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Jefe ve lecturas pendientes",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Confirmación doble: una sola pasa y el horómetro queda en 5000",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Corrección sin motivo bloqueada",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Corrección con motivo por Jefe",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "La corrección deja el horómetro en 1500 y conserva la lectura original",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Central prepara Estado de Pago SIM-02",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Aprobación doble simultánea: solo una pasa",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Aprobar de nuevo bloqueado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "Rechazar un EP aprobado bloqueado",
+    "ok": true,
+    "detalle": "ok"
+  },
+  {
+    "paso": "El EP sigue APROBADO",
+    "ok": true,
+    "detalle": "ok"
+  }
+]

@@ -21,7 +21,11 @@ import { crearEquipo, actualizarEstadoEquipo } from '../src/actions/equipos'
 import { agregarManoObra } from '../src/actions/manoObra'
 import { aprobarEstadoPago } from '../src/actions/estadoPago'
 import { crearInspeccion, generarOTDesdeAlerta } from '../src/actions/inspeccion'
-import { cambiarEstadoSR, regularizarCompraDirecta, aprobarCompraDirectaCentral, marcarCompraDirecta } from '../src/actions/sr'
+import { cambiarEstadoSR, regularizarCompraDirecta, aprobarCompraDirectaCentral, marcarCompraDirecta, solicitarAprobacionCompra } from '../src/actions/sr'
+import { anularEstadoPago, reemplazarEstadoPago } from '../src/actions/estadoPago'
+import { solicitarAjusteStock, aprobarAjusteStock } from '../src/actions/bodega'
+import { liberarEquipo } from '../src/actions/equipos'
+import { proponerVersionPauta, aprobarPauta } from '../src/actions/pautas'
 
 const ID = '00000000-0000-4000-8000-000000000000'
 const TODOS = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR', 'MECANICO', 'BODEGA', 'COMPRAS', 'GERENCIA', 'OPERADOR']
@@ -53,9 +57,17 @@ const casos: { accion: string; permitidos: string[]; llamar: () => Promise<unkno
   { accion: 'crearInspeccion', permitidos: [...GESTION, 'MECANICO', 'OPERADOR'], llamar: () => crearInspeccion({ equipoId: ID, plantillaId: ID, turno: 'MAÑANA', resultados: [] }) },
   { accion: 'generarOTDesdeAlerta', permitidos: GESTION, llamar: () => generarOTDesdeAlerta(ID) },
   { accion: 'cambiarEstadoSR', permitidos: [...GESTION, 'BODEGA', 'COMPRAS'], llamar: () => cambiarEstadoSR(ID, 'ENTREGADA') },
-  { accion: 'marcarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'], llamar: () => marcarCompraDirecta(ID, 'x') },
-  { accion: 'regularizarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'COMPRAS'], llamar: () => regularizarCompraDirecta(ID, { cotizaciones: ['c'], comprobante: 'f', motivo: 'm', monto: 1 }) },
+  { accion: 'marcarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => marcarCompraDirecta(ID, 'x') },
+  { accion: 'regularizarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR', 'COMPRAS'], llamar: () => regularizarCompraDirecta(ID, { cotizaciones: ['c'], comprobante: 'f', motivo: 'm', monto: 1 }) },
   { accion: 'aprobarCompraDirectaCentral', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'], llamar: () => aprobarCompraDirectaCentral(ID) },
+  { accion: 'solicitarAprobacionCompra', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => solicitarAprobacionCompra(ID, 300000) },
+  { accion: 'anularEstadoPago (solo Gerencia)', permitidos: ['GERENCIA'], llamar: () => anularEstadoPago(ID, 'x') },
+  { accion: 'reemplazarEstadoPago', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'], llamar: () => reemplazarEstadoPago(ID) },
+  { accion: 'solicitarAjusteStock', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'BODEGA'], llamar: () => solicitarAjusteStock({ itemId: ID, cantidadNueva: 1, motivo: 'inventario' }) },
+  { accion: 'aprobarAjusteStock (solo Jefe Central)', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'], llamar: () => aprobarAjusteStock(ID) },
+  { accion: 'liberarEquipo', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => liberarEquipo(ID, 'x') },
+  { accion: 'proponerVersionPauta', permitidos: [...GESTION], llamar: () => proponerVersionPauta(ID, { motivo: 'x' }) },
+  { accion: 'aprobarPauta (solo Jefe Central)', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'], llamar: () => aprobarPauta(ID) },
   { accion: 'crearUsuario', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'], llamar: () => crearUsuario({ nombre: 'x', email: 'x@x.cl', password: 'x', rol: 'ADMINISTRADOR' }) },
 ]
 

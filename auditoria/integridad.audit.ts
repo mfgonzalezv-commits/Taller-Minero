@@ -6,7 +6,7 @@ import path from 'path'
 import { prisma } from '../src/lib/prisma'
 import { como, sesionDe, SALIDA } from './helpers'
 import { solicitarRepuesto, autorizarSolicitud, entregarSolicitud, eliminarRepuesto, agregarRepuesto } from '../src/actions/repuestos'
-import { registrarMovimiento } from '../src/actions/bodega'
+import { registrarMovimiento, solicitarAjusteStock, aprobarAjusteStock } from '../src/actions/bodega'
 import { cambiarEstadoOT, validarTecnicamente, reabrirOT, agregarBitacora } from '../src/actions/ot'
 import { registrarHorometro, confirmarLecturaHorometro, getLecturasPendientes, corregirLecturaHorometro } from '../src/actions/horometro'
 import { aprobarEstadoPago, rechazarEstadoPago, prepararEstadoPago } from '../src/actions/estadoPago'
@@ -79,10 +79,12 @@ describe('integridad SIM-02', () => {
     await exito('Eliminar repuesto devuelve stock como lote', jefe, () => eliminarRepuesto(dir.id, ot.id))
     e = await estadoBodega()
     chequear('Tras la devolución: stock = lotes (5)', e.stock === 5 && e.lotes === 5, JSON.stringify(e))
-    await exito('Ajuste de inventario a 12', bod, () => registrarMovimiento({ itemId: item.id, tipo: 'AJUSTE', cantidad: 12 }))
+    const plan2 = await sesionDe('plan2@sim2.local'), centralJ = await sesionDe('jefecentral@sim.local')
+    const ajustar = async (n: number) => { como(plan2); const id = await solicitarAjusteStock({ itemId: item.id, cantidadNueva: n, motivo: 'Inventario' }); como(centralJ); await aprobarAjusteStock(id) }
+    await exito('Ajuste de inventario a 12 (solicita el Planificador, aprueba el Jefe Central)', bod, () => ajustar(12))
     e = await estadoBodega()
     chequear('Tras el ajuste: stock = lotes (12)', e.stock === 12 && e.lotes === 12, JSON.stringify(e))
-    await exito('Ajuste de inventario a 4', bod, () => registrarMovimiento({ itemId: item.id, tipo: 'AJUSTE', cantidad: 4 }))
+    await exito('Ajuste de inventario a 4', bod, () => ajustar(4))
     e = await estadoBodega()
     chequear('Tras el ajuste a la baja: stock = lotes (4)', e.stock === 4 && e.lotes === 4, JSON.stringify(e))
 

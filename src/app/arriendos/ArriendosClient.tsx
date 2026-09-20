@@ -7,6 +7,8 @@ import {
   prepararEstadoPago,
   aprobarEstadoPago,
   rechazarEstadoPago,
+  anularEstadoPago,
+  reemplazarEstadoPago,
   agregarAjusteManual,
 } from '@/actions/estadoPago'
 
@@ -133,6 +135,13 @@ export default function ArriendosClient({ rolUsuario, faenaId }: { rolUsuario: s
                   <button onClick={() => accion(() => aprobarEstadoPago(ep.id))} disabled={isPending} className="n-btn-primary text-xs px-3 py-1.5">Aprobar</button>
                   <button onClick={() => accion(() => rechazarEstadoPago(ep.id, 'Rechazado por Gerencia'))} disabled={isPending} className="n-btn-ghost text-xs px-3 py-1.5">Rechazar</button>
                 </>
+              )}
+              {/* Aprobado = inmutable: solo Gerencia lo anula (con motivo). Rechazado/anulado = se reemplaza con una versión nueva vinculada. */}
+              {ep.estado === 'APROBADO' && rolUsuario === 'GERENCIA' && (
+                <button onClick={() => { const m = prompt('Motivo de la anulación (obligatorio):'); if (m) accion(() => anularEstadoPago(ep.id, m)) }} disabled={isPending} className="n-btn-ghost text-xs px-3 py-1.5">Anular</button>
+              )}
+              {(ep.estado === 'RECHAZADO' || ep.estado === 'ANULADO') && ROLES_PREPARA.includes(rolUsuario) && (
+                <button onClick={() => accion(() => reemplazarEstadoPago(ep.id))} disabled={isPending} className="n-btn-primary text-xs px-3 py-1.5">Reemplazar (nueva versión)</button>
               )}
               {ep.estado === 'PREPARADO' && ROLES_PREPARA.includes(rolUsuario) && ep.lineas[0] && (
                 <button

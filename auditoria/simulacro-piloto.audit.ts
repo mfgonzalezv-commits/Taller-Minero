@@ -16,6 +16,7 @@ import { crearReporteFalla, validarDetencion, convertirReporteEnOT } from '../sr
 import { agregarBitacora, asignarTecnico, cambiarEstadoOT, crearOT, validarTecnicamente } from '../src/actions/ot'
 import { autorizarSolicitud, entregarSolicitud, solicitarRepuesto } from '../src/actions/repuestos'
 import { crearItem } from '../src/actions/bodega'
+import { liberarEquipo } from '../src/actions/equipos'
 import { registrarHorometro, confirmarLecturaHorometro, getLecturasPendientes } from '../src/actions/horometro'
 import { crearPlantilla, crearInspeccion, generarOTDesdeAlerta } from '../src/actions/inspeccion'
 import { crearSR, cambiarEstadoSR } from '../src/actions/sr'
@@ -167,10 +168,12 @@ describe('simulacro del piloto (PIL-01)', () => {
     await exito('Mecánico: DIAGNOSTICADO', S.mec1, () => cambiarEstadoOT(ot.id, 'DIAGNOSTICADO'))
     await exito('Jefe: EN_REPARACION', S.jefe, () => cambiarEstadoOT(ot.id, 'EN_REPARACION'))
     await exito('Mecánico: EN_VALIDACION (equipo vuelve a operar)', S.mec1, () => cambiarEstadoOT(ot.id, 'EN_VALIDACION'))
-    chequear('CAM-01 vuelve a OPERATIVO', (await eq('CAM-01')).estado === 'OPERATIVO')
+    chequear('CAM-01 sigue detenido hasta la liberación operacional', (await eq('CAM-01')).estado.startsWith('DETENIDO'))
     await espera('Cierre sin validación técnica se rechaza', S.plan, () => cambiarEstadoOT(ot.id, 'CERRADA'), /validación técnica/)
     await exito('Jefe valida técnicamente', S.jefe, () => validarTecnicamente(ot.id))
     await exito('Planificador cierra administrativamente', S.plan, () => cambiarEstadoOT(ot.id, 'CERRADA'))
+    await exito('Planificador libera el equipo (reparación validada)', S.plan, () => liberarEquipo(cam1.id))
+    chequear('CAM-01 vuelve a OPERATIVO', (await eq('CAM-01')).estado === 'OPERATIVO')
 
     // inspección → alerta → OT única
     await exito('Jefe crea plantilla de inspección de CAM-02', S.jefe, () => crearPlantilla({ equipoId: cam2.id, nombre: 'Inspección diaria CAM-02', items: [{ categoria: 'Frenos', descripcion: 'Freno de servicio', criticidadBase: 'CRITICO' as never, orden: 1 }] }))

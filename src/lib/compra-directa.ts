@@ -3,7 +3,8 @@
 // - Para REGULARIZARLA exige comprobante, motivo y al menos una cotización de respaldo.
 // - Sobre el límite de faena requiere aprobación central antes de regularizar.
 // El monto del límite es un valor inicial y queda parametrizable a futuro por faena.
-export const LIMITE_COMPRA_DIRECTA_FAENA = 500_000
+/** Total final, IVA incluido. Por debajo se compra en la faena; DESDE este monto requiere aprobación del Jefe de Taller Central. */
+export const LIMITE_COMPRA_DIRECTA_FAENA = 250_000
 
 export interface DatosRegularizacion {
   cotizaciones: string[]
@@ -22,5 +23,5 @@ export function validarRegularizacion(d: DatosRegularizacion): string | null {
 }
 
 export function requiereAprobacionCentral(monto: number, limite = LIMITE_COMPRA_DIRECTA_FAENA): boolean {
-  return monto > limite
+  return monto >= limite
 }

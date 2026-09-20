@@ -75,7 +75,7 @@ describe('flujo operativo SIM-02', () => {
     await paso('Cierre directo sin validación técnica bloqueado', jefe, () => cambiarEstadoOT(otId, 'CERRADA'), undefined, /Transición no permitida|validación técnica/)
         await paso('Pasar a EN_VALIDACION', jefe, () => cambiarEstadoOT(otId, 'EN_VALIDACION'), async () => {
       const e = await prisma.equipo.findUniqueOrThrow({ where: { id: eq.id } }); const o = await prisma.ordenTrabajo.findUniqueOrThrow({ where: { id: otId } })
-      return e.estado === 'OPERATIVO' && o.fechaTerminoTrabajo ? null : `equipo ${e.estado}, término técnico ${o.fechaTerminoTrabajo}`
+      return e.estado.startsWith('DETENIDO') && o.fechaTerminoTrabajo ? null : `equipo ${e.estado} (debe seguir detenido hasta la liberación), término técnico ${o.fechaTerminoTrabajo}`
     })
     await paso('Validar técnicamente', jefe, () => validarTecnicamente(otId))
     await paso('Cerrar OT', jefe, () => cambiarEstadoOT(otId, 'CERRADA'), async () => {

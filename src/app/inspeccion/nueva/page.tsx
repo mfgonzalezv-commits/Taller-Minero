@@ -11,7 +11,7 @@ export default async function NuevaInspeccionPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const [equipos, plantillas] = await Promise.all([
     prisma.equipo.findMany({
       where: { faenaId: faena?.id, activo: true },

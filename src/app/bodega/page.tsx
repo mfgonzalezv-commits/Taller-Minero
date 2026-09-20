@@ -5,13 +5,16 @@ import { prisma } from '@/lib/prisma'
 import BodegaClient from './BodegaClient'
 import NuevoItemForm from './NuevoItemForm'
 import SolicitudesPendientes from './SolicitudesPendientes'
+import AjustesStockPanel from './AjustesStockPanel'
+import { getAjustesStock } from '@/actions/bodega'
+import { ROLES_APROBAR_AJUSTE, ROLES_SOLICITAR_AJUSTE } from '@/lib/permisos-roles'
 import { ROLES_CREAR_ITEM_BODEGA, ROLES_GESTION_OT } from '@/lib/permisos-roles'
 
 export default async function BodegaPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const faena = await prisma.faena.findFirst()
+  const faena = await prisma.faena.findUnique({ where: { id: session.user?.faenaId ?? '' } })
   const rol = session.user?.rol as never
   const puedeEditar = ROLES_CREAR_ITEM_BODEGA.includes(rol)
   const tiposMovimiento: ('ENTRADA' | 'SALIDA' | 'AJUSTE')[] = ROLES_GESTION_OT.includes(rol) || rol === ('BODEGA' as never)
@@ -31,6 +34,9 @@ export default async function BodegaPage() {
       orderBy: { createdAt: 'asc' },
     }),
   ])
+
+  const veAjustes = [...ROLES_SOLICITAR_AJUSTE, ...ROLES_APROBAR_AJUSTE, 'PLANIFICADOR_CENTRAL'].includes(rol)
+  const ajustes = veAjustes ? await getAjustesStock() : []
 
   const bajoStock = items.filter(i => Number(i.stockActual) <= Number(i.stockMinimo)).length
   const pendientesBodega = solicitudes.filter(s => s.estadoSolicitud === 'AUTORIZADO').length
@@ -90,10 +96,11 @@ export default async function BodegaPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <BodegaClient items={items} puedeEditar={puedeEditar} tiposMovimiento={tiposMovimiento} />
+            <BodegaClient items={itemsSerial} puedeEditar={puedeEditar} tiposMovimiento={tiposMovimiento} />
           </div>
           <div>
             {puedeEditar && <NuevoItemForm />}
+            {veAjustes && <AjustesStockPanel ajustes={ajustes} puedeAprobar={ROLES_APROBAR_AJUSTE.includes(rol)} />}
           </div>
         </div>
       </div>

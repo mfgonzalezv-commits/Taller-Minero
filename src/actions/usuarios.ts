@@ -7,6 +7,7 @@ import { RolUsuario } from '@prisma/client'
 import { hash } from 'bcryptjs'
 import { requireSesion, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
 import { validarGestionUsuario } from '@/lib/permisos-roles'
+import { normalizarTurno, validarTurno } from '@/lib/turnos'
 
 export async function getUsuarios() {
   const session = await auth()
@@ -26,8 +27,13 @@ export async function crearUsuario(data: {
   rol: RolUsuario
   especialidades?: string[]
   turno?: string
+  /** Régimen de turnos (opcional): '7X7' | '14X14' y grupo 'A' | 'B'. `turno` sigue siendo la jornada Día/Noche. */
+  sistemaTurno?: string
+  grupoTurno?: string
 }) {
   const sesion = await requireSesion()
+  const errTurno = validarTurno(data)
+  if (errTurno) throw new Error(errTurno)
   const denegado = validarGestionUsuario({ actorId: sesion.userId, actorRol: sesion.rol, rolNuevo: data.rol })
   if (denegado) throw new ErrorAutorizacion(denegado)
   const session = { user: { faenaId: sesion.faenaId } }
@@ -41,6 +47,7 @@ export async function crearUsuario(data: {
       email: data.email,
       password: passwordHash,
       rol: data.rol,
+      ...normalizarTurno(data),
       ...(data.rol === 'MECANICO' && {
         tecnico: {
           create: {
@@ -74,8 +81,12 @@ export async function actualizarUsuario(id: string, data: {
   especialidades?: string[]
   turno?: string
   password?: string
+  sistemaTurno?: string | null
+  grupoTurno?: string | null
 }) {
   const sesion = await requireSesion()
+  const errTurno = validarTurno(data)
+  if (errTurno) throw new Error(errTurno)
 
   const objetivo = await prisma.usuario.findUniqueOrThrow({ where: { id }, select: { faenaId: true, rol: true } })
   requireAlcanceFaena(sesion, objetivo.faenaId)
@@ -86,6 +97,7 @@ export async function actualizarUsuario(id: string, data: {
     nombre: data.nombre,
     email: data.email,
     rol: data.rol,
+    ...(data.sistemaTurno !== undefined || data.grupoTurno !== undefined ? normalizarTurno(data) : {}),
   }
   if (data.password && data.password.length >= 6) {
     updateData.password = await hash(data.password, 10)

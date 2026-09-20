@@ -29,7 +29,7 @@ describe('compra directa', () => {
     expect(validarRegularizacion({ ...ok, monto: -1 })).toMatch(/monto/)
   })
   it('sobre el límite de faena requiere aprobación central', () => {
-    expect(requiereAprobacionCentral(LIMITE_COMPRA_DIRECTA_FAENA)).toBe(false)
-    expect(requiereAprobacionCentral(LIMITE_COMPRA_DIRECTA_FAENA + 1)).toBe(true)
+    expect(requiereAprobacionCentral(LIMITE_COMPRA_DIRECTA_FAENA - 1)).toBe(false)
+    expect(requiereAprobacionCentral(LIMITE_COMPRA_DIRECTA_FAENA)).toBe(true)
   })
 })
