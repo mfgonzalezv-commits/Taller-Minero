@@ -19,6 +19,11 @@ export interface OtDetencion {
   fechaTerminoTrabajo: Date | null
   /** Respaldo: una OT cerrada directamente (sin pasar por EN_VALIDACION) no tiene fechaTerminoTrabajo. */
   fechaCierre?: Date | null
+  /**
+   * Episodios de detención ya calculados (ver episodiosDetencionOT). Si vienen, reemplazan a la ventana simple
+   * [fechaCreacion, término técnico]: la detención termina en la LIBERACIÓN operacional y una reapertura abre otro episodio.
+   */
+  episodios?: { ini: Date; fin: Date | null }[]
 }
 
 export interface LecturaHorometro {
@@ -69,6 +74,7 @@ export function finDetencion(ot: OtDetencion): Date | null {
 export function otAfectaVentana(ot: OtDetencion, ctx: { equipoId: string; faenaId: string }, v: Ventana): boolean {
   if (ot.equipoId !== ctx.equipoId || ot.faenaId !== ctx.faenaId) return false
   if (ot.estado === 'ANULADA') return false
+  if (ot.episodios) return ot.episodios.some(e => e.ini.getTime() <= v.termino.getTime() && (e.fin === null || e.fin.getTime() >= v.inicio.getTime()))
   if (ot.fechaCreacion.getTime() > v.termino.getTime()) return false
   const fin = finDetencion(ot)
   return fin === null || fin.getTime() >= v.inicio.getTime()
@@ -76,9 +82,12 @@ export function otAfectaVentana(ot: OtDetencion, ctx: { equipoId: string; faenaI
 
 /** Minutos reales (únicos) de detención de un equipo dentro de la ventana efectiva. */
 export function minutosDetencionUnicos(ots: OtDetencion[], ctx: { equipoId: string; faenaId: string }, v: Ventana): number {
+  // Cada OT aporta uno o más episodios; los abiertos (sin liberación) llegan hasta el límite efectivo. Todo se une para no contar dos veces.
   const ventanas = ots
     .filter(o => otAfectaVentana(o, ctx, v))
-    .map(o => ({ ini: o.fechaCreacion, fin: finDetencion(o) ?? v.termino }))
+    .flatMap(o => o.episodios
+      ? o.episodios.map(e => ({ ini: e.ini, fin: e.fin ?? v.termino }))
+      : [{ ini: o.fechaCreacion, fin: finDetencion(o) ?? v.termino }])
   return minutosDetencionEnPeriodo(ventanas, v.inicio, v.termino)
 }
 
@@ -90,4 +99,42 @@ export function deltaHorometroEnVentana(lecturas: LecturaHorometro[], ctx: { equ
     .sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
   if (enVentana.length < 2) return 0
   return Math.max(0, enVentana[enVentana.length - 1].horometro! - enVentana[0].horometro!)
+}
+
+// ── Episodios de detención de una OT (hasta la LIBERACIÓN operacional) ───────────────────────────────────────
+export interface CambioEstadoOT { estadoAnterior: string | null; estadoNuevo: string; fechaCambio: Date }
+export interface OtParaEpisodios {
+  estado: string
+  fechaCreacion: Date
+  fechaTerminoTrabajo: Date | null
+  fechaCierre: Date | null
+  historial: CambioEstadoOT[]
+}
+
+/**
+ * Cada OT puede tener varios episodios: uno desde su creación y uno más por cada reapertura de una OT cerrada.
+ * Un episodio termina en la primera LIBERACIÓN del equipo posterior al término técnico (entrada a EN_VALIDACION o cierre),
+ * de modo que la espera de validación y el retrabajo antes de liberar SÍ cuentan como detención.
+ * - Sin liberación registrada: si esta OT es la última del equipo y el equipo sigue detenido, el episodio sigue abierto;
+ *   si no, termina en el término técnico (datos anteriores a la liberación operacional u OT sin efecto sobre el estado del equipo).
+ * - Una reapertura DESPUÉS de una liberación abre un episodio nuevo: el tiempo operando entre medio no se descuenta.
+ */
+export function episodiosDetencionOT(ot: OtParaEpisodios, liberaciones: Date[], opts: { equipoDetenidoActual: boolean; esUltimaOtDelEquipo: boolean }): { ini: Date; fin: Date | null }[] {
+  const hist = [...ot.historial].sort((a, b) => a.fechaCambio.getTime() - b.fechaCambio.getTime())
+  const libs = [...liberaciones].sort((a, b) => a.getTime() - b.getTime())
+  const inicios = [ot.fechaCreacion, ...hist.filter(h => h.estadoAnterior === 'CERRADA' && h.estadoNuevo !== 'CERRADA' && h.estadoNuevo !== 'ANULADA').map(h => h.fechaCambio)]
+  const out: { ini: Date; fin: Date | null }[] = []
+  inicios.forEach((ini, i) => {
+    const hasta = inicios[i + 1] ?? null
+    const ultimo = hasta === null
+    const dentro = (t: Date) => t.getTime() > ini.getTime() && (hasta === null || t.getTime() <= hasta.getTime())
+    let tecnico = hist.find(h => (h.estadoNuevo === 'EN_VALIDACION' || h.estadoNuevo === 'CERRADA') && dentro(h.fechaCambio))?.fechaCambio ?? null
+    if (!tecnico && ultimo && ['EN_VALIDACION', 'CERRADA'].includes(ot.estado)) tecnico = ot.fechaTerminoTrabajo ?? ot.fechaCierre
+    if (!tecnico) { out.push({ ini, fin: hasta }); return }
+    const lib = libs.find(l => l.getTime() >= tecnico!.getTime() && (hasta === null || l.getTime() <= hasta.getTime()))
+    if (lib) out.push({ ini, fin: lib })
+    else if (ultimo && opts.equipoDetenidoActual && opts.esUltimaOtDelEquipo) out.push({ ini, fin: null })
+    else out.push({ ini, fin: hasta && hasta.getTime() < tecnico.getTime() ? hasta : tecnico })
+  })
+  return out
 }

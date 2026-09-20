@@ -18,7 +18,7 @@ describe('integridad SIM-02', () => {
   afterAll(() => { fs.mkdirSync(SALIDA, { recursive: true }); fs.writeFileSync(path.join(SALIDA, 'integridad.json'), JSON.stringify(pasos, null, 2)) })
   it('ejecuta', async () => {
     const jefe = await sesionDe('jefe2@sim2.local'), mec = await sesionDe('mecanico2b@sim2.local'), bod = await sesionDe('bodega2@sim2.local'), op = await sesionDe('operador2@sim2.local')
-    const central = await sesionDe('plancentral@sim.local'), admin = await sesionDe('admin@sim.local')
+    const central = await sesionDe('plancentral@sim.local'), admin = await sesionDe('gerencia@sim.local')
     const faena = await prisma.faena.findUniqueOrThrow({ where: { codigo: 'SIM-02' } })
     const item = await prisma.itemBodega.findFirstOrThrow({ where: { faenaId: faena.id } })
     const ot = await prisma.ordenTrabajo.findFirstOrThrow({ where: { faenaId: faena.id } })

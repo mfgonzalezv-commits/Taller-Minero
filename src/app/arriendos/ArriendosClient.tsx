@@ -17,8 +17,9 @@ type EstadoPago = Awaited<ReturnType<typeof getEstadosPago>>[number]
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 
-const ROLES_PREPARA = ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL']
-const ROLES_APRUEBA = ['ADMINISTRADOR', 'GERENCIA']
+// Prepara el Planificador Central y el ADMINISTRADOR (cuenta única, función temporal); decide SOLO Gerencia.
+const ROLES_PREPARA = ['ADMINISTRADOR', 'PLANIFICADOR_CENTRAL']
+const ROLES_APRUEBA = ['GERENCIA']
 
 function exportarCSV(ep: EstadoPago) {
   const filas = [

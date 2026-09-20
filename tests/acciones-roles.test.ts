@@ -22,7 +22,7 @@ import { agregarManoObra } from '../src/actions/manoObra'
 import { aprobarEstadoPago } from '../src/actions/estadoPago'
 import { crearInspeccion, generarOTDesdeAlerta } from '../src/actions/inspeccion'
 import { cambiarEstadoSR, regularizarCompraDirecta, aprobarCompraDirectaCentral, marcarCompraDirecta, solicitarAprobacionCompra } from '../src/actions/sr'
-import { anularEstadoPago, reemplazarEstadoPago } from '../src/actions/estadoPago'
+import { anularEstadoPago, reemplazarEstadoPago, rechazarEstadoPago, prepararEstadoPago } from '../src/actions/estadoPago'
 import { solicitarAjusteStock, aprobarAjusteStock } from '../src/actions/bodega'
 import { liberarEquipo } from '../src/actions/equipos'
 import { proponerVersionPauta, aprobarPauta } from '../src/actions/pautas'
@@ -52,22 +52,24 @@ const casos: { accion: string; permitidos: string[]; llamar: () => Promise<unkno
   { accion: 'crearEquipo', permitidos: GESTION, llamar: () => crearEquipo({ codigo: 'x', nombre: 'x', tipo: 'MAQUINARIA' }) },
   { accion: 'actualizarEstadoEquipo', permitidos: GESTION, llamar: () => actualizarEstadoEquipo(ID, 'OPERATIVO') },
   { accion: 'agregarManoObra', permitidos: GESTION, llamar: () => agregarManoObra({ otId: ID, nombre: 'x', horasNormales: 1, horasExtra: 0, tarifaNormal: 1, tarifaExtra: 0 }) },
-  { accion: 'aprobarEstadoPago', permitidos: ['ADMINISTRADOR', 'GERENCIA'], llamar: () => aprobarEstadoPago(ID) },
+  { accion: 'aprobarEstadoPago (solo Gerencia)', permitidos: ['GERENCIA'], llamar: () => aprobarEstadoPago(ID) },
   { accion: 'cambiarEstadoOT', permitidos: [...GESTION, 'MECANICO'], llamar: () => cambiarEstadoOT(ID, 'DIAGNOSTICADO') },
   { accion: 'crearInspeccion', permitidos: [...GESTION, 'MECANICO', 'OPERADOR'], llamar: () => crearInspeccion({ equipoId: ID, plantillaId: ID, turno: 'MAÑANA', resultados: [] }) },
   { accion: 'generarOTDesdeAlerta', permitidos: GESTION, llamar: () => generarOTDesdeAlerta(ID) },
   { accion: 'cambiarEstadoSR', permitidos: [...GESTION, 'BODEGA', 'COMPRAS'], llamar: () => cambiarEstadoSR(ID, 'ENTREGADA') },
   { accion: 'marcarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => marcarCompraDirecta(ID, 'x') },
   { accion: 'regularizarCompraDirecta', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR', 'COMPRAS'], llamar: () => regularizarCompraDirecta(ID, { cotizaciones: ['c'], comprobante: 'f', motivo: 'm', monto: 1 }) },
-  { accion: 'aprobarCompraDirectaCentral', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'], llamar: () => aprobarCompraDirectaCentral(ID) },
+  { accion: 'aprobarCompraDirectaCentral (solo Jefe Central)', permitidos: ['JEFE_TALLER_CENTRAL'], llamar: () => aprobarCompraDirectaCentral(ID) },
   { accion: 'solicitarAprobacionCompra', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => solicitarAprobacionCompra(ID, 300000) },
+  { accion: 'rechazarEstadoPago (solo Gerencia)', permitidos: ['GERENCIA'], llamar: () => rechazarEstadoPago(ID, 'x') },
+  { accion: 'prepararEstadoPago (Planificador Central y ADMINISTRADOR)', permitidos: ['ADMINISTRADOR', 'PLANIFICADOR_CENTRAL'], llamar: () => prepararEstadoPago(ID) },
   { accion: 'anularEstadoPago (solo Gerencia)', permitidos: ['GERENCIA'], llamar: () => anularEstadoPago(ID, 'x') },
-  { accion: 'reemplazarEstadoPago', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'], llamar: () => reemplazarEstadoPago(ID) },
+  { accion: 'reemplazarEstadoPago', permitidos: ['ADMINISTRADOR', 'PLANIFICADOR_CENTRAL'], llamar: () => reemplazarEstadoPago(ID) },
   { accion: 'solicitarAjusteStock', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR', 'BODEGA'], llamar: () => solicitarAjusteStock({ itemId: ID, cantidadNueva: 1, motivo: 'inventario' }) },
-  { accion: 'aprobarAjusteStock (solo Jefe Central)', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'], llamar: () => aprobarAjusteStock(ID) },
-  { accion: 'liberarEquipo', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR'], llamar: () => liberarEquipo(ID, 'x') },
+  { accion: 'aprobarAjusteStock (solo Jefe Central)', permitidos: ['JEFE_TALLER_CENTRAL'], llamar: () => aprobarAjusteStock(ID) },
+  { accion: 'liberarEquipo (solo Jefe/Planificador)', permitidos: ['JEFE_TALLER', 'PLANIFICADOR'], llamar: () => liberarEquipo(ID, 'x') },
   { accion: 'proponerVersionPauta', permitidos: [...GESTION], llamar: () => proponerVersionPauta(ID, { motivo: 'x' }) },
-  { accion: 'aprobarPauta (solo Jefe Central)', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL'], llamar: () => aprobarPauta(ID) },
+  { accion: 'aprobarPauta (solo Jefe Central)', permitidos: ['JEFE_TALLER_CENTRAL'], llamar: () => aprobarPauta(ID) },
   { accion: 'crearUsuario', permitidos: ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'], llamar: () => crearUsuario({ nombre: 'x', email: 'x@x.cl', password: 'x', rol: 'ADMINISTRADOR' }) },
 ]
 
@@ -87,4 +89,18 @@ describe.each(casos)('$accion', ({ permitidos, llamar }) => {
       await expect(llamar()).rejects.not.toThrow(/Sin permisos para esta acción|Sin sesión/)
     })
   }
+})
+
+// Pruebas negativas explícitas: el ADMINISTRADOR (cuenta única) NO reemplaza a los aprobadores operacionales.
+describe('el ADMINISTRADOR no aprueba ni libera', () => {
+  const restringidas = casos.filter(c => /solo (Jefe Central|Gerencia|Jefe\/Planificador)/.test(c.accion))
+  it.each(restringidas.map(c => [c.accion, c] as const))('ADMINISTRADOR recibe "Sin permisos" en %s', async (_n, c) => {
+    sesion.current = { user: { id: ID, rol: 'ADMINISTRADOR', faenaId: ID } }
+    await expect(c.llamar()).rejects.toThrow(/Sin permisos/)
+  })
+  it('el Jefe de Taller Central no prepara ni reemplaza Estados de Pago', async () => {
+    sesion.current = { user: { id: ID, rol: 'JEFE_TALLER_CENTRAL', faenaId: ID } }
+    await expect(prepararEstadoPago(ID)).rejects.toThrow(/Sin permisos/)
+    await expect(reemplazarEstadoPago(ID)).rejects.toThrow(/Sin permisos/)
+  })
 })

@@ -45,7 +45,7 @@ export default function ComprasDirectasClient({ filas, puedeComprar, puedeRegula
         <h2 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--n-text-lt)' }}>Compras directas en curso ({enCurso.length})</h2>
         {enCurso.length === 0 && <p className="text-sm" style={{ color: 'var(--n-text-lt)' }}>No hay compras directas por regularizar.</p>}
         {enCurso.map(s => {
-          const necesitaAprob = monto >= LIMITE_COMPRA_DIRECTA_FAENA
+          const necesitaAprob = monto + s.otrasMismaNecesidad >= LIMITE_COMPRA_DIRECTA_FAENA
           return (
             <div key={s.id} className="py-3 border-t" style={{ borderColor: 'var(--n-border)' }}>
               <div className="flex items-start justify-between gap-3">
@@ -59,7 +59,7 @@ export default function ComprasDirectasClient({ filas, puedeComprar, puedeRegula
                   <input className="rounded px-2 py-1.5 text-sm" style={campo} placeholder="Comprobante (factura / boleta N°)" value={f.comprobante} onChange={e => setF({ ...f, comprobante: e.target.value })} />
                   <input className="rounded px-2 py-1.5 text-sm sm:col-span-2" style={campo} placeholder="Motivo de la regularización" value={f.motivo} onChange={e => setF({ ...f, motivo: e.target.value })} />
                   <textarea className="rounded px-2 py-1.5 text-sm sm:col-span-2" style={campo} rows={3} placeholder="Cotizaciones de respaldo (una por línea, al menos una)" value={f.cotizaciones} onChange={e => setF({ ...f, cotizaciones: e.target.value })} />
-                  {necesitaAprob && !s.aprobadaCentral && <p className="text-xs sm:col-span-2" style={{ color: '#fbbf24' }}>Desde {clp(LIMITE_COMPRA_DIRECTA_FAENA)} necesita la aprobación del Jefe de Taller Central antes de regularizar.</p>}
+                  {necesitaAprob && !s.aprobadaCentral && <p className="text-xs sm:col-span-2" style={{ color: '#fbbf24' }}>Desde {clp(LIMITE_COMPRA_DIRECTA_FAENA)} necesita la aprobación del Jefe de Taller Central antes de regularizar{s.otrasMismaNecesidad > 0 ? ` (sumando ${clp(s.otrasMismaNecesidad)} de otras compras de la misma OT en 24 h)` : ''}.</p>}
                   <div className="flex gap-2 sm:col-span-2">
                     {necesitaAprob && !s.aprobadaCentral && puedeComprar && <button disabled={pend || s.aprobacionSolicitada} className="n-btn-ghost text-xs px-3 py-1.5" onClick={() => correr(() => solicitarAprobacionCompra(s.id, monto))}>{s.aprobacionSolicitada ? 'Aprobación ya solicitada' : 'Solicitar aprobación central'}</button>}
                     <button disabled={pend || (necesitaAprob && !s.aprobadaCentral)} className="n-btn-primary text-xs px-3 py-1.5" onClick={() => correr(() => regularizarCompraDirecta(s.id, { monto, comprobante: f.comprobante, motivo: f.motivo, cotizaciones: cots() }))}>Regularizar compra</button>

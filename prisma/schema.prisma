@@ -1264,6 +1264,21 @@ model SolicitudAjusteStock {
   @@map("solicitudes_ajuste_stock")
 }
 
+// ─── Liberaciones operacionales: registro de TODOS los episodios (una detención puede liberarse y reabrirse varias veces) ──
+model LiberacionEquipo {
+  id            String   @id @default(uuid())
+  equipoId      String   @map("equipo_id")
+  faenaId       String   @map("faena_id")
+  liberadoAt    DateTime @default(now()) @map("liberado_at")
+  liberadoPorId String   @map("liberado_por_id")
+  motivo        String?
+  tipo          String   @default("LIBERACION") // LIBERACION | OPERAR_CON_OBSERVACION | DETENCION_DESCARTADA
+  otId          String?  @map("ot_id")
+
+  @@index([equipoId, liberadoAt])
+  @@map("liberaciones_equipo")
+}
+
 // ─── Notificaciones internas (correo/WhatsApp quedan para después) ─────────────────────────────────
 model Notificacion {
   id         String    @id @default(uuid())

@@ -157,16 +157,20 @@ export async function liberarEquipo(equipoId: string, motivo?: string) {
   if (!equipo) throw new ErrorAutorizacion('Sin permisos: el equipo no existe o pertenece a otra faena')
   if (equipo.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: el equipo pertenece a otra faena')
 
-  const ultima = await prisma.registroAuditoria.findFirst({ where: { entidad: 'Equipo', entidadId: equipoId, accion: 'LIBERAR' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } })
+  const ultima = await prisma.liberacionEquipo.findFirst({ where: { equipoId }, orderBy: { liberadoAt: 'desc' }, select: { liberadoAt: true } })
   const [enCurso, reparada] = await Promise.all([
     prisma.ordenTrabajo.count({ where: { equipoId, faenaId: equipo.faenaId, tipoMantenimiento: 'CORRECTIVO', estado: { in: [...EN_CURSO] } } }),
-    prisma.ordenTrabajo.findFirst({ where: { equipoId, faenaId: equipo.faenaId, estado: { in: ['EN_VALIDACION', 'CERRADA'] }, fechaTerminoTrabajo: { gt: ultima?.createdAt ?? new Date(0) } }, orderBy: { fechaTerminoTrabajo: 'desc' }, select: { fechaValidacionTecnica: true } }),
+    prisma.ordenTrabajo.findFirst({ where: { equipoId, faenaId: equipo.faenaId, estado: { in: ['EN_VALIDACION', 'CERRADA'] }, fechaTerminoTrabajo: { gt: ultima?.liberadoAt ?? new Date(0) } }, orderBy: { fechaTerminoTrabajo: 'desc' }, select: { id: true, fechaValidacionTecnica: true } }),
   ])
   const error = evaluarLiberacion({ estadoEquipo: equipo.estado, hayOtEnCurso: enCurso > 0, otReparada: reparada ? { validadaTecnicamente: !!reparada.fechaValidacionTecnica } : null, motivo })
   if (error) throw new Error(error)
 
-  const r = await prisma.equipo.updateMany({ where: { id: equipoId, estado: equipo.estado }, data: { estado: 'OPERATIVO' } })
-  if (r.count === 0) throw new Error('El equipo cambió de estado mientras se liberaba; recarga e intenta de nuevo')
+  // Estado del equipo + registro del episodio de liberación en una sola transacción (el cálculo de detención del Estado de Pago lo usa).
+  await prisma.$transaction(async (tx) => {
+    const r = await tx.equipo.updateMany({ where: { id: equipoId, estado: equipo.estado }, data: { estado: 'OPERATIVO' } })
+    if (r.count === 0) throw new Error('El equipo cambió de estado mientras se liberaba; recarga e intenta de nuevo')
+    await tx.liberacionEquipo.create({ data: { equipoId, faenaId: equipo.faenaId, liberadoPorId: sesion.userId, motivo: motivo?.trim() || null, tipo: 'LIBERACION', otId: reparada?.id ?? null } })
+  })
   await auditar({ faenaId: equipo.faenaId, entidad: 'Equipo', entidadId: equipoId, accion: 'LIBERAR', usuarioId: sesion.userId, valorAnterior: { estado: equipo.estado }, valorNuevo: { estado: 'OPERATIVO', conReparacion: !!reparada }, motivo: motivo?.trim() || null })
   revalidatePath('/equipos'); revalidatePath('/dashboard')
 }

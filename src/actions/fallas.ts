@@ -2,7 +2,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar } from '@/lib/authz'
+import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
+import { ROLES_LIBERAR_EQUIPO } from '@/lib/permisos-roles'
 import { PrioridadOT } from '@prisma/client'
 
 function sugerirPrioridad(riesgoSeguridad: boolean, impactoProductivo?: string): PrioridadOT {
@@ -81,10 +82,16 @@ export async function crearReporteFalla(data: {
 // desde la hora original del reporte (fecha del ReporteFalla), no desde ahora.
 export async function validarDetencion(reporteId: string, confirmar: boolean, motivo?: string) {
   const sesion = await requireSesion()
-  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER'])
+  requireRolPermitido(sesion, ['ADMINISTRADOR', 'JEFE_TALLER_CENTRAL', 'JEFE_TALLER', 'PLANIFICADOR'])
 
   const reporte = await prisma.reporteFalla.findUniqueOrThrow({ where: { id: reporteId } })
   requireAlcanceFaena(sesion, reporte.faenaId)
+  // Descartar la detención devuelve el equipo a operar: es una liberación (Jefe/Planificador de la misma faena, con motivo).
+  if (!confirmar) {
+    requireRolPermitido(sesion, ROLES_LIBERAR_EQUIPO)
+    if (reporte.faenaId !== sesion.faenaId) throw new ErrorAutorizacion('Sin permisos: el equipo pertenece a otra faena')
+    if (!motivo?.trim()) throw new Error('Debe indicar el motivo para descartar la detención')
+  }
 
   await prisma.$transaction([
     prisma.reporteFalla.update({
@@ -99,6 +106,7 @@ export async function validarDetencion(reporteId: string, confirmar: boolean, mo
       where: { id: reporte.equipoId },
       data: { estado: confirmar ? 'DETENIDO' : 'OPERATIVO' },
     }),
+    ...(confirmar ? [] : [prisma.liberacionEquipo.create({ data: { equipoId: reporte.equipoId, faenaId: reporte.faenaId, liberadoPorId: sesion.userId, motivo: motivo!.trim(), tipo: 'DETENCION_DESCARTADA' } })]),
   ])
 
   await auditar({

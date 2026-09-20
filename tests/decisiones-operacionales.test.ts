@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { admiteReemplazo, compararVersiones, puedeTransicionarEP, violaSeparacionDeFunciones } from '../src/lib/estado-pago-maquina'
-import { LIMITE_COMPRA_DIRECTA_FAENA, requiereAprobacionCentral } from '../src/lib/compra-directa'
+import { LIMITE_COMPRA_DIRECTA_FAENA, requiereAprobacionCentral, requiereAprobacionPorAcumulado, totalAcumulado } from '../src/lib/compra-directa'
 import { evaluarLiberacion } from '../src/lib/liberacion'
 import { validarTurno, normalizarTurno } from '../src/lib/turnos'
 import { calcularAlertas, localAUtc, minutosLaborales, REGLAS, type SnapshotAlertas } from '../src/lib/alertas'
@@ -15,6 +15,15 @@ describe('límite de compra: $250.000 total final, IVA incluido', () => {
   })
 })
 
+describe('fraccionamiento: se mide el total acumulado de la necesidad', () => {
+  it('varias compras bajo el límite que juntas lo alcanzan requieren aprobación', () => {
+    expect(totalAcumulado(100_000, [100_000, 50_000])).toBe(250_000)
+    expect(requiereAprobacionPorAcumulado(100_000, [100_000, 50_000])).toBe(true)
+    expect(requiereAprobacionPorAcumulado(100_000, [100_000, 49_999])).toBe(false)
+  })
+  it('compras independientes (sin otras en la misma necesidad) no se bloquean', () => { expect(requiereAprobacionPorAcumulado(249_999, [])).toBe(false) })
+})
+
 describe('matriz de permisos de las decisiones', () => {
   it('Planificador de faena: compra, mantención, liberación y ajustes solicitados', () => {
     for (const lista of [P.ROLES_COMPRAR, P.ROLES_REGULARIZAR_COMPRA, P.ROLES_CREAR_PLAN, P.ROLES_LIBERAR_EQUIPO, P.ROLES_SOLICITAR_AJUSTE, P.ROLES_PROPONER_PAUTA]) expect(lista).toContain('PLANIFICADOR')
@@ -25,14 +34,20 @@ describe('matriz de permisos de las decisiones', () => {
   it('Jefe Central aprueba compras, ajustes y pautas', () => {
     for (const lista of [P.ROLES_APROBAR_COMPRA_CENTRAL, P.ROLES_APROBAR_AJUSTE, P.ROLES_APROBAR_PAUTA]) expect(lista).toContain('JEFE_TALLER_CENTRAL')
   })
-  it('Liberar: solo Jefe/Planificador de faena (y el ADMINISTRADOR único); no los roles centrales ni operación', () => {
-    expect([...P.ROLES_LIBERAR_EQUIPO].sort()).toEqual(['ADMINISTRADOR', 'JEFE_TALLER', 'PLANIFICADOR'])
+  it('Liberar: SOLO Jefe/Planificador de la faena; ni el ADMINISTRADOR ni los roles centrales', () => {
+    expect([...P.ROLES_LIBERAR_EQUIPO].sort()).toEqual(['JEFE_TALLER', 'PLANIFICADOR'])
   })
-  it('Estados de Pago: preparan los centrales; deciden Gerencia y el ADMINISTRADOR; anula SOLO Gerencia', () => {
-    expect(P.ROLES_PREPARAR_EP).toContain('PLANIFICADOR_CENTRAL')
-    expect(P.ROLES_PREPARAR_EP).not.toContain('GERENCIA')
-    expect(P.ROLES_DECIDIR_EP).toContain('GERENCIA')
-    expect(P.ROLES_ANULAR_EP).toEqual(['GERENCIA'])
+  it('Aprobar ajustes, compras desde $250.000 y pautas: SOLO el Jefe de Taller Central', () => {
+    for (const lista of [P.ROLES_APROBAR_AJUSTE, P.ROLES_APROBAR_COMPRA_CENTRAL, P.ROLES_APROBAR_PAUTA]) expect([...lista]).toEqual(['JEFE_TALLER_CENTRAL'])
+  })
+  it('Estados de Pago: prepara el Planificador Central y el ADMINISTRADOR; decide y anula SOLO Gerencia; el Jefe Central no prepara', () => {
+    expect([...P.ROLES_PREPARAR_EP].sort()).toEqual(['ADMINISTRADOR', 'PLANIFICADOR_CENTRAL'])
+    expect([...P.ROLES_DECIDIR_EP]).toEqual(['GERENCIA'])
+    expect([...P.ROLES_ANULAR_EP]).toEqual(['GERENCIA'])
+    expect(P.ROLES_PREPARAR_EP).not.toContain('JEFE_TALLER_CENTRAL')
+  })
+  it('el ADMINISTRADOR no reemplaza a NINGÚN aprobador operacional', () => {
+    for (const lista of [P.ROLES_LIBERAR_EQUIPO, P.ROLES_APROBAR_AJUSTE, P.ROLES_APROBAR_COMPRA_CENTRAL, P.ROLES_APROBAR_PAUTA, P.ROLES_DECIDIR_EP, P.ROLES_ANULAR_EP]) expect(lista).not.toContain('ADMINISTRADOR')
   })
   it('no hay roles exclusivos de Bodega o Adquisiciones nuevos', () => { expect(P.ROLES_SOLICITAR_AJUSTE.filter(r => r === 'BODEGA').length).toBeLessThanOrEqual(1) })
 })
@@ -97,7 +112,7 @@ describe('turnos', () => {
 // ── Alertas y escalamiento ───────────────────────────────────────────────────────────────────────────
 // Referencia: miércoles 2026-09-16, 09:00 hora de Chile (UTC-3 en septiembre → 12:00 UTC).
 const chile = (d: number, h: number, m = 0) => new Date(localAUtc(2026, 9, d, h, m))
-const vacio = (ahora: Date): SnapshotAlertas => ({ ahora, hallazgosCriticos: [], otsCriticasSinResponsable: [], otsSinMovimiento: [], reparacionesPendientesValidacion: [], stockAgotado: [], comprasPendientes: [], preventivos: [], estadosPago: [] })
+const vacio = (ahora: Date): SnapshotAlertas => ({ ahora, hallazgosCriticos: [], otsCriticasSinResponsable: [], otsSinMovimiento: [], reparacionesPendientesValidacion: [], stockAgotado: [], comprasPendientes: [], faenasSinResponsable: [], comprasSospechosas: [], preventivos: [], estadosPago: [] })
 const ev = (desde: Date) => [{ id: 'X', faenaId: 'F1', desde, detalle: 'detalle' }]
 const claves = (s: SnapshotAlertas) => calcularAlertas(s).map(a => `${a.rolDestino}@${a.nivel}`)
 
@@ -106,11 +121,12 @@ describe('tiempo: continuo y horario laboral (Chile)', () => {
     expect(new Date(localAUtc(2026, 9, 16, 9)).toISOString()).toBe('2026-09-16T12:00:00.000Z') // septiembre: UTC-3
     expect(new Date(localAUtc(2026, 6, 16, 9)).toISOString()).toBe('2026-06-16T13:00:00.000Z') // junio: UTC-4
   })
-  it('minutos laborales: solo lunes a viernes 08:00–18:00', () => {
+  it('minutos laborales (San Ramón): todos los días, lunes a domingo, 08:00–18:00', () => {
     expect(minutosLaborales(chile(16, 9), chile(16, 11))).toBe(120)
     expect(minutosLaborales(chile(16, 17), chile(17, 9))).toBe(120) // 1 h del miércoles + 1 h del jueves
-    expect(minutosLaborales(chile(18, 17), chile(21, 9))).toBe(120) // viernes 17→18 y lunes 08→09; sábado y domingo no cuentan
-    expect(minutosLaborales(chile(19, 10), chile(20, 20))).toBe(0)   // sábado a domingo
+    expect(minutosLaborales(chile(18, 17), chile(21, 9))).toBe(60 + 600 + 600 + 60) // viernes 17→18, sábado y domingo completos, lunes 08→09
+    expect(minutosLaborales(chile(19, 10), chile(20, 20))).toBe(480 + 600)          // el fin de semana también cuenta
+    expect(minutosLaborales(chile(19, 20), chile(20, 6))).toBe(0)                    // de noche no cuenta
   })
 })
 
@@ -148,10 +164,48 @@ describe('escalamiento: OT normal sin movimiento (horario laboral)', () => {
     expect(claves({ ...vacio(chile(17, 10)), otsSinMovimiento: ev(d) })).toEqual(['PLANIFICADOR@0', 'JEFE_TALLER_CENTRAL@1'])
     expect(claves({ ...vacio(chile(18, 16)), otsSinMovimiento: ev(d) })).toEqual(['PLANIFICADOR@0', 'JEFE_TALLER_CENTRAL@1', 'PLANIFICADOR_CENTRAL@2'])
   })
-  it('una OT detenida el viernes en la tarde NO escala durante el fin de semana', () => {
-    const d = chile(18, 17) // viernes 17:00 (1 h laboral hasta las 18:00)
-    expect(claves({ ...vacio(chile(20, 12)), otsSinMovimiento: ev(d) })).toEqual([])
-    expect(claves({ ...vacio(chile(21, 12)), otsSinMovimiento: ev(d) })).toEqual(['PLANIFICADOR@0']) // lunes 12:00 = 1 + 4 h laborales
+  it('una OT detenida el viernes en la tarde SÍ escala durante el fin de semana (se trabaja todos los días)', () => {
+    const d = chile(18, 17) // viernes 17:00 (1 h hasta las 18:00)
+    expect(claves({ ...vacio(chile(19, 10)), otsSinMovimiento: ev(d) })).toEqual([])                 // 1 h + 2 h el sábado
+    expect(claves({ ...vacio(chile(19, 12)), otsSinMovimiento: ev(d) })).toEqual(['PLANIFICADOR@0']) // 1 h + 4 h
+  })
+  it('primer aviso al PLANIFICADOR de la faena (OT sin movimiento, OT crítica sin responsable y preventivo)', () => {
+    expect(REGLAS.ot_sin_movimiento.pasos[0].rol).toBe('PLANIFICADOR')
+    expect(REGLAS.ot_critica_sin_responsable.pasos[0].rol).toBe('PLANIFICADOR')
+    expect(calcularAlertas({ ...vacio(chile(16, 9)), preventivos: [{ id: 'P', faenaId: 'F', detalle: 'x', diasRestantes: 3, horasRestantes: null, episodio: 'c' }] })[0].rolDestino).toBe('PLANIFICADOR')
+  })
+})
+
+describe('episodios de alerta: no se duplican mientras el problema sigue y reaparecen si se resuelve y vuelve', () => {
+  const ep1 = chile(16, 9), ep2 = chile(17, 15)
+  it('el mismo episodio produce siempre las mismas claves (aunque pase el tiempo)', () => {
+    const a = calcularAlertas({ ...vacio(new Date(ep1.getTime() + 60_000)), hallazgosCriticos: ev(ep1) }), b = calcularAlertas({ ...vacio(new Date(ep1.getTime() + 500 * 60_000)), hallazgosCriticos: ev(ep1) })
+    expect(b.map(x => x.claveUnica).slice(0, a.length)).toEqual(a.map(x => x.claveUnica))
+  })
+  it('un problema que reaparece (nuevo inicio) genera claves NUEVAS aunque sea la misma entidad', () => {
+    const a = calcularAlertas({ ...vacio(new Date(ep1.getTime() + 60_000)), hallazgosCriticos: ev(ep1) }), b = calcularAlertas({ ...vacio(new Date(ep2.getTime() + 60_000)), hallazgosCriticos: ev(ep2) })
+    expect(a.every(x => !b.some(y => y.claveUnica === x.claveUnica))).toBe(true)
+    expect(b[0].nivel).toBe(0) // vuelve a empezar por el primer aviso
+  })
+  it('recordatorios y escalamientos siguen dentro del episodio vigente', () => {
+    const r = calcularAlertas({ ...vacio(new Date(ep1.getTime() + 121 * 60_000)), reparacionesPendientesValidacion: ev(ep1) })
+    expect(r.map(x => x.claveUnica.split(':').slice(-1)[0])).toEqual(['0', '1'])
+    expect(new Set(r.map(x => x.claveUnica.split(':')[2]))).toEqual(new Set([String(ep1.getTime())]))
+  })
+  it('un preventivo reprogramado (nuevo ciclo) genera una alerta nueva', () => {
+    const p = (episodio: string) => calcularAlertas({ ...vacio(chile(16, 9)), preventivos: [{ id: 'P', faenaId: 'F', detalle: 'x', diasRestantes: 3, horasRestantes: null, episodio }] })[0].claveUnica
+    expect(p('c1')).not.toBe(p('c2')); expect(p('c1')).toBe(p('c1'))
+  })
+})
+
+describe('faena sin responsable y compras fraccionadas', () => {
+  it('equipos detenidos sin Jefe ni Planificador: avisa de inmediato al Jefe Central y al Planificador Central', () => {
+    const r = calcularAlertas({ ...vacio(chile(16, 9)), faenasSinResponsable: [{ id: 'F1', faenaId: 'F1', desde: chile(16, 8), detalle: 'sin responsable' }] })
+    expect(r.map(a => a.rolDestino).sort()).toEqual(['JEFE_TALLER_CENTRAL', 'PLANIFICADOR_CENTRAL'])
+  })
+  it('varias compras directas de la misma OT en 24 h dejan una alerta de REVISIÓN al Jefe Central (no bloquea)', () => {
+    const r = calcularAlertas({ ...vacio(chile(16, 9)), comprasSospechosas: [{ id: 'OT1:1', faenaId: 'F1', desde: chile(16, 8), detalle: 'revisar' }] })
+    expect(r.map(a => a.rolDestino)).toEqual(['JEFE_TALLER_CENTRAL'])
   })
 })
 
@@ -188,7 +242,7 @@ describe('escalamiento: compra desde $250.000 pendiente (horario laboral)', () =
 })
 
 describe('preventivos', () => {
-  const p = (dias: number | null, horas: number | null) => ({ id: 'P1', faenaId: 'F1', detalle: 'CAM-01 PM 250h', diasRestantes: dias, horasRestantes: horas })
+  const p = (dias: number | null, horas: number | null) => ({ id: 'P1', faenaId: 'F1', detalle: 'CAM-01 PM 250h', diasRestantes: dias, horasRestantes: horas, episodio: 'ciclo-1' })
   it('próximo: 7 días o 50 horas antes (una vez)', () => {
     const ahora = chile(16, 9)
     expect(calcularAlertas({ ...vacio(ahora), preventivos: [p(8, 60)] })).toEqual([])

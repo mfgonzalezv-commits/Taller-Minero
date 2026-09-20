@@ -98,7 +98,7 @@ describe('decisiones operacionales (SIM-02)', () => {
     const idAj = await exito('Planificador solicita ajustar el stock a 18 (inventario)', S.plan, () => solicitarAjusteStock({ itemId: item.id, cantidadNueva: 18, motivo: 'Inventario físico: faltan 2' }))
     chequear('Solicitar no cambia el stock', (await stockLotes()).stock === s0.stock)
     await espera('Un segundo pedido sobre el mismo ítem se rechaza mientras hay uno pendiente', S.plan, () => solicitarAjusteStock({ itemId: item.id, cantidadNueva: 17, motivo: 'otro' }), /pendiente/)
-    await espera('Quien solicita no aprueba su propio ajuste', S.adm, async () => { const own = await prisma.solicitudAjusteStock.update({ where: { id: idAj as string }, data: { solicitadoPorId: S.adm.user.id } }); void own; await aprobarAjusteStock(idAj as string) }, /no puede aprobarlo/)
+    await espera('Quien solicita no aprueba su propio ajuste (defensa adicional)', S.central, async () => { await prisma.solicitudAjusteStock.update({ where: { id: idAj as string }, data: { solicitadoPorId: S.central.user.id } }); await aprobarAjusteStock(idAj as string) }, /no puede aprobarlo/)
     await prisma.solicitudAjusteStock.update({ where: { id: idAj as string }, data: { solicitadoPorId: S.plan.user.id } })
     await espera('El Jefe de Taller local NO aprueba ajustes', S.jefe, () => aprobarAjusteStock(idAj as string), /Sin permisos/)
     await espera('El Planificador Central NO aprueba ajustes', S.planC, () => aprobarAjusteStock(idAj as string), /Sin permisos/)
@@ -119,6 +119,7 @@ describe('decisiones operacionales (SIM-02)', () => {
     const rf = await prisma.reporteFalla.findFirstOrThrow({ where: { equipoId: eq1.id, descripcion: { contains: 'AUDIT decisiones' } } })
     await exito('Jefe valida la detención', S.jefe, () => validarDetencion(rf.id, true))
     await espera('Operador NO libera el equipo', S.op, () => liberarEquipo(eq1.id, 'x'), /Sin permisos/)
+    await espera('Descartar una detención tampoco lo puede hacer el ADMINISTRADOR', S.adm, () => validarDetencion(rf.id, false, 'x'), /Sin permisos/)
     await espera('El Jefe Central NO libera (es de la faena)', S.central, () => liberarEquipo(eq1.id, 'x'), /Sin permisos/)
     await espera('Jefe de OTRA faena NO libera', S.jefe1, () => liberarEquipo(eq1.id, 'x'), /Sin permisos|otra faena/)
     await espera('Hay una OT en curso: no se libera', S.plan, () => liberarEquipo(eq1.id, 'x'), /OT en reparación/)
@@ -151,6 +152,10 @@ describe('decisiones operacionales (SIM-02)', () => {
     await espera('APROBADO no se rechaza', S.ger, () => rechazarEstadoPago(ep.id, 'x'), /No se puede rechazar/)
     await espera('APROBADO no se reemplaza sin anularlo', S.planC, () => reemplazarEstadoPago(ep.id), /rechazado o anulado/)
     await espera('El ADMINISTRADOR NO anula', S.adm, () => anularEstadoPago(ep.id, 'x'), /Sin permisos/)
+    await espera('El ADMINISTRADOR NO aprueba (Estado de Pago)', S.adm, () => aprobarEstadoPago(ep.id), /Sin permisos/)
+    await espera('El ADMINISTRADOR NO aprueba ajustes de stock', S.adm, () => aprobarAjusteStock(idAj as string), /Sin permisos/)
+    await espera('El ADMINISTRADOR NO aprueba compras desde $250.000', S.adm, () => aprobarCompraDirectaCentral(c2.id), /Sin permisos/)
+    await espera('El ADMINISTRADOR NO libera equipos', S.adm, () => liberarEquipo(eq1.id, 'x'), /Sin permisos/)
     await espera('El Planificador Central NO anula', S.planC, () => anularEstadoPago(ep.id, 'x'), /Sin permisos/)
     await espera('Anular exige motivo', S.ger, () => anularEstadoPago(ep.id, ' '), /motivo/)
     const netoAntes = Number(ep.totalNeto)
@@ -167,8 +172,11 @@ describe('decisiones operacionales (SIM-02)', () => {
     chequear('La versión original se conserva intacta', (await prisma.estadoPago.findUniqueOrThrow({ where: { id: ep.id } })).estado === 'ANULADO')
     const vs = await exito('Se consultan todas las versiones', S.ger, () => getVersionesEstadoPago(ep.id))
     chequear('Se listan 2 versiones', vs?.length === 2)
-    await espera('Quien preparó la versión 2 no la aprueba/rechaza (ADMINISTRADOR = otro usuario, prepara y decide)', S.adm, async () => { await prisma.estadoPago.update({ where: { id: versiones[1].id }, data: { preparadoPorId: S.adm.user.id } }); await aprobarEstadoPago(versiones[1].id) }, /quien preparó/)
-    await espera('...ni rechazarla', S.adm, () => rechazarEstadoPago(versiones[1].id, 'x'), /quien preparó/)
+    await espera('El ADMINISTRADOR NO aprueba Estados de Pago', S.adm, () => aprobarEstadoPago(versiones[1].id), /Sin permisos/)
+    await espera('El ADMINISTRADOR NO rechaza Estados de Pago', S.adm, () => rechazarEstadoPago(versiones[1].id, 'x'), /Sin permisos/)
+    await espera('El Jefe Central NO prepara Estados de Pago', S.central, () => prepararEstadoPago(faena.id, '2026-08-19'), /Sin permisos/)
+    await espera('Separación preparador/aprobador (defensa adicional): Gerencia no decide lo que ella misma preparó', S.ger, async () => { await prisma.estadoPago.update({ where: { id: versiones[1].id }, data: { preparadoPorId: S.ger.user.id } }); await aprobarEstadoPago(versiones[1].id) }, /quien preparó/)
+    await prisma.estadoPago.update({ where: { id: versiones[1].id }, data: { preparadoPorId: S.planC.user.id } })
     await exito('Gerencia rechaza la versión 2 con motivo', S.ger, () => rechazarEstadoPago(versiones[1].id, 'Faltan descuentos'))
     await espera('RECHAZADO es inmutable: no se aprueba', S.ger, () => aprobarEstadoPago(versiones[1].id), /No se puede aprobar/)
     await exito('El rechazado se reemplaza (versión 3 vinculada)', S.planC, () => reemplazarEstadoPago(versiones[1].id))
@@ -179,6 +187,7 @@ describe('decisiones operacionales (SIM-02)', () => {
     const items = [{ componente: 'Filtro de aceite', categoria: 'FILTRO' as never, ciclosReemplazar: [250], orden: 1 }]
     const idP1 = await exito('Planificador propone una pauta nueva', S.plan, () => proponerPautaNueva({ nombre: 'AUDIT PM', marcaModelo: 'Marca X', tipoMetrica: 'HRS' as never, ciclosDisponibles: [250, 500], items, motivo: 'Pauta del fabricante' }))
     await espera('Una pauta pendiente no se vincula a un equipo', S.plan, () => vincularPautaEquipo(eq1.id, idP1 as string), /no está aprobada/)
+    await espera('El ADMINISTRADOR NO aprueba pautas', S.adm, () => aprobarPauta(idP1 as string), /Sin permisos/)
     await espera('El Planificador NO aprueba pautas', S.plan, () => aprobarPauta(idP1 as string), /Sin permisos/)
     await espera('El Jefe de Taller local NO aprueba pautas', S.jefe, () => aprobarPauta(idP1 as string), /Sin permisos/)
     await exito('El Jefe Central aprueba la pauta', S.central, () => aprobarPauta(idP1 as string))
@@ -238,9 +247,9 @@ describe('decisiones operacionales (SIM-02)', () => {
 
     // ── J. Correcciones de la revisión: separación en compras, tope, solicitud pendiente, ajuste vencido, concurrencia ──
     const c5 = await nuevaCompra('compra 260.000 (autoaprobación)', 260_000)
-    await exito('El ADMINISTRADOR marca la compra', S.adm, () => marcarCompraDirecta(c5.id, 'Emergencia'))
-    await exito('El ADMINISTRADOR solicita la aprobación', S.adm, () => solicitarAprobacionCompra(c5.id, 260_000))
-    await espera('Quien solicita la aprobación de una compra no la aprueba', S.adm, () => aprobarCompraDirectaCentral(c5.id), /no puede aprobarla/)
+    await exito('El Jefe Central marca la compra', S.central, () => marcarCompraDirecta(c5.id, 'Emergencia'))
+    await exito('El Jefe Central solicita la aprobación', S.central, () => solicitarAprobacionCompra(c5.id, 260_000))
+    await espera('Quien solicita la aprobación de una compra no la aprueba', S.central, () => aprobarCompraDirectaCentral(c5.id), /no puede aprobarla/)
     const c6 = await nuevaCompra('compra estimada 500.000', 500_000)
     await exito('Marca la compra estimada en 500.000', S.plan, () => marcarCompraDirecta(c6.id, 'Emergencia'))
     await exito('Solicita la aprobación declarando solo 250.000', S.plan, () => solicitarAprobacionCompra(c6.id, 250_000))
@@ -262,6 +271,65 @@ describe('decisiones operacionales (SIM-02)', () => {
     const sim = await Promise.allSettled([registrarMovimiento({ itemId: item.id, tipo: 'SALIDA', cantidad: 2 }), registrarMovimiento({ itemId: item.id, tipo: 'SALIDA', cantidad: 2 }), registrarMovimiento({ itemId: item.id, tipo: 'SALIDA', cantidad: 2 })])
     const desp = await stockLotes()
     chequear('Tres salidas simultáneas que caben: se descuentan las tres y stock = lotes (sin pérdida de actualización)', sim.every(x => x.status === 'fulfilled') && desp.stock === antes.stock - 6 && desp.lotes === desp.stock, JSON.stringify({ r: sim.map(x => x.status), antes, desp }))
+
+    // ── K. Fraccionamiento de compras, faena sin responsable, cron ────────────────────────────────────────────
+    await exito('Jefe crea otra OT para la prueba de fraccionamiento', S.jefe, () => crearOT({ equipoId: eq2.id, descripcionFalla: 'AUDIT fraccionamiento' }))
+    const otF = await prisma.ordenTrabajo.findFirstOrThrow({ where: { faenaId: faena.id, descripcionFalla: 'AUDIT fraccionamiento' } })
+    const srF = async (nombre: string) => { await exito(`SR ${nombre}`, S.jefe, () => crearSR(otF.id, { items: [{ descripcion: nombre, cantidad: 1, unidad: 'un' }], urgente: true })); return prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otF.id, items: { some: { descripcion: nombre } } } }) }
+    const fA = await srF('frac A'), fB = await srF('frac B'), fC = await srF('frac C')
+    await exito('Marca A', S.plan, () => marcarCompraDirecta(fA.id, 'Emergencia'))
+    await exito('Marca B', S.plan, () => marcarCompraDirecta(fB.id, 'Emergencia'))
+    chequear('Las compras de la misma OT en 24 h quedan auditadas como misma necesidad', (await auditorias(fB.id, 'COMPRAS_MISMA_NECESIDAD')) === 1)
+    await exito('Regulariza A por $150.000 (sola, bajo el límite)', S.plan, () => regularizarCompraDirecta(fA.id, datos(150_000)))
+    await espera('Regularizar B por $150.000 se bloquea: junto con A alcanza $300.000 (misma OT, 24 h)', S.plan, () => regularizarCompraDirecta(fB.id, datos(150_000)), /misma OT en 24 h/)
+    await exito('Se puede solicitar la aprobación central de B por el acumulado', S.plan, () => solicitarAprobacionCompra(fB.id, 150_000))
+    await exito('El Jefe Central aprueba la compra fraccionada', S.central, () => aprobarCompraDirectaCentral(fB.id))
+    await exito('Con la aprobación, B se regulariza', S.plan, () => regularizarCompraDirecta(fB.id, datos(150_000)))
+    await exito('Marca C (para la prueba de concurrencia)', S.plan, () => marcarCompraDirecta(fC.id, 'Emergencia'))
+    // concurrencia: dos compras nuevas de otra OT, sin precio estimado, que juntas alcanzan el límite
+    const otG = await prisma.ordenTrabajo.create({ data: { faenaId: faena.id, equipoId: eq1.id, tipoMantenimiento: 'CORRECTIVO', estado: 'ABIERTA', prioridad: 'MEDIA', descripcionFalla: 'AUDIT frac concurrencia', creadoPorId: S.jefe.user.id } })
+    const srG = async (n: string) => { await exito(`SR ${n}`, S.jefe, () => crearSR(otG.id, { items: [{ descripcion: n, cantidad: 1, unidad: 'un' }], urgente: true })); const x = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otG.id, items: { some: { descripcion: n } } } }); await exito(`Marca ${n}`, S.plan, () => marcarCompraDirecta(x.id, 'Emergencia')); return x }
+    const g1 = await srG('conc 1'), g2 = await srG('conc 2')
+    como(S.plan)
+    const conc = await Promise.allSettled([regularizarCompraDirecta(g1.id, datos(130_000)), regularizarCompraDirecta(g2.id, datos(130_000))])
+    const reg1 = await prisma.solicitudRepuesto.count({ where: { otId: otG.id, regularizada: true } })
+    chequear('Dos regularizaciones simultáneas de la misma necesidad ($260.000 en total): solo una pasa sin aprobación', conc.filter(x => x.status === 'fulfilled').length === 1 && reg1 === 1, JSON.stringify({ r: conc.map(x => x.status), reg1 }))
+    const otH = await prisma.ordenTrabajo.create({ data: { faenaId: faena.id, equipoId: eq1.id, tipoMantenimiento: 'CORRECTIVO', estado: 'ABIERTA', prioridad: 'MEDIA', descripcionFalla: 'AUDIT independiente', creadoPorId: S.jefe.user.id } })
+    await exito('SR de otra OT (compra independiente)', S.jefe, () => crearSR(otH.id, { items: [{ descripcion: 'independiente', cantidad: 1, unidad: 'un' }], urgente: true }))
+    const srI = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otH.id } })
+    await exito('Marca la compra independiente', S.plan, () => marcarCompraDirecta(srI.id, 'Emergencia'))
+    await exito('Una compra independiente (otra OT) de $200.000 NO se bloquea', S.plan, () => regularizarCompraDirecta(srI.id, datos(200_000)))
+    const viejo = await prisma.solicitudRepuesto.findFirstOrThrow({ where: { otId: otF.id, items: { some: { descripcion: 'frac C' } } } })
+    await prisma.solicitudRepuesto.update({ where: { id: viejo.id }, data: { createdAt: new Date(Date.now() - 3 * 86_400_000) } })
+    await exito('Fuera de las 24 h ya no es la misma necesidad: C por $100.000 se regulariza', S.plan, () => regularizarCompraDirecta(fC.id, datos(100_000)))
+
+    // faena sin Jefe ni Planificador: el equipo sigue detenido y se avisa al nivel central
+    await prisma.equipo.update({ where: { id: eq2.id }, data: { estado: 'DETENIDO' } })
+    await prisma.usuario.updateMany({ where: { faenaId: faena.id, rol: { in: ['JEFE_TALLER', 'PLANIFICADOR'] } }, data: { activo: false } })
+    await procesarAlertas(prisma, new Date())
+    const sinResp = await prisma.notificacion.findMany({ where: { tipo: 'faena_sin_responsable', entidadId: faena.id } })
+    chequear('Faena sin Jefe ni Planificador: aviso inmediato al Jefe Central y al Planificador Central', sinResp.map(n => n.rolDestino).sort().join() === 'JEFE_TALLER_CENTRAL,PLANIFICADOR_CENTRAL', JSON.stringify(sinResp.map(n => n.rolDestino)))
+    await espera('El ADMINISTRADOR no puede liberar el equipo de una faena sin responsable', S.adm, () => liberarEquipo(eq2.id, 'x'), /Sin permisos/)
+    await espera('Ni el Jefe Central', S.central, () => liberarEquipo(eq2.id, 'x'), /Sin permisos/)
+    chequear('El equipo permanece detenido', (await prisma.equipo.findUniqueOrThrow({ where: { id: eq2.id } })).estado === 'DETENIDO')
+    await prisma.usuario.updateMany({ where: { faenaId: faena.id, rol: { in: ['JEFE_TALLER', 'PLANIFICADOR'] } }, data: { activo: true } })
+    await prisma.equipo.update({ where: { id: eq2.id }, data: { estado: 'OPERATIVO' } })
+
+    // cron: el endpoint protegido y la ejecución repetida no duplica
+    const { POST } = await import('../src/app/api/alertas/procesar/route')
+    const secretoAnterior = process.env.ALERTAS_CRON_SECRET
+    delete process.env.ALERTAS_CRON_SECRET
+    chequear('Sin secreto configurado el endpoint está apagado (503)', (await POST(new Request('http://x/api/alertas/procesar', { method: 'POST' }))).status === 503)
+    process.env.ALERTAS_CRON_SECRET = 'prueba-secreto-'.padEnd(40, 'x')
+    chequear('Sin credencial: 401', (await POST(new Request('http://x/api/alertas/procesar', { method: 'POST' }))).status === 401)
+    chequear('Credencial incorrecta: 401', (await POST(new Request('http://x/api/alertas/procesar', { method: 'POST', headers: { authorization: 'Bearer incorrecto' } }))).status === 401)
+    const llamar = async () => (await (await POST(new Request('http://x/api/alertas/procesar', { method: 'POST', headers: { authorization: `Bearer ${process.env.ALERTAS_CRON_SECRET}` } }))).json()) as { generadas: number; nuevas: number }
+    await llamar()
+    const total1 = await prisma.notificacion.count()
+    const rr2 = await llamar(); const total2 = await prisma.notificacion.count()
+    const [c1x, c2x] = await Promise.all([llamar(), llamar()])
+    chequear('Ejecuciones repetidas y simultáneas del cron no duplican alertas', rr2.nuevas === 0 && c1x.nuevas + c2x.nuevas === 0 && total2 === total1 && (await prisma.notificacion.count()) === total1, JSON.stringify({ total1, total2, rr2 }))
+    if (secretoAnterior) process.env.ALERTAS_CRON_SECRET = secretoAnterior; else delete process.env.ALERTAS_CRON_SECRET
 
     // ── I. Aislamiento entre faenas ────────────────────────────────────────────────────────────────────
     await espera('Planificador de OTRA faena no solicita ajustes de este ítem', S.plan1, () => solicitarAjusteStock({ itemId: item.id, cantidadNueva: 1, motivo: 'x' }), /otra faena|Sin permisos/)

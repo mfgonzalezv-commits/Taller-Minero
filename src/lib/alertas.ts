@@ -4,9 +4,9 @@
 // muchas veces no duplica nada.
 //
 // Alertas críticas cuentan tiempo CONTINUO; las administrativas, solo HORARIO LABORAL
-// (supuesto inicial: lunes a viernes 08:00–18:00, hora de Chile; ajustable abajo).
+// (San Ramón: todos los días, lunes a domingo, 08:00–18:00, hora de Chile; ajustable abajo).
 export const ZONA_HORARIA = 'America/Santiago'
-export const HORARIO_LABORAL = { horaInicio: 8, horaFin: 18, dias: [1, 2, 3, 4, 5] } // 1 = lunes
+export const HORARIO_LABORAL = { horaInicio: 8, horaFin: 18, dias: [1, 2, 3, 4, 5, 6, 7] } // 1 = lunes … 7 = domingo
 
 export type RolDestino = 'PLANIFICADOR' | 'JEFE_TALLER_CENTRAL' | 'PLANIFICADOR_CENTRAL' | 'GERENCIA'
 type Modo = 'continuo' | 'laboral'
@@ -17,6 +17,8 @@ export const REGLAS: Record<string, { modo: Modo; titulo: string; pasos: Paso[] 
   ot_sin_movimiento: { modo: 'laboral', titulo: 'OT sin movimiento', pasos: [{ minutos: 4 * 60, rol: 'PLANIFICADOR' }, { minutos: 8 * 60, rol: 'JEFE_TALLER_CENTRAL' }, { minutos: 24 * 60, rol: 'PLANIFICADOR_CENTRAL' }] },
   reparacion_pendiente_validacion: { modo: 'continuo', titulo: 'Reparación pendiente de validación técnica', pasos: [{ minutos: 0, rol: 'JEFE_TALLER_CENTRAL' }, { minutos: 120, rol: 'JEFE_TALLER_CENTRAL', recordatorio: true }, { minutos: 240, rol: 'PLANIFICADOR_CENTRAL' }] },
   stock_critico_agotado: { modo: 'continuo', titulo: 'Stock crítico agotado', pasos: [{ minutos: 0, rol: 'PLANIFICADOR' }, { minutos: 60, rol: 'JEFE_TALLER_CENTRAL' }, { minutos: 240, rol: 'PLANIFICADOR_CENTRAL' }] },
+  faena_sin_responsable: { modo: 'continuo', titulo: 'Faena sin Jefe ni Planificador con equipos detenidos', pasos: [{ minutos: 0, rol: 'JEFE_TALLER_CENTRAL' }, { minutos: 0, rol: 'PLANIFICADOR_CENTRAL' }] },
+  compra_fraccionada_sospechosa: { modo: 'laboral', titulo: 'Revisar: varias compras directas de la misma OT en 24 h', pasos: [{ minutos: 0, rol: 'JEFE_TALLER_CENTRAL' }] },
   compra_pendiente_aprobacion: { modo: 'laboral', titulo: 'Compra pendiente de aprobación central', pasos: [{ minutos: 0, rol: 'JEFE_TALLER_CENTRAL' }, { minutos: 240, rol: 'JEFE_TALLER_CENTRAL', recordatorio: true }, { minutos: 480, rol: 'PLANIFICADOR_CENTRAL' }] },
 }
 
@@ -29,8 +31,12 @@ export interface SnapshotAlertas {
   reparacionesPendientesValidacion: Evento[]
   stockAgotado: Evento[]
   comprasPendientes: Evento[]
+  /** Faenas con equipos detenidos y sin Jefe de Taller ni Planificador activos (id = faenaId). */
+  faenasSinResponsable: Evento[]
+  /** OT con varias compras directas en 24 h (id = otId): coincidencia sospechosa de fraccionamiento, solo para revisión. */
+  comprasSospechosas: Evento[]
   /** Preventivos: restante en días u horas (negativo = vencido). */
-  preventivos: { id: string; faenaId: string; detalle: string; diasRestantes: number | null; horasRestantes: number | null }[]
+  preventivos: { id: string; faenaId: string; detalle: string; diasRestantes: number | null; horasRestantes: number | null; /** identifica el ciclo: cambia cuando el plan se ejecuta y se reprograma */ episodio: string }[]
   /** Un registro por faena activa para el Estado de Pago del periodo en curso. */
   estadosPago: { faenaId: string; faenaNombre: string; periodoTermino: Date; hayPreparado: boolean; hayAprobado: boolean }[]
 }
@@ -88,7 +94,8 @@ function escalar(tipo: string, e: Evento, ahora: Date, entidad: string): AlertaG
   const regla = REGLAS[tipo]
   const min = minutosTranscurridos(regla.modo, e.desde, ahora)
   return regla.pasos.flatMap((p, i) => min >= p.minutos ? [{
-    claveUnica: `${tipo}:${e.id}:${i}`, tipo, nivel: i, rolDestino: p.rol, faenaId: e.faenaId, entidad, entidadId: e.id,
+    // La clave incluye el INICIO del episodio: mientras el mismo problema sigue abierto no se duplica; si se resuelve y reaparece, es otro episodio.
+    claveUnica: `${tipo}:${e.id}:${e.desde.getTime()}:${i}`, tipo, nivel: i, rolDestino: p.rol, faenaId: e.faenaId, entidad, entidadId: e.id,
     titulo: `${p.recordatorio ? 'Recordatorio: ' : i > 0 ? 'Escalamiento: ' : ''}${regla.titulo}`,
     mensaje: `${e.detalle}${p.minutos ? ` — ${Math.floor(min)} min sin resolver` : ''}`,
   }] : [])
@@ -102,14 +109,16 @@ export function calcularAlertas(s: SnapshotAlertas): AlertaGenerada[] {
   for (const e of s.reparacionesPendientesValidacion) out.push(...escalar('reparacion_pendiente_validacion', e, s.ahora, 'OrdenTrabajo'))
   for (const e of s.stockAgotado) out.push(...escalar('stock_critico_agotado', e, s.ahora, 'ItemBodega'))
   for (const e of s.comprasPendientes) out.push(...escalar('compra_pendiente_aprobacion', e, s.ahora, 'SolicitudRepuesto'))
+  for (const e of s.faenasSinResponsable) out.push(...escalar('faena_sin_responsable', e, s.ahora, 'Faena'))
+  for (const e of s.comprasSospechosas) out.push(...escalar('compra_fraccionada_sospechosa', e, s.ahora, 'OrdenTrabajo'))
 
   // Preventivo: próximo (7 días o 50 horas antes, una vez) y vencido (una alerta por día).
   const hoy = fechaLocalChile(s.ahora.getTime()), claveDia = `${hoy.y}-${String(hoy.m).padStart(2, '0')}-${String(hoy.d).padStart(2, '0')}`
   for (const p of s.preventivos) {
     const vencido = (p.diasRestantes !== null && p.diasRestantes < 0) || (p.horasRestantes !== null && p.horasRestantes < 0)
     const proximo = !vencido && ((p.diasRestantes !== null && p.diasRestantes <= 7) || (p.horasRestantes !== null && p.horasRestantes <= 50))
-    if (vencido) out.push({ claveUnica: `preventivo_vencido:${p.id}:${claveDia}`, tipo: 'preventivo_vencido', nivel: 0, rolDestino: 'PLANIFICADOR', faenaId: p.faenaId, entidad: 'PlanMantenimiento', entidadId: p.id, titulo: 'Preventivo VENCIDO', mensaje: p.detalle })
-    else if (proximo) out.push({ claveUnica: `preventivo_proximo:${p.id}:0`, tipo: 'preventivo_proximo', nivel: 0, rolDestino: 'PLANIFICADOR', faenaId: p.faenaId, entidad: 'PlanMantenimiento', entidadId: p.id, titulo: 'Preventivo próximo', mensaje: p.detalle })
+    if (vencido) out.push({ claveUnica: `preventivo_vencido:${p.id}:${p.episodio}:${claveDia}`, tipo: 'preventivo_vencido', nivel: 0, rolDestino: 'PLANIFICADOR', faenaId: p.faenaId, entidad: 'PlanMantenimiento', entidadId: p.id, titulo: 'Preventivo VENCIDO', mensaje: p.detalle })
+    else if (proximo) out.push({ claveUnica: `preventivo_proximo:${p.id}:${p.episodio}:0`, tipo: 'preventivo_proximo', nivel: 0, rolDestino: 'PLANIFICADOR', faenaId: p.faenaId, entidad: 'PlanMantenimiento', entidadId: p.id, titulo: 'Preventivo próximo', mensaje: p.detalle })
   }
 
   // Estado de Pago: 3 días antes del 25, el día 25 (Planificador Central) y atraso (Gerencia). Fecha de Chile.

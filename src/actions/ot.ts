@@ -614,7 +614,7 @@ export async function anularOT(otId: string, motivo: string) {
     motivo: motivo.trim(),
   })
 
-  await prisma.equipo.update({ where: { id: ot.equipoId }, data: { estado: 'OPERATIVO' } })
+  // El equipo NO se libera solo al anular la OT: lo libera Jefe/Planificador de la faena (liberarEquipo).
 
   revalidatePath('/ot')
   revalidatePath('/dashboard')

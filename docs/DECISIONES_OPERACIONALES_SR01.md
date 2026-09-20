@@ -7,9 +7,9 @@ Faena: **SR-01 · Faena San Ramón** · Cía. Minera Minerales Copiapó · Chañ
 |---|---|
 | Planificador de faena (solo su faena) | consultar, recibir y entregar repuestos; hacer inventarios y **solicitar** ajustes de stock; comprar bajo $250.000 (IVA incl.) y **solicitar aprobación** desde $250.000; crear y programar mantenciones (reprogramar exige motivo); proponer pautas; **liberar operacionalmente** equipos |
 | Jefe de Taller Central | validar técnicamente si la faena no tiene Jefe local; aprobar **exclusivamente** compras desde $250.000, ajustes manuales de stock y pautas nuevas/modificadas |
-| Planificador Central | supervisión de todas las faenas, recibe escalamientos y **prepara** Estados de Pago |
-| Gerencia | aprueba, rechaza y **anula** Estados de Pago |
-| ADMINISTRADOR (cuenta única) | conserva sus permisos actuales; queda registrado como `preparadoPor` y no puede decidir sobre lo que preparó |
+| Planificador Central | supervisión de todas las faenas, recibe escalamientos y **prepara** Estados de Pago (el Jefe Central no prepara) |
+| Gerencia | **aprueba, rechaza y anula** Estados de Pago (solo ella) |
+| ADMINISTRADOR (cuenta única) | prepara Estados de Pago temporalmente (queda como `preparadoPor`); **no** aprueba, rechaza, anula, libera ni aprueba ajustes, compras o pautas |
 
 Sin usuarios exclusivos de Bodega o Adquisiciones. Matriz en `src/lib/permisos-roles.ts`.
 
@@ -25,7 +25,7 @@ Sin usuarios exclusivos de Bodega o Adquisiciones. Matriz en `src/lib/permisos-r
 El Operador inspecciona al inicio de cada turno; un hallazgo crítico detiene el equipo. Al terminar una reparación **el equipo sigue detenido**: valida técnicamente el Jefe (el Jefe Central solo si no hay Jefe local) y luego el Jefe/Planificador **de la misma faena** lo libera (`liberarEquipo`). Sin reparación se libera con motivo obligatorio. Todo queda auditado.
 
 ## Pautas
-Una pauta nueva o modificada se **versiona** (no se sobrescribe), queda pendiente y la aprueba el Jefe Central; solo las aprobadas se vinculan a equipos u OT. Las OT existentes conservan la versión que las originó.
+Una pauta nueva o modificada se **versiona** (no se sobrescribe), queda pendiente y la aprueba solo el Jefe Central; solo las aprobadas se vinculan a equipos u OT. Las OT existentes conservan la versión que las originó.
 
 ## Turnos
 `sistemaTurno` (7X7 | 14X14) y `grupoTurno` (A | B) en cada usuario, opcionales; la jornada Día/Noche sigue en el técnico. Sin cuentas compartidas. Columnas opcionales en `usuarios.csv` del importador.
@@ -48,3 +48,14 @@ Una pauta nueva o modificada se **versiona** (no se sobrescribe), queda pendient
 
 ## Migración `20260920000000_decisiones_operacionales`
 Solo agrega columnas nulables o con valor por defecto, dos tablas nuevas (`solicitudes_ajuste_stock`, `notificaciones`) y el valor `ANULADO` del enum. **Único cambio no puramente aditivo:** el índice único de `estados_pago` (faena, periodo) se **amplía** a (faena, periodo, versión) y se agrega el índice parcial de documento vigente; no se borra ni modifica ningún dato.
+
+## Decisiones finales (segunda ronda)
+- **Permisos definitivos:** liberar equipo, aprobar ajustes, compras desde $250.000 y pautas → solo Jefe/Planificador de la faena (liberar) o **solo Jefe Central**; aprobar, rechazar y anular Estados de Pago → **solo Gerencia**; preparar → Planificador Central y ADMINISTRADOR (cuenta única, función temporal). El Jefe Central **no** prepara. El ADMINISTRADOR no reemplaza a ningún aprobador operacional (probado). Descartar una detención (`validarDetencion` en falso), «operar con observación» y anular una OT ya no liberan equipos por otras vías: todo pasa por la liberación de Jefe/Planificador de la misma faena.
+- **Detención y Estado de Pago:** la detención termina cuando el equipo se **libera operacionalmente** (tabla `liberaciones_equipo`, un registro por episodio), no cuando el mecánico termina. Cuenta la espera de validación y el retrabajo; una reapertura tras liberar abre un episodio nuevo; las ventanas de OT simultáneas se unen; en modalidad HORA las horas quedan como información sin descuento adicional. Solo afecta a los Estados de Pago que se preparen desde ahora; no se recalculan documentos existentes.
+- **Horario administrativo de San Ramón:** todos los días, 08:00–18:00, America/Santiago. Lo crítico, en tiempo continuo.
+- **Primer aviso** de OT sin movimiento, OT crítica sin responsable y preventivo: Planificador de la faena.
+- **Fraccionamiento:** las compras directas de la **misma OT** creadas dentro de 24 h son la misma necesidad; el límite de $250.000 se mide sobre el total acumulado y bloquea la regularización hasta la aprobación central. Se deja auditoría y una alerta de revisión al Jefe Central; las regularizaciones de una misma OT se serializan (candado) para resistir la concurrencia. Las compras de otras OT o con más de 24 h de diferencia no se bloquean.
+- **Faena sin Jefe ni Planificador activos:** el equipo permanece detenido y se alerta de inmediato al Jefe Central y al Planificador Central.
+- **Episodios de alerta:** la clave incluye el inicio del problema; no se duplica mientras sigue abierto y reaparece como alerta nueva si se resuelve y vuelve.
+- **Cron:** cada 5 minutos con `railway.cron.json` + `scripts/llamar-alertas.mjs` (POST con `ALERTAS_CRON_SECRET`). El secreto ya está creado en la variable de Railway (sin desplegar). Pasos tras fusionar y desplegar: crear un servicio Railway desde este repositorio, en *Settings → Config as code* indicar `railway.cron.json`, y en *Variables* referenciar `ALERTAS_CRON_SECRET=${{Taller-Minero.ALERTAS_CRON_SECRET}}`.
+- **Migraciones y reversión:** ver `docs/PLAN_MIGRACION_SR01.md`.

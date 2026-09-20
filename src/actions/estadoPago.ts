@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { requireSesion, requireRolPermitido, requireAlcanceFaena, auditar, ErrorAutorizacion } from '@/lib/authz'
 import { calcularPeriodo } from '@/lib/periodo-pago'
 import { calcularLineaAsignacion, type LineaCalculada } from '@/lib/linea-estado-pago'
-import { ventanaEfectiva } from '@/lib/detencion-periodo'
+import { episodiosDetencionOT, ventanaEfectiva } from '@/lib/detencion-periodo'
 import { serializar } from '@/lib/serialize'
 import { admiteAjustes, admiteReemplazo, compararVersiones, puedeTransicionarEP, violaSeparacionDeFunciones, type EstadoEP } from '@/lib/estado-pago-maquina'
 import { ROLES_ANULAR_EP, ROLES_DECIDIR_EP, ROLES_PREPARAR_EP } from '@/lib/permisos-roles'
@@ -38,19 +38,13 @@ async function calcularLineasPeriodo(faenaId: string, inicio: Date, termino: Dat
     const modalidad = a.modalidadArriendo!
     const v = ventanaEfectiva(periodo, a)
 
-    // Solo datos del mismo equipo Y de la misma faena, dentro de la ventana
-    // efectiva (periodo ∩ vigencia de la asignación), sin OT anuladas.
-    const [ots, lecturas] = v
+    // Solo datos del mismo equipo Y de la misma faena. La detención de cada OT termina en la LIBERACIÓN operacional del equipo
+    // (no cuando el mecánico termina): incluye espera de validación y retrabajo, y una reapertura abre otro episodio.
+    const [ots, lecturas, liberaciones] = v
       ? await Promise.all([
           prisma.ordenTrabajo.findMany({
-            where: {
-              equipoId: a.equipoId,
-              faenaId,
-              estado: { not: 'ANULADA' },
-              fechaCreacion: { lte: v.termino },
-              OR: [{ fechaTerminoTrabajo: null }, { fechaTerminoTrabajo: { gte: v.inicio } }],
-            },
-            select: { equipoId: true, faenaId: true, estado: true, fechaCreacion: true, fechaTerminoTrabajo: true, fechaCierre: true },
+            where: { equipoId: a.equipoId, faenaId, estado: { not: 'ANULADA' }, fechaCreacion: { lte: v.termino } },
+            select: { id: true, equipoId: true, faenaId: true, estado: true, fechaCreacion: true, fechaTerminoTrabajo: true, fechaCierre: true, historial: { select: { estadoAnterior: true, estadoNuevo: true, fechaCambio: true } } },
           }),
           modalidad === 'HORA'
             ? prisma.horometroKm.findMany({
@@ -59,8 +53,15 @@ async function calcularLineasPeriodo(faenaId: string, inicio: Date, termino: Dat
                 select: { equipoId: true, faenaId: true, fechaRegistro: true, horometro: true },
               })
             : Promise.resolve([]),
+          prisma.liberacionEquipo.findMany({ where: { equipoId: a.equipoId }, select: { liberadoAt: true } }),
         ])
-      : [[], []]
+      : [[], [], []]
+    const ultimaOt = ots.reduce<Date | null>((m, o) => (m === null || o.fechaCreacion > m ? o.fechaCreacion : m), null)
+    const detenidoActual = ['DETENIDO', 'DETENIDO_PENDIENTE_VALIDACION'].includes(a.equipo.estado)
+    const otsDetencion = ots.map(o => ({
+      equipoId: o.equipoId, faenaId: o.faenaId, estado: o.estado, fechaCreacion: o.fechaCreacion, fechaTerminoTrabajo: o.fechaTerminoTrabajo, fechaCierre: o.fechaCierre,
+      episodios: episodiosDetencionOT(o, liberaciones.map(l => l.liberadoAt), { equipoDetenidoActual: detenidoActual, esUltimaOtDelEquipo: ultimaOt !== null && o.fechaCreacion.getTime() === ultimaOt.getTime() }),
+    }))
 
     lineas.push(
       calcularLineaAsignacion(
@@ -69,7 +70,7 @@ async function calcularLineasPeriodo(faenaId: string, inicio: Date, termino: Dat
           modalidad, tarifa: Number(a.tarifa), politicaProrateo: a.politicaProrateo, reglaDescuentoDetencion: a.reglaDescuentoDetencion,
         },
         periodo,
-        ots,
+        otsDetencion,
         lecturas.map(l => ({ equipoId: l.equipoId, faenaId: l.faenaId, fecha: l.fechaRegistro, horometro: l.horometro === null ? null : Number(l.horometro) })),
       )
     )

@@ -25,7 +25,7 @@
     "detalle": "ok"
   },
   {
-    "paso": "Administrador aprueba",
+    "paso": "Gerencia aprueba",
     "ok": true,
     "detalle": "ok"
   },
@@ -97,6 +97,6 @@
   {
     "paso": "Correos en cola de SIM-02 (no se envió ninguno)",
     "ok": true,
-    "detalle": "18"
+    "detalle": "22"
   }
 ]
