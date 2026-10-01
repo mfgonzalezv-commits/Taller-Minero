@@ -51,7 +51,7 @@ describe('atomicidad de la detención', () => {
     const ciclo = 250
     const rastros = async (id: string, desc: string) => {
       const ots = await prisma.ordenTrabajo.findMany({ where: { equipoId: id, descripcionFalla: desc }, select: { id: true } })
-      const ids = ots.map(o => o.id)
+      const ids = ots.map((o: { id: string }) => o.id)
       return { ots: ots.length, historial: await prisma.historialEstadoOT.count({ where: { otId: { in: ids } } }), checklist: await prisma.checklistItemOT.count({ where: { otId: { in: ids } } }), estado: await estado(id), episodios: (await episodios(id)).length }
     }
     const limpio = (r: Awaited<ReturnType<typeof rastros>>) => r.ots === 0 && r.historial === 0 && r.checklist === 0 && r.estado === 'OPERATIVO' && r.episodios === 0
@@ -88,10 +88,10 @@ describe('atomicidad de la detención', () => {
       const e = await nuevoEquipo(`AT-${est}`)
       como(jefe)
       await actualizarEstadoEquipo(e.id, est)
-      const abierto = (await episodios(e.id)).filter(x => x.fin === null).length === 1
+      const abierto = (await episodios(e.id)).filter((x: { fin: Date | null }) => x.fin === null).length === 1
       como(plan)
       const errL = await intentar(() => liberarEquipo(e.id, 'Prueba de liberación'))
-      const cerrado = (await episodios(e.id)).every(x => x.fin !== null) && (await estado(e.id)) === 'OPERATIVO'
+      const cerrado = (await episodios(e.id)).every((x: { fin: Date | null }) => x.fin !== null) && (await estado(e.id)) === 'OPERATIVO'
       chequear(`${est}: abre el episodio y la liberación operacional lo cierra`, abierto && !errL && cerrado, `${errL} abierto=${abierto}`)
     }
     chequear('La definición compartida cubre los 5 estados no operacionales', ESTADOS_NO_OPERACIONALES.length === 5)
