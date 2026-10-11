@@ -121,19 +121,20 @@ describe('atomicidad de la detención', () => {
     const central = await sesionDe('jefecentral@sim.local')
     como(central); await rechazarAprobacionCompra(srC.id, 'Corregir monto')
     como(plan)
-    const montos = [280_000, 350_000]
-    const res = await Promise.allSettled(montos.map(m => solicitarAprobacionCompra(srC.id, m, m)))
-    const ganadores = res.filter(r => r.status === 'fulfilled').length
+    const montos: number[] = [280_000, 350_000]
+    const res = await Promise.allSettled(montos.map((m: number) => solicitarAprobacionCompra(srC.id, m, m)))
+    const ganadores = res.filter((r: PromiseSettledResult<unknown>) => r.status === 'fulfilled').length
     const fin = await prisma.solicitudRepuesto.findUniqueOrThrow({ where: { id: srC.id } })
-    const audits = await prisma.registroAuditoria.findMany({ where: { entidadId: srC.id, accion: { in: ['CORREGIR_MONTO_ESTIMADO', 'SOLICITAR_APROBACION_COMPRA'] } }, orderBy: { createdAt: 'asc' } })
+    type RegistroAud = Awaited<ReturnType<typeof prisma.registroAuditoria.findMany>>[number]
+    const audits: RegistroAud[] = await prisma.registroAuditoria.findMany({ where: { entidadId: srC.id, accion: { in: ['CORREGIR_MONTO_ESTIMADO', 'SOLICITAR_APROBACION_COMPRA'] } }, orderBy: { createdAt: 'asc' } })
     const ganador = Number(fin.montoSolicitado)
-    const corr = audits.filter(a => a.accion === 'CORREGIR_MONTO_ESTIMADO' && (a.valorNuevo as { montoEstimadoCompra: number }).montoEstimadoCompra !== 300_000)
-    const solic = audits.filter(a => a.accion === 'SOLICITAR_APROBACION_COMPRA')
-    chequear('Reenvíos simultáneos: hay un único ganador', ganadores === 1 && montos.includes(ganador), JSON.stringify({ ganadores, ganador, res: res.map(r => r.status) }))
+    const corr = audits.filter((a: RegistroAud) => a.accion === 'CORREGIR_MONTO_ESTIMADO' && (a.valorNuevo as { montoEstimadoCompra: number }).montoEstimadoCompra !== 300_000)
+    const solic = audits.filter((a: RegistroAud) => a.accion === 'SOLICITAR_APROBACION_COMPRA')
+    chequear('Reenvíos simultáneos: hay un único ganador', ganadores === 1 && montos.includes(ganador), JSON.stringify({ ganadores, ganador, res: res.map((r: PromiseSettledResult<unknown>) => r.status) }))
     chequear('montoEstimadoCompra y montoSolicitado son del MISMO envío ganador', Number(fin.montoEstimadoCompra) === ganador, JSON.stringify({ est: Number(fin.montoEstimadoCompra), sol: ganador }))
-    chequear('Auditoría efectiva: solo la del ganador (una corrección y una solicitud, con su monto)', corr.length === 1 && (corr[0].valorNuevo as { montoEstimadoCompra: number }).montoEstimadoCompra === ganador && solic.filter(a => (a.valorNuevo as { topeSolicitado: number }).topeSolicitado === ganador).length === 1 && solic.length === 2, JSON.stringify({ corr: corr.length, solic: solic.length }))
+    chequear('Auditoría efectiva: solo la del ganador (una corrección y una solicitud, con su monto)', corr.length === 1 && (corr[0].valorNuevo as { montoEstimadoCompra: number }).montoEstimadoCompra === ganador && solic.filter((a: RegistroAud) => (a.valorNuevo as { topeSolicitado: number }).topeSolicitado === ganador).length === 1 && solic.length === 2, JSON.stringify({ corr: corr.length, solic: solic.length }))
 
-    const fallos = pasos.filter(p => !p.ok)
+    const fallos = pasos.filter((p: Paso) => !p.ok)
     expect(fallos, JSON.stringify(fallos, null, 1)).toEqual([])
   }, 240_000)
 })

@@ -1,0 +1,8 @@
+{
+  // tsconfig exclusivo para "next build": excluye los archivos de pruebas y auditoría.
+  // No tienen nada que ver con la app que se despliega, y su chequeo de tipos ya lo
+  // cubre el paso separado "npx tsc --noEmit" del CI (con el tsconfig.json normal).
+  // Evita que un error de tipos en un test bloquee el build de producción o del cron.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "auditoria", "tests", "scripts"]
+}
